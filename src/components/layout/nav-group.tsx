@@ -16,8 +16,8 @@ import {
   SidebarMenuSub,
   SidebarMenuSubButton,
   SidebarMenuSubItem,
-  useSidebar,
 } from '@/components/ui/sidebar'
+import { useSidebar } from '@/components/ui/use-sidebar'
 import { Badge } from '../ui/badge'
 import {
   DropdownMenu,
