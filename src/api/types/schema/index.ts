@@ -12,7 +12,9 @@ export type { OpenAPIConfig } from './core/OpenAPI';
 
 export type { ApiAgentDto } from './models/ApiAgentDto';
 export type { ApiBranchSummaryDto } from './models/ApiBranchSummaryDto';
+export type { ApiCheckpointDetailResponse } from './models/ApiCheckpointDetailResponse';
 export type { ApiCheckpointDto } from './models/ApiCheckpointDto';
+export type { ApiCheckpointSessionDetailDto } from './models/ApiCheckpointSessionDetailDto';
 export type { ApiCommitDto } from './models/ApiCommitDto';
 export type { ApiCommitRowDto } from './models/ApiCommitRowDto';
 export type { ApiErrorBody } from './models/ApiErrorBody';

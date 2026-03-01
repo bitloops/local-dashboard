@@ -1,10 +1,10 @@
 {
   "name": "local-dashboard",
   "private": true,
-  "version": "0.0.0",
+  "version": "0.0.1",
   "type": "module",
   "scripts": {
-    "open-api-codegen": "npx openapi-typescript-codegen --input ./swagger.json --output ./src/api/types/schema --name BitloopsCli --useOptions",
+    "open-api-codegen": "curl -o ./swagger.json http://127.0.0.1:5667/api/openapi.json && npx openapi-typescript-codegen --input ./swagger.json --output ./src/api/types/schema --name BitloopsCli --useOptions",
     "dev": "vite",
     "build": "tsc -b && vite build",
     "bundle": "pnpm build && rm -rf ~/.bitloops/dashboard/bundle && mv dist ~/.bitloops/dashboard/bundle ",

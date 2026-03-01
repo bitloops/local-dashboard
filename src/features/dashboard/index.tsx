@@ -3,11 +3,16 @@ import {
   BitloopsCli,
   type ApiAgentDto,
   type ApiBranchSummaryDto,
+  type ApiCheckpointDetailResponse,
   type ApiCommitRowDto,
   type ApiUserDto,
 } from '@/api/types/schema'
-import { DashboardView, type UserOption } from './dashboard-view'
-import { type CommitData } from './data/mock-commit-data'
+import {
+  DashboardView,
+  type CheckpointDetailLoadState,
+  type UserOption,
+} from './dashboard-view'
+import { type Checkpoint, type CommitData } from './data/mock-commit-data'
 
 const startOfDayIso = (date: Date): string => {
   const normalized = new Date(date)
@@ -157,6 +162,13 @@ export function Dashboard() {
   const [userOptions, setUserOptions] = useState<UserOption[]>([])
   const [agentOptions, setAgentOptions] = useState<string[]>([])
   const [rows, setRows] = useState<CommitData[]>([])
+  const [selectedCheckpoint, setSelectedCheckpoint] = useState<Checkpoint | null>(
+    null
+  )
+  const [checkpointDetail, setCheckpointDetail] =
+    useState<ApiCheckpointDetailResponse | null>(null)
+  const [checkpointDetailSource, setCheckpointDetailSource] =
+    useState<CheckpointDetailLoadState>('idle')
   const [dataSource, setDataSource] = useState<'loading' | 'api' | 'error'>(
     'loading'
   )
@@ -304,6 +316,45 @@ export function Dashboard() {
     }
   }, [cli, effectiveBranch, from, to, selectedAgent, selectedUser])
 
+  useEffect(() => {
+    let cancelled = false
+
+    if (!selectedCheckpoint) {
+      return () => {
+        cancelled = true
+      }
+    }
+
+    cli.default
+      .handleApiCheckpoint({
+        checkpointId: selectedCheckpoint.id,
+      })
+      .then((response) => {
+        if (cancelled) {
+          return
+        }
+
+        setCheckpointDetail(response)
+        setCheckpointDetailSource('api')
+      })
+      .catch((error: unknown) => {
+        if (cancelled) {
+          return
+        }
+
+        console.error(
+          `Failed to load checkpoint details for ${selectedCheckpoint.id}`,
+          error
+        )
+        setCheckpointDetail(null)
+        setCheckpointDetailSource('error')
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [cli, selectedCheckpoint])
+
   const onFromDateSelect = (date: Date | undefined) => {
     setFromDate(date)
 
@@ -328,6 +379,18 @@ export function Dashboard() {
     setToDate(undefined)
   }
 
+  const onCheckpointSelect = (checkpoint: Checkpoint) => {
+    setSelectedCheckpoint(checkpoint)
+    setCheckpointDetail(null)
+    setCheckpointDetailSource('loading')
+  }
+
+  const onCheckpointClose = () => {
+    setSelectedCheckpoint(null)
+    setCheckpointDetail(null)
+    setCheckpointDetailSource('idle')
+  }
+
   const visibleRows = effectiveBranch ? rows : []
   const visibleUserOptions = effectiveBranch ? userOptions : []
   const visibleAgentOptions = effectiveBranch ? agentOptions : []
@@ -349,12 +412,17 @@ export function Dashboard() {
       effectiveBranch={effectiveBranch}
       dataSource={visibleDataSource}
       optionsSource={optionsSource}
+      selectedCheckpoint={selectedCheckpoint}
+      checkpointDetail={checkpointDetail}
+      checkpointDetailSource={checkpointDetailSource}
       onBranchChange={setSelectedBranch}
       onUserChange={setSelectedUser}
       onAgentChange={setSelectedAgent}
       onFromDateChange={onFromDateSelect}
       onToDateChange={onToDateSelect}
       onClearFilters={clearFilters}
+      onCheckpointSelect={onCheckpointSelect}
+      onCheckpointClose={onCheckpointClose}
     />
   )
 }
