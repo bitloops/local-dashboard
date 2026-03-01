@@ -29,7 +29,7 @@ import {
   type CommitRow,
   commitColumns as columns,
 } from './sessions-columns'
-import { type Checkpoint } from './session-activity-chart'
+import { type Checkpoint } from '../data/mock-commit-data'
 
 const agentOptions = [
   { label: 'Claude Code', value: 'claude-code' },

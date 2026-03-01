@@ -2,7 +2,7 @@ import { type ColumnDef } from '@tanstack/react-table'
 import { Badge } from '@/components/ui/badge'
 import { DataTableColumnHeader } from '@/components/data-table'
 import { Bot, Sparkles, Terminal, MessageSquare, ChevronRight } from 'lucide-react'
-import { type Checkpoint } from './session-activity-chart'
+import { type Checkpoint } from '../data/mock-commit-data'
 
 export type CommitRow = {
   date: string

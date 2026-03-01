@@ -72,3 +72,47 @@ export default defineConfig([
 ])
 ```
 # local-dashboard
+
+## OpenAPI type generation
+
+The app generates OpenAPI types automatically before `dev` and `build`.
+
+- Primary schema URL: `https://bitloops.local:5667/api/openapi.json`
+- Fallback schema URL: `http://127.0.0.1:5667/api/openapi.json`
+- Generated file: `src/types/openapi.generated.d.ts`
+
+You can run generation manually:
+
+```bash
+pnpm run generate:api-types
+```
+
+Optional overrides:
+
+- `OPENAPI_PRIMARY_URL`
+- `OPENAPI_FALLBACK_URL`
+- `OPENAPI_TYPES_OUTPUT`
+
+## Dashboard API
+
+Dashboard API calls are done via the generated CLI client:
+
+- `src/api/types/schema/BitloopsCli.ts`
+
+Used endpoints:
+
+- `/api/commits`
+- `/api/branches`
+- `/api/users`
+- `/api/agents`
+
+There is no automatic mock fallback during runtime.
+Mock values are stored in:
+
+- `src/features/dashboard/data/mock-commit-data.ts`
+
+Optional overrides:
+
+- `VITE_BITLOOPS_CLI_BASE` (base URL used by `BitloopsCli`, default empty string / same origin)
+- `VITE_DASHBOARD_REQUEST_TIMEOUT_MS` (per-request timeout, default `2500`)
+- `VITE_API_PROXY_TARGET` (Vite `/api` proxy target, default `http://bitloops.local:5667`)
