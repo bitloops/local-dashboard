@@ -477,29 +477,35 @@ export function DashboardView({
                     </p>
                   </div>
 
+                  {selectedCheckpoint.commitMessage && (
+                    <>
+                      <Separator />
+                      <div>
+                        <h3 className='mb-2 text-sm font-semibold'>Commit Message</h3>
+                        <p className='rounded-md border bg-muted/30 p-3 text-sm'>
+                          {selectedCheckpoint.commitMessage}
+                        </p>
+                      </div>
+                    </>
+                  )}
+
                   <Separator />
 
                   <div>
-                    <h3 className='mb-2 text-sm font-semibold'>Metadata</h3>
-                    <DetailRow label='Created' value={selectedCheckpoint.timestamp} />
-                    {selectedCheckpointCreatedAt && (
-                      <DetailRow label='Created At' value={selectedCheckpointCreatedAt} />
+                    <h3 className='mb-2 text-sm font-semibold'>Files Touched</h3>
+                    {detailFilesTouched.length > 0 ? (
+                      <div className='flex flex-wrap gap-2'>
+                        {detailFilesTouched.map((filePath) => (
+                          <Badge key={filePath} variant='outline'>
+                            {filePath}
+                          </Badge>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className='text-sm text-muted-foreground'>
+                        No file information for this checkpoint.
+                      </p>
                     )}
-                    <DetailRow
-                      label='Session ID'
-                      value={selectedCheckpoint.sessionId ?? '-'}
-                    />
-                    <DetailRow label='Strategy' value={detailStrategy} />
-                    <DetailRow
-                      label='Tool Use ID'
-                      value={selectedCheckpoint.toolUseId ?? '-'}
-                    />
-                    <DetailRow label='Commit' value={selectedCheckpoint.commit ?? '-'} />
-                    <DetailRow label='Sessions' value={String(detailSessionCount)} />
-                    <DetailRow
-                      label='Checkpoints'
-                      value={String(detailCheckpointsCount)}
-                    />
                   </div>
 
                   {detailTokenUsage && (
@@ -531,35 +537,29 @@ export function DashboardView({
                     </>
                   )}
 
-                  {selectedCheckpoint.commitMessage && (
-                    <>
-                      <Separator />
-                      <div>
-                        <h3 className='mb-2 text-sm font-semibold'>Commit Message</h3>
-                        <p className='rounded-md border bg-muted/30 p-3 text-sm'>
-                          {selectedCheckpoint.commitMessage}
-                        </p>
-                      </div>
-                    </>
-                  )}
-
                   <Separator />
 
                   <div>
-                    <h3 className='mb-2 text-sm font-semibold'>Files Touched</h3>
-                    {detailFilesTouched.length > 0 ? (
-                      <div className='flex flex-wrap gap-2'>
-                        {detailFilesTouched.map((filePath) => (
-                          <Badge key={filePath} variant='outline'>
-                            {filePath}
-                          </Badge>
-                        ))}
-                      </div>
-                    ) : (
-                      <p className='text-sm text-muted-foreground'>
-                        No file information for this checkpoint.
-                      </p>
+                    <h3 className='mb-2 text-sm font-semibold'>Metadata</h3>
+                    <DetailRow label='Created' value={selectedCheckpoint.timestamp} />
+                    {selectedCheckpointCreatedAt && (
+                      <DetailRow label='Created At' value={selectedCheckpointCreatedAt} />
                     )}
+                    <DetailRow
+                      label='Session ID'
+                      value={selectedCheckpoint.sessionId ?? '-'}
+                    />
+                    <DetailRow label='Strategy' value={detailStrategy} />
+                    <DetailRow
+                      label='Tool Use ID'
+                      value={selectedCheckpoint.toolUseId ?? '-'}
+                    />
+                    <DetailRow label='Commit' value={selectedCheckpoint.commit ?? '-'} />
+                    <DetailRow label='Sessions' value={String(detailSessionCount)} />
+                    <DetailRow
+                      label='Checkpoints'
+                      value={String(detailCheckpointsCount)}
+                    />
                   </div>
 
                   <Separator />
