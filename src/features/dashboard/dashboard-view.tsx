@@ -4,6 +4,7 @@ import {
   type ApiCheckpointDetailResponse,
   type ApiCheckpointSessionDetailDto,
 } from '@/api/types/schema'
+import { CopyButton } from '@/components/copy-button'
 import { DatePicker } from '@/components/date-picker'
 import { Header } from '@/components/layout/header'
 import { Main } from '@/components/layout/main'
@@ -33,6 +34,9 @@ import {
   SheetHeader,
   SheetTitle,
 } from '@/components/ui/sheet'
+import { ChatTranscript } from './components/chat-transcript'
+import { FileTree } from './components/file-tree'
+import { TokenUsageChart } from './components/token-usage-chart'
 import { CommitCheckpointChart } from './components/session-activity-chart'
 import { CommitTable } from './components/sessions-table'
 import { type Checkpoint, type CommitData } from './data/mock-commit-data'
@@ -74,14 +78,6 @@ type DashboardViewProps = {
   onCheckpointClose: () => void
 }
 
-function DetailRow({ label, value }: { label: string; value: string }) {
-  return (
-    <div className='flex items-start justify-between gap-4 py-2 text-sm'>
-      <span className='text-muted-foreground'>{label}</span>
-      <span className='text-right font-mono text-xs'>{value}</span>
-    </div>
-  )
-}
 
 const formatDateTime = (value: string): string => {
   const date = new Date(value)
@@ -179,6 +175,10 @@ export function DashboardView({
     Boolean(selectedAgent) ||
     Boolean(fromDate) ||
     Boolean(toDate)
+
+  const userName = selectedUser
+    ? userOptions.find((u) => u.value === selectedUser)?.label ?? 'You'
+    : userOptions[0]?.label ?? 'You'
 
   const totalCommits = rows.length
   const totalCheckpoints = rows.reduce((sum, row) => sum + row.checkpoints, 0)
@@ -356,56 +356,23 @@ export function DashboardView({
         </Card>
 
         <div className='grid gap-4 sm:grid-cols-2 lg:grid-cols-4'>
-          <Card>
-            <CardHeader className='flex flex-row items-center justify-between space-y-0 pb-2'>
-              <CardTitle className='text-sm font-medium'>Throughput</CardTitle>
-              <Gauge className='h-4 w-4 text-muted-foreground' />
-            </CardHeader>
-            <CardContent>
-              <div className='text-2xl font-bold'>{totalCommits} commits</div>
-              <p className='text-xs text-muted-foreground'>
-                For current filters
-              </p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className='flex flex-row items-center justify-between space-y-0 pb-2'>
-              <CardTitle className='text-sm font-medium'>Checkpoints</CardTitle>
-              <Bookmark className='h-4 w-4 text-muted-foreground' />
-            </CardHeader>
-            <CardContent>
-              <div className='text-2xl font-bold'>{totalCheckpoints}</div>
-              <p className='text-xs text-muted-foreground'>
-                Across visible commits
-              </p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className='flex flex-row items-center justify-between space-y-0 pb-2'>
-              <CardTitle className='text-sm font-medium'>Agents</CardTitle>
-              <Bot className='h-4 w-4 text-muted-foreground' />
-            </CardHeader>
-            <CardContent>
-              <div className='text-2xl font-bold'>{totalAgents}</div>
-              <p className='text-xs text-muted-foreground'>
-                In visible commits
-              </p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className='flex flex-row items-center justify-between space-y-0 pb-2'>
-              <CardTitle className='text-sm font-medium'>
-                Active Branches
-              </CardTitle>
-              <GitBranch className='h-4 w-4 text-muted-foreground' />
-            </CardHeader>
-            <CardContent>
-              <div className='text-2xl font-bold'>{activeBranches}</div>
-              <p className='text-xs text-muted-foreground'>
-                Matching current range
-              </p>
-            </CardContent>
-          </Card>
+          {[
+            { title: 'Throughput', icon: Gauge, value: `${totalCommits} commits`, description: 'For current filters' },
+            { title: 'Checkpoints', icon: Bookmark, value: String(totalCheckpoints), description: 'Across visible commits' },
+            { title: 'Agents', icon: Bot, value: String(totalAgents), description: 'In visible commits' },
+            { title: 'Active Branches', icon: GitBranch, value: String(activeBranches), description: 'Matching current range' },
+          ].map((stat) => (
+            <Card key={stat.title}>
+              <CardHeader className='flex flex-row items-center justify-between space-y-0 pb-2'>
+                <CardTitle className='text-sm font-medium'>{stat.title}</CardTitle>
+                <stat.icon className='h-4 w-4 text-muted-foreground' />
+              </CardHeader>
+              <CardContent>
+                <div className='text-2xl font-bold'>{stat.value}</div>
+                <p className='text-xs text-muted-foreground'>{stat.description}</p>
+              </CardContent>
+            </Card>
+          ))}
         </div>
 
         <Card className='mt-4'>
@@ -446,14 +413,15 @@ export function DashboardView({
       >
         <SheetContent side='right' className='w-full p-0 sm:max-w-md'>
           <SheetHeader className='border-b pb-4 text-start'>
-            <SheetTitle>
+            <SheetTitle className='flex items-center gap-1'>
               {selectedCheckpoint
                 ? `Checkpoint ${selectedCheckpoint.id}`
                 : 'Checkpoint'}
+              {selectedCheckpoint && (
+                <CopyButton value={selectedCheckpoint.id} />
+              )}
             </SheetTitle>
-            <SheetDescription>
-              {selectedCheckpoint?.prompt ?? 'Checkpoint details'}
-            </SheetDescription>
+            <SheetDescription className='sr-only'>Checkpoint details</SheetDescription>
           </SheetHeader>
 
           <ScrollArea className='h-[calc(100%-88px)]'>
@@ -477,6 +445,33 @@ export function DashboardView({
                     </p>
                   </div>
 
+                  <div className='rounded-lg border bg-card p-3'>
+                    <div className='grid grid-cols-2 gap-3 sm:grid-cols-4 sm:divide-x sm:divide-border sm:gap-0'>
+                      <div className='sm:px-3 sm:first:ps-0 sm:last:pe-0'>
+                        <p className='text-xs text-muted-foreground'>Files</p>
+                        <p className='text-lg font-bold text-primary'>{detailFilesTouched.length}</p>
+                      </div>
+                      <div className='sm:px-3 sm:first:ps-0 sm:last:pe-0'>
+                        <p className='text-xs text-muted-foreground'>Sessions</p>
+                        <p className='text-lg font-bold text-primary'>{detailSessionCount}</p>
+                      </div>
+                      <div className='sm:px-3 sm:first:ps-0 sm:last:pe-0'>
+                        <p className='text-xs text-muted-foreground'>Tokens</p>
+                        <p className='text-lg font-bold text-primary'>
+                          {detailTokenUsage
+                            ? `${Math.round((detailTokenUsage.input_tokens + detailTokenUsage.output_tokens + detailTokenUsage.cache_read_tokens + detailTokenUsage.cache_creation_tokens) / 1000)}K`
+                            : '-'}
+                        </p>
+                      </div>
+                      <div className='sm:px-3 sm:first:ps-0 sm:last:pe-0'>
+                        <p className='text-xs text-muted-foreground'>API Calls</p>
+                        <p className='text-lg font-bold text-primary'>
+                          {detailTokenUsage ? detailTokenUsage.api_call_count : '-'}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
                   {selectedCheckpoint.commitMessage && (
                     <>
                       <Separator />
@@ -494,12 +489,8 @@ export function DashboardView({
                   <div>
                     <h3 className='mb-2 text-sm font-semibold'>Files Touched</h3>
                     {detailFilesTouched.length > 0 ? (
-                      <div className='flex flex-wrap gap-2'>
-                        {detailFilesTouched.map((filePath) => (
-                          <Badge key={filePath} variant='outline'>
-                            {filePath}
-                          </Badge>
-                        ))}
+                      <div className='rounded-md border bg-muted/20 p-3'>
+                        <FileTree paths={detailFilesTouched} />
                       </div>
                     ) : (
                       <p className='text-sm text-muted-foreground'>
@@ -513,54 +504,41 @@ export function DashboardView({
                       <Separator />
                       <div>
                         <h3 className='mb-2 text-sm font-semibold'>Token Usage</h3>
-                        <DetailRow
-                          label='Input'
-                          value={String(detailTokenUsage.input_tokens)}
-                        />
-                        <DetailRow
-                          label='Output'
-                          value={String(detailTokenUsage.output_tokens)}
-                        />
-                        <DetailRow
-                          label='Cache Read'
-                          value={String(detailTokenUsage.cache_read_tokens)}
-                        />
-                        <DetailRow
-                          label='Cache Create'
-                          value={String(detailTokenUsage.cache_creation_tokens)}
-                        />
-                        <DetailRow
-                          label='API Calls'
-                          value={String(detailTokenUsage.api_call_count)}
-                        />
+                        <TokenUsageChart usage={detailTokenUsage} />
                       </div>
                     </>
                   )}
 
                   <Separator />
 
-                  <div>
-                    <h3 className='mb-2 text-sm font-semibold'>Metadata</h3>
-                    <DetailRow label='Created' value={selectedCheckpoint.timestamp} />
-                    {selectedCheckpointCreatedAt && (
-                      <DetailRow label='Created At' value={selectedCheckpointCreatedAt} />
-                    )}
-                    <DetailRow
-                      label='Session ID'
-                      value={selectedCheckpoint.sessionId ?? '-'}
-                    />
-                    <DetailRow label='Strategy' value={detailStrategy} />
-                    <DetailRow
-                      label='Tool Use ID'
-                      value={selectedCheckpoint.toolUseId ?? '-'}
-                    />
-                    <DetailRow label='Commit' value={selectedCheckpoint.commit ?? '-'} />
-                    <DetailRow label='Sessions' value={String(detailSessionCount)} />
-                    <DetailRow
-                      label='Checkpoints'
-                      value={String(detailCheckpointsCount)}
-                    />
-                  </div>
+                  {(() => {
+                    const metadataJson = JSON.stringify(
+                      {
+                        created: selectedCheckpoint.timestamp,
+                        created_at: selectedCheckpointCreatedAt ?? undefined,
+                        session_id: selectedCheckpoint.sessionId ?? undefined,
+                        strategy: detailStrategy,
+                        tool_use_id: selectedCheckpoint.toolUseId ?? undefined,
+                        commit: selectedCheckpoint.commit ?? undefined,
+                        sessions: detailSessionCount,
+                        checkpoints: detailCheckpointsCount,
+                      },
+                      null,
+                      2
+                    )
+
+                    return (
+                      <div>
+                        <div className='mb-2 flex items-center justify-between'>
+                          <h3 className='text-sm font-semibold'>Metadata</h3>
+                          <CopyButton value={metadataJson} />
+                        </div>
+                        <pre className='max-h-60 overflow-auto rounded-md border bg-muted/20 p-3 text-xs whitespace-pre-wrap break-words font-mono'>
+                          {metadataJson}
+                        </pre>
+                      </div>
+                    )
+                  })()}
 
                   <Separator />
 
@@ -601,8 +579,9 @@ export function DashboardView({
                                   <CardTitle className='text-sm'>
                                     Session {session.session_index + 1}
                                   </CardTitle>
-                                  <CardDescription className='font-mono text-xs'>
+                                  <CardDescription className='flex items-center gap-1 font-mono text-xs'>
                                     {session.session_id}
+                                    <CopyButton value={session.session_id} />
                                   </CardDescription>
                                 </CardHeader>
                                 <CardContent className='space-y-3'>
@@ -635,9 +614,12 @@ export function DashboardView({
                                   </div>
 
                                   <div className='space-y-1'>
-                                    <p className='text-xs text-muted-foreground'>
-                                      Metadata JSON
-                                    </p>
+                                    <div className='flex items-center justify-between'>
+                                      <p className='text-xs text-muted-foreground'>
+                                        Metadata JSON
+                                      </p>
+                                      <CopyButton value={stringifyMaybeJson(session.metadata_json)} />
+                                    </div>
                                     <pre className='max-h-36 overflow-auto rounded-md border bg-background p-2 text-xs whitespace-pre-wrap break-words'>
                                       {stringifyMaybeJson(session.metadata_json)}
                                     </pre>
@@ -647,32 +629,12 @@ export function DashboardView({
                                     <p className='text-xs text-muted-foreground'>
                                       Transcript
                                     </p>
-                                    {transcriptEntries.length > 0 ? (
-                                      <div className='space-y-2'>
-                                        {transcriptEntries.map((entry, entryIndex) => (
-                                          <div
-                                            key={`${session.session_id}-${entryIndex}`}
-                                            className='rounded-md border bg-background p-2'
-                                          >
-                                            <div className='mb-1 flex items-center gap-2'>
-                                              <Badge variant='outline'>
-                                                {entry.role}
-                                              </Badge>
-                                              <span className='text-[11px] text-muted-foreground'>
-                                                #{entryIndex + 1}
-                                              </span>
-                                            </div>
-                                            <pre className='text-xs whitespace-pre-wrap break-words'>
-                                              {entry.content}
-                                            </pre>
-                                          </div>
-                                        ))}
-                                      </div>
-                                    ) : (
-                                      <p className='text-sm text-muted-foreground'>
-                                        No transcript entries available.
-                                      </p>
-                                    )}
+                                    <ChatTranscript
+                                      entries={transcriptEntries}
+                                      sessionId={session.session_id}
+                                      agentName={session.agent}
+                                      userName={userName}
+                                    />
                                   </div>
                                 </CardContent>
                               </Card>

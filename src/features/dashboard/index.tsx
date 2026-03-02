@@ -346,6 +346,7 @@ export function Dashboard() {
           `Failed to load checkpoint details for ${selectedCheckpoint.id}`,
           error
         )
+
         setCheckpointDetail(null)
         setCheckpointDetailSource('error')
       })
