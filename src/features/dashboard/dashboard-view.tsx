@@ -36,6 +36,7 @@ import {
 } from '@/components/ui/sheet'
 import { ChatTranscript } from './components/chat-transcript'
 import { FileTree } from './components/file-tree'
+import { JsonHighlight } from './components/json-highlight'
 import { TokenUsageChart } from './components/token-usage-chart'
 import { CommitCheckpointChart } from './components/session-activity-chart'
 import { CommitTable } from './components/commits-table'
@@ -87,7 +88,7 @@ const formatDateTime = (value: string): string => {
   return date.toLocaleString()
 }
 
-const stringifyMaybeJson = (value: string): string => {
+const prettyPrintJson = (value: string): string => {
   const trimmed = value.trim()
   if (!trimmed) {
     return '-'
@@ -460,13 +461,13 @@ export function DashboardView({
                         <p className='text-lg font-bold text-primary'>
                           {detailTokenUsage
                             ? `${Math.round((detailTokenUsage.input_tokens + detailTokenUsage.output_tokens + detailTokenUsage.cache_read_tokens + detailTokenUsage.cache_creation_tokens) / 1000)}K`
-                            : '-'}
+                            : '0'}
                         </p>
                       </div>
                       <div className='sm:px-3 sm:first:ps-0 sm:last:pe-0'>
                         <p className='text-xs text-muted-foreground'>API Calls</p>
                         <p className='text-lg font-bold text-primary'>
-                          {detailTokenUsage ? detailTokenUsage.api_call_count : '-'}
+                          {detailTokenUsage ? detailTokenUsage.api_call_count : '0'}
                         </p>
                       </div>
                     </div>
@@ -499,15 +500,11 @@ export function DashboardView({
                     )}
                   </div>
 
-                  {detailTokenUsage && (
-                    <>
-                      <Separator />
-                      <div>
-                        <h3 className='mb-2 text-sm font-semibold'>Token Usage</h3>
-                        <TokenUsageChart usage={detailTokenUsage} />
-                      </div>
-                    </>
-                  )}
+                  <Separator />
+                  <div>
+                    <h3 className='mb-2 text-sm font-semibold'>Token Usage</h3>
+                    <TokenUsageChart usage={detailTokenUsage} />
+                  </div>
 
                   <Separator />
 
@@ -533,9 +530,9 @@ export function DashboardView({
                           <h3 className='text-sm font-semibold'>Metadata</h3>
                           <CopyButton value={metadataJson} />
                         </div>
-                        <pre className='max-h-60 overflow-auto rounded-md border bg-muted/20 p-3 text-xs whitespace-pre-wrap break-words font-mono'>
-                          {metadataJson}
-                        </pre>
+                        <div className='max-h-60 overflow-auto rounded-md border bg-muted/20 p-3'>
+                          <JsonHighlight value={metadataJson} />
+                        </div>
                       </div>
                     )
                   })()}
@@ -618,11 +615,11 @@ export function DashboardView({
                                       <p className='text-xs text-muted-foreground'>
                                         Metadata JSON
                                       </p>
-                                      <CopyButton value={stringifyMaybeJson(session.metadata_json)} />
+                                      <CopyButton value={prettyPrintJson(session.metadata_json)} />
                                     </div>
-                                    <pre className='max-h-36 overflow-auto rounded-md border bg-background p-2 text-xs whitespace-pre-wrap break-words'>
-                                      {stringifyMaybeJson(session.metadata_json)}
-                                    </pre>
+                                    <div className='max-h-36 overflow-auto rounded-md border bg-background p-2'>
+                                      <JsonHighlight value={prettyPrintJson(session.metadata_json)} />
+                                    </div>
                                   </div>
 
                                   <div className='space-y-1'>

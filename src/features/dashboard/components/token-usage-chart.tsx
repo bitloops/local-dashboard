@@ -14,19 +14,32 @@ function formatNumber(n: number): string {
   return String(n)
 }
 
+const EMPTY_COLOR = '#7404E433'
+const PLACEHOLDER = [{ name: 'No data', value: 1, color: EMPTY_COLOR }]
+
+const ALL_SEGMENTS = [
+  { name: 'Input', key: 'input_tokens' as const, color: COLORS.input },
+  { name: 'Output', key: 'output_tokens' as const, color: COLORS.output },
+  { name: 'Cache Read', key: 'cache_read_tokens' as const, color: COLORS.cacheRead },
+  { name: 'Cache Create', key: 'cache_creation_tokens' as const, color: COLORS.cacheCreate },
+]
+
 type TokenUsageChartProps = {
-  usage: ApiTokenUsageDto
+  usage?: ApiTokenUsageDto | null
 }
 
 export function TokenUsageChart({ usage }: TokenUsageChartProps) {
-  const segments = [
-    { name: 'Input', value: usage.input_tokens, color: COLORS.input },
-    { name: 'Output', value: usage.output_tokens, color: COLORS.output },
-    { name: 'Cache Read', value: usage.cache_read_tokens, color: COLORS.cacheRead },
-    { name: 'Cache Create', value: usage.cache_creation_tokens, color: COLORS.cacheCreate },
-  ].filter((s) => s.value > 0)
+  const hasData = Boolean(usage)
 
-  const total = usage.input_tokens + usage.output_tokens + usage.cache_read_tokens + usage.cache_creation_tokens
+  const segments = hasData
+    ? ALL_SEGMENTS
+        .map((s) => ({ name: s.name, value: usage![s.key], color: s.color }))
+        .filter((s) => s.value > 0)
+    : PLACEHOLDER
+
+  const total = usage
+    ? usage.input_tokens + usage.output_tokens + usage.cache_read_tokens + usage.cache_creation_tokens
+    : 0
 
   return (
     <div className='grid grid-cols-[180px_1fr] items-center gap-3'>
@@ -46,37 +59,41 @@ export function TokenUsageChart({ usage }: TokenUsageChartProps) {
               <Cell key={entry.name} fill={entry.color} />
             ))}
           </Pie>
-          <Tooltip
-            contentStyle={{
-              backgroundColor: 'hsl(var(--popover))',
-              borderColor: 'hsl(var(--border))',
-              borderRadius: '8px',
-              fontSize: '12px',
-            }}
-            labelStyle={{ color: 'hsl(var(--popover-foreground))' }}
-            itemStyle={{ color: 'hsl(var(--popover-foreground))' }}
-            formatter={(value: number | undefined) => [formatNumber(value ?? 0), '']}
-          />
+          {hasData && (
+            <Tooltip
+              contentStyle={{
+                backgroundColor: 'hsl(var(--popover))',
+                borderColor: 'hsl(var(--border))',
+                borderRadius: '8px',
+                fontSize: '12px',
+              }}
+              labelStyle={{ color: 'hsl(var(--popover-foreground))' }}
+              itemStyle={{ color: 'hsl(var(--popover-foreground))' }}
+              formatter={(value: number | undefined) => [formatNumber(value ?? 0), '']}
+            />
+          )}
         </PieChart>
       </ResponsiveContainer>
 
       <div className='space-y-1.5'>
-        <p className='text-lg font-bold text-primary'>{formatNumber(total)}</p>
+        <p className='text-lg font-bold text-primary'>{hasData ? formatNumber(total) : '0'}</p>
         <p className='text-[11px] text-muted-foreground'>total tokens</p>
         <div className='mt-2 space-y-1'>
-          {segments.map((s) => (
+          {ALL_SEGMENTS.map((s) => (
             <div key={s.name} className='flex items-center gap-2 text-xs'>
               <span
                 className='inline-block h-2.5 w-2.5 shrink-0 rounded-full'
-                style={{ backgroundColor: s.color }}
+                style={{ backgroundColor: hasData ? s.color : EMPTY_COLOR }}
               />
               <span className='text-muted-foreground'>{s.name}</span>
-              <span className='ml-auto font-mono'>{formatNumber(s.value)}</span>
+              <span className='ml-auto font-mono'>
+                {usage ? formatNumber(usage[s.key]) : '0'}
+              </span>
             </div>
           ))}
           <div className='flex items-center gap-2 border-t pt-1 text-xs'>
             <span className='text-muted-foreground'>API Calls</span>
-            <span className='ml-auto font-mono'>{usage.api_call_count}</span>
+            <span className='ml-auto font-mono'>{usage ? usage.api_call_count : '0'}</span>
           </div>
         </div>
       </div>
