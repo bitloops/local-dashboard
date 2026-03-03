@@ -79,7 +79,7 @@ export const commitColumns: ColumnDef<CommitRow>[] = [
     ),
     meta: { className: 'max-w-0 w-1/2', tdClassName: 'ps-4' },
     cell: ({ row }) => (
-      <span className='truncate block text-sm'>
+      <span className='block truncate text-sm'>
         {row.getValue('message')}
       </span>
     ),

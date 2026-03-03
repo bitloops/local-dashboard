@@ -21,7 +21,7 @@ export function Analytics() {
       </Card>
       <div className='grid gap-4 sm:grid-cols-2 lg:grid-cols-4'>
         <Card>
-          <CardHeader className='flex flex-row items-center justify-between space-y-0 pb-2'>
+          <CardHeader className='flex items-center justify-between space-y-0 pb-2'>
             <CardTitle className='text-sm font-medium'>Total Clicks</CardTitle>
             <svg
               xmlns='http://www.w3.org/2000/svg'
@@ -43,7 +43,7 @@ export function Analytics() {
           </CardContent>
         </Card>
         <Card>
-          <CardHeader className='flex flex-row items-center justify-between space-y-0 pb-2'>
+          <CardHeader className='flex items-center justify-between space-y-0 pb-2'>
             <CardTitle className='text-sm font-medium'>
               Unique Visitors
             </CardTitle>
@@ -67,7 +67,7 @@ export function Analytics() {
           </CardContent>
         </Card>
         <Card>
-          <CardHeader className='flex flex-row items-center justify-between space-y-0 pb-2'>
+          <CardHeader className='flex items-center justify-between space-y-0 pb-2'>
             <CardTitle className='text-sm font-medium'>Bounce Rate</CardTitle>
             <svg
               xmlns='http://www.w3.org/2000/svg'
@@ -88,7 +88,7 @@ export function Analytics() {
           </CardContent>
         </Card>
         <Card>
-          <CardHeader className='flex flex-row items-center justify-between space-y-0 pb-2'>
+          <CardHeader className='flex items-center justify-between space-y-0 pb-2'>
             <CardTitle className='text-sm font-medium'>Avg. Session</CardTitle>
             <svg
               xmlns='http://www.w3.org/2000/svg'

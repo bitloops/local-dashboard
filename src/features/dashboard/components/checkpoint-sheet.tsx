@@ -200,13 +200,13 @@ export function CheckpointSheet({
                       <p className='text-lg font-bold text-primary'>
                         {detailTokenUsage
                           ? `${Math.round((detailTokenUsage.input_tokens + detailTokenUsage.output_tokens + detailTokenUsage.cache_read_tokens + detailTokenUsage.cache_creation_tokens) / 1000)}K`
-                          : '0'}
+                          : '-'}
                       </p>
                     </div>
                     <div className='sm:px-3 sm:first:ps-0 sm:last:pe-0'>
                       <p className='text-xs text-muted-foreground'>API Calls</p>
                       <p className='text-lg font-bold text-primary'>
-                        {detailTokenUsage ? detailTokenUsage.api_call_count : '0'}
+                        {detailTokenUsage ? detailTokenUsage.api_call_count : '-'}
                       </p>
                     </div>
                   </div>

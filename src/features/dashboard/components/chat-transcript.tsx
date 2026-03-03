@@ -37,7 +37,7 @@ function ChatBubble({ entry, index, agentName, userName }: ChatBubbleProps) {
     return (
       <div className='ms-8 flex'>
         <div className='inline-flex max-w-[85%] items-start gap-1.5 rounded-md border border-dashed bg-muted/30 px-2.5 py-1.5'>
-          <Terminal className='mt-0.5 h-3 w-3 shrink-0 text-muted-foreground' />
+          <Terminal className='mt-0.5 size-3 shrink-0 text-muted-foreground' />
           <p className='text-[11px] text-muted-foreground whitespace-pre-wrap break-words'>
             {entry.content}
           </p>
@@ -50,7 +50,7 @@ function ChatBubble({ entry, index, agentName, userName }: ChatBubbleProps) {
 
   return (
     <div className={`flex items-start gap-2 ${isUser ? 'flex-row-reverse' : 'flex-row'}`}>
-      <div className='flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-muted'>
+      <div className='flex size-6 shrink-0 items-center justify-center rounded-full bg-muted'>
         {isUser ? (
           <User className='h-3.5 w-3.5 text-muted-foreground' />
         ) : (

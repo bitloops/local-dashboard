@@ -65,9 +65,9 @@ function FileTreeBranch({ node, depth = 0 }: { node: FileTreeNode; depth?: numbe
               style={{ paddingLeft: `${depth * 20}px` }}
             >
               {child.isFile ? (
-                <File className='h-4 w-4 shrink-0 text-muted-foreground' />
+                <File className='size-4 shrink-0 text-muted-foreground' />
               ) : (
-                <Folder className='h-4 w-4 shrink-0 text-muted-foreground' />
+                <Folder className='size-4 shrink-0 text-muted-foreground' />
               )}
               <span className={child.isFile ? 'text-foreground' : 'font-medium text-foreground'}>
                 {child.name}

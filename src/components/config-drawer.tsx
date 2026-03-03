@@ -53,7 +53,7 @@ export function ConfigDrawer() {
           <Settings aria-hidden="true" />
         </Button>
       </SheetTrigger>
-      <SheetContent className="flex flex-col">
+      <SheetContent>
         <SheetHeader className="pb-0 text-start">
           <SheetTitle>Theme Settings</SheetTitle>
           <SheetDescription id="config-drawer-description">

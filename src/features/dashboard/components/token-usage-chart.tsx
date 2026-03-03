@@ -76,24 +76,24 @@ export function TokenUsageChart({ usage }: TokenUsageChartProps) {
       </ResponsiveContainer>
 
       <div className='space-y-1.5'>
-        <p className='text-lg font-bold text-primary'>{hasData ? formatNumber(total) : '0'}</p>
+        <p className='text-lg font-bold text-primary'>{hasData ? formatNumber(total) : '-'}</p>
         <p className='text-[11px] text-muted-foreground'>total tokens</p>
         <div className='mt-2 space-y-1'>
           {ALL_SEGMENTS.map((s) => (
             <div key={s.name} className='flex items-center gap-2 text-xs'>
               <span
-                className='inline-block h-2.5 w-2.5 shrink-0 rounded-full'
+                className='inline-block size-2.5 shrink-0 rounded-full'
                 style={{ backgroundColor: hasData ? s.color : EMPTY_COLOR }}
               />
               <span className='text-muted-foreground'>{s.name}</span>
               <span className='ml-auto font-mono'>
-                {usage ? formatNumber(usage[s.key]) : '0'}
+                {usage ? formatNumber(usage[s.key]) : '-'}
               </span>
             </div>
           ))}
           <div className='flex items-center gap-2 border-t pt-1 text-xs'>
             <span className='text-muted-foreground'>API Calls</span>
-            <span className='ml-auto font-mono'>{usage ? usage.api_call_count : '0'}</span>
+            <span className='ml-auto font-mono'>{usage ? usage.api_call_count : '-'}</span>
           </div>
         </div>
       </div>
