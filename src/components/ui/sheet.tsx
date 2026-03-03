@@ -1,6 +1,6 @@
 import * as React from 'react'
 import * as SheetPrimitive from '@radix-ui/react-dialog'
-import { XIcon } from 'lucide-react'
+import { GripVertical, XIcon } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 function Sheet({ ...props }: React.ComponentProps<typeof SheetPrimitive.Root>) {
@@ -113,10 +113,20 @@ function SheetContent({
         {canResize && (
           <div
             onPointerDown={onResizeStart}
-            className='absolute inset-y-0 start-0 z-10 w-1.5 cursor-col-resize transition-colors hover:bg-primary/20 active:bg-primary/30'
-          />
+            className='absolute inset-y-0 start-0 z-10 flex w-5 cursor-col-resize items-center justify-center border-e border-border/40 bg-muted/50 transition-colors hover:bg-muted active:bg-muted/80'
+          >
+            <GripVertical className='size-4 text-white/70' />
+          </div>
         )}
-        {children}
+        <div
+          className={cn(
+            'flex min-h-0 flex-1 flex-col',
+            canResize && side === 'right' && 'ps-7',
+            canResize && side === 'left' && 'pe-7'
+          )}
+        >
+          {children}
+        </div>
         <SheetPrimitive.Close className='absolute end-4 top-4 rounded-xs opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:ring-2 focus:ring-ring focus:ring-offset-2 focus:outline-hidden disabled:pointer-events-none data-[state=open]:bg-secondary'>
           <XIcon className='size-4' />
           <span className='sr-only'>Close</span>
