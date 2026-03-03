@@ -31,11 +31,13 @@ type TokenUsageChartProps = {
 export function TokenUsageChart({ usage }: TokenUsageChartProps) {
   const hasData = Boolean(usage)
 
-  const segments = hasData
-    ? ALL_SEGMENTS
-        .map((s) => ({ name: s.name, value: usage![s.key], color: s.color }))
-        .filter((s) => s.value > 0)
-    : PLACEHOLDER
+  const segmentsRaw = hasData
+    ? ALL_SEGMENTS.map((s) => ({ name: s.name, value: usage![s.key], color: s.color }))
+    : []
+  const segments =
+    segmentsRaw.length > 0 && segmentsRaw.some((s) => s.value > 0)
+      ? segmentsRaw.filter((s) => s.value > 0)
+      : PLACEHOLDER
 
   const total = usage
     ? usage.input_tokens + usage.output_tokens + usage.cache_read_tokens + usage.cache_creation_tokens
@@ -59,7 +61,7 @@ export function TokenUsageChart({ usage }: TokenUsageChartProps) {
               <Cell key={entry.name} fill={entry.color} />
             ))}
           </Pie>
-          {hasData && (
+          {segments !== PLACEHOLDER && (
             <Tooltip
               contentStyle={{
                 backgroundColor: 'hsl(var(--popover))',

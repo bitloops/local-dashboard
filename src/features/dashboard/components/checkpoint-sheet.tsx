@@ -151,7 +151,7 @@ export function CheckpointSheet({
         }
       }}
     >
-      <SheetContent side='right' className='p-0' resizable defaultWidth={480} maxWidth={700}>
+      <SheetContent side='right' className='p-0' resizable defaultWidth={600} maxWidth={700}>
         <SheetHeader className='border-b pb-4 text-start'>
           <SheetTitle className='flex items-center gap-1'>
             {selectedCheckpoint
