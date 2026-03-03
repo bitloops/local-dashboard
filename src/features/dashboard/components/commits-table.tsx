@@ -28,7 +28,7 @@ import { DataTablePagination, DataTableToolbar } from '@/components/data-table'
 import {
   type CommitRow,
   commitColumns as columns,
-} from './sessions-columns'
+} from './commits-columns'
 import { type Checkpoint } from '../data/mock-commit-data'
 
 const agentOptions = [
@@ -284,16 +284,18 @@ export function CommitTable({ data, onCheckpointClick }: CommitTableProps) {
               table.getRowModel().rows.map((row) => (
                 <Fragment key={row.id}>
                   <TableRow
-                    className='cursor-pointer'
-                    role='button'
-                    tabIndex={0}
-                    onClick={() => row.toggleExpanded()}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter' || e.key === ' ') {
-                        e.preventDefault()
-                        row.toggleExpanded()
-                      }
-                    }}
+                    {...(row.original.checkpoints > 0 && {
+                      className: 'cursor-pointer',
+                      role: 'button',
+                      tabIndex: 0,
+                      onClick: () => row.toggleExpanded(),
+                      onKeyDown: (e: React.KeyboardEvent) => {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                          e.preventDefault()
+                          row.toggleExpanded()
+                        }
+                      },
+                    })}
                   >
                     {row.getVisibleCells().map((cell) => (
                       <TableCell

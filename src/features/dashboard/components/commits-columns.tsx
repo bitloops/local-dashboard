@@ -1,7 +1,7 @@
 import { type ColumnDef } from '@tanstack/react-table'
 import { Badge } from '@/components/ui/badge'
 import { DataTableColumnHeader } from '@/components/data-table'
-import { MessageSquare, ChevronRight } from 'lucide-react'
+import { MessageSquare, ChevronRight, Circle } from 'lucide-react'
 import { type Checkpoint } from '../data/mock-commit-data'
 import { AgentIcon } from './agent-icon'
 
@@ -24,22 +24,32 @@ export const commitColumns: ColumnDef<CommitRow>[] = [
   {
     id: 'expand',
     header: () => null,
-    cell: ({ row }) => (
-      <button
-        onClick={(e) => {
-          e.stopPropagation()
-          row.toggleExpanded()
-        }}
-        aria-label={row.getIsExpanded() ? 'Collapse row' : 'Expand row'}
-        className='flex items-center justify-center rounded p-1 hover:bg-muted'
-      >
-        <ChevronRight
-          className={`size-4 text-muted-foreground transition-transform duration-200 ${
-            row.getIsExpanded() ? 'rotate-90' : ''
-          }`}
-        />
-      </button>
-    ),
+    cell: ({ row }) => {
+      const hasCheckpoints = (row.getValue('checkpoints') as number) > 0
+      if (!hasCheckpoints) {
+        return (
+          <span className='flex items-center justify-center p-1'>
+            <Circle className='size-2 text-muted-foreground/40' />
+          </span>
+        )
+      }
+      return (
+        <button
+          onClick={(e) => {
+            e.stopPropagation()
+            row.toggleExpanded()
+          }}
+          aria-label={row.getIsExpanded() ? 'Collapse row' : 'Expand row'}
+          className='flex items-center justify-center rounded p-1 hover:bg-muted'
+        >
+          <ChevronRight
+            className={`size-4 text-muted-foreground transition-transform duration-200 ${
+              row.getIsExpanded() ? 'rotate-90' : ''
+            }`}
+          />
+        </button>
+      )
+    },
     enableSorting: false,
     meta: { className: 'w-10' },
   },
