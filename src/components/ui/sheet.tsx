@@ -45,10 +45,45 @@ function SheetContent({
   className,
   children,
   side = 'right',
+  resizable = false,
+  defaultWidth = 448,
+  minWidth = 480,
+  maxWidth,
   ...props
 }: React.ComponentProps<typeof SheetPrimitive.Content> & {
   side?: 'top' | 'right' | 'bottom' | 'left'
+  resizable?: boolean
+  defaultWidth?: number
+  minWidth?: number
+  maxWidth?: number
 }) {
+  const [width, setWidth] = React.useState(defaultWidth)
+  const canResize = resizable && (side === 'right' || side === 'left')
+
+  const onResizeStart = (e: React.PointerEvent) => {
+    e.preventDefault()
+    const startX = e.clientX
+    const startWidth = width
+    document.body.style.cursor = 'col-resize'
+    document.body.style.userSelect = 'none'
+
+    const onPointerMove = (ev: PointerEvent) => {
+      const delta = side === 'right' ? startX - ev.clientX : ev.clientX - startX
+      const limit = maxWidth ?? window.innerWidth * 0.8
+      setWidth(Math.min(limit, Math.max(minWidth, startWidth + delta)))
+    }
+
+    const onPointerUp = () => {
+      document.body.style.cursor = ''
+      document.body.style.userSelect = ''
+      document.removeEventListener('pointermove', onPointerMove)
+      document.removeEventListener('pointerup', onPointerUp)
+    }
+
+    document.addEventListener('pointermove', onPointerMove)
+    document.addEventListener('pointerup', onPointerUp)
+  }
+
   return (
     <SheetPortal>
       <SheetOverlay />
@@ -57,17 +92,30 @@ function SheetContent({
         className={cn(
           'fixed z-50 flex flex-col gap-4 bg-background shadow-lg transition ease-in-out data-[state=closed]:animate-out data-[state=closed]:duration-300 data-[state=open]:animate-in data-[state=open]:duration-500',
           side === 'right' &&
-            'inset-y-0 end-0 h-full w-3/4 border-s data-[state=closed]:slide-out-to-end data-[state=open]:slide-in-from-end sm:max-w-sm',
+            cn(
+              'inset-y-0 end-0 h-full border-s data-[state=closed]:slide-out-to-end data-[state=open]:slide-in-from-end',
+              !canResize && 'w-3/4 sm:max-w-sm'
+            ),
           side === 'left' &&
-            'inset-y-0 start-0 h-full w-3/4 border-e data-[state=closed]:slide-out-to-start data-[state=open]:slide-in-from-start sm:max-w-sm',
+            cn(
+              'inset-y-0 start-0 h-full border-e data-[state=closed]:slide-out-to-start data-[state=open]:slide-in-from-start',
+              !canResize && 'w-3/4 sm:max-w-sm'
+            ),
           side === 'top' &&
             'inset-x-0 top-0 h-auto border-b data-[state=closed]:slide-out-to-top data-[state=open]:slide-in-from-top',
           side === 'bottom' &&
             'inset-x-0 bottom-0 h-auto border-t data-[state=closed]:slide-out-to-bottom data-[state=open]:slide-in-from-bottom',
           className
         )}
+        style={canResize ? { width } : undefined}
         {...props}
       >
+        {canResize && (
+          <div
+            onPointerDown={onResizeStart}
+            className='absolute inset-y-0 start-0 z-10 w-1.5 cursor-col-resize transition-colors hover:bg-primary/20 active:bg-primary/30'
+          />
+        )}
         {children}
         <SheetPrimitive.Close className='absolute end-4 top-4 rounded-xs opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:ring-2 focus:ring-ring focus:ring-offset-2 focus:outline-hidden disabled:pointer-events-none data-[state=open]:bg-secondary'>
           <XIcon className='size-4' />

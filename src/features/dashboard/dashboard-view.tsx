@@ -412,7 +412,7 @@ export function DashboardView({
           }
         }}
       >
-        <SheetContent side='right' className='w-full p-0 sm:max-w-md'>
+        <SheetContent side='right' className='p-0' resizable defaultWidth={480} maxWidth={700}>
           <SheetHeader className='border-b pb-4 text-start'>
             <SheetTitle className='flex items-center gap-1'>
               {selectedCheckpoint
