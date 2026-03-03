@@ -35,8 +35,8 @@ function ChatBubble({ entry, index, agentName, userName }: ChatBubbleProps) {
 
   if (isTool) {
     return (
-      <div className='flex justify-center'>
-        <div className='flex max-w-[85%] items-start gap-1.5 rounded-md border border-dashed bg-muted/30 px-2.5 py-1.5'>
+      <div className='ms-8 flex'>
+        <div className='inline-flex max-w-[85%] items-start gap-1.5 rounded-md border border-dashed bg-muted/30 px-2.5 py-1.5'>
           <Terminal className='mt-0.5 h-3 w-3 shrink-0 text-muted-foreground' />
           <p className='text-[11px] text-muted-foreground whitespace-pre-wrap break-words'>
             {entry.content}

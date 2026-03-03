@@ -1,8 +1,9 @@
 import { type ColumnDef } from '@tanstack/react-table'
 import { Badge } from '@/components/ui/badge'
 import { DataTableColumnHeader } from '@/components/data-table'
-import { Bot, Sparkles, Terminal, MessageSquare, ChevronRight } from 'lucide-react'
+import { MessageSquare, ChevronRight } from 'lucide-react'
 import { type Checkpoint } from '../data/mock-commit-data'
+import { AgentIcon } from './agent-icon'
 
 export type CommitRow = {
   date: string
@@ -13,13 +14,10 @@ export type CommitRow = {
   checkpointList: Checkpoint[]
 }
 
-const agentConfig: Record<
-  string,
-  { label: string; icon: React.ComponentType<{ className?: string }> }
-> = {
-  'claude-code': { label: 'Claude Code', icon: Bot },
-  'gemini-cli': { label: 'Gemini CLI', icon: Sparkles },
-  'open-code': { label: 'OpenCode', icon: Terminal },
+const agentLabels: Record<string, string> = {
+  'claude-code': 'Claude Code',
+  'gemini-cli': 'Gemini CLI',
+  'open-code': 'OpenCode',
 }
 
 export const commitColumns: ColumnDef<CommitRow>[] = [
@@ -82,13 +80,12 @@ export const commitColumns: ColumnDef<CommitRow>[] = [
       <DataTableColumnHeader column={column} title='Agent' />
     ),
     cell: ({ row }) => {
-      const config = agentConfig[row.getValue('agent') as string]
-      if (!config) return row.getValue('agent')
-      const Icon = config.icon
+      const agent = row.getValue('agent') as string
+      const label = agentLabels[agent] ?? agent
       return (
         <div className='flex items-center gap-2'>
-          <Icon className='size-4 text-muted-foreground' />
-          <span>{config.label}</span>
+          <AgentIcon agent={agent} className='size-4' />
+          <span>{label}</span>
         </div>
       )
     },

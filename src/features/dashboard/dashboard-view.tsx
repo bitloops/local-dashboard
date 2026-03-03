@@ -38,7 +38,7 @@ import { ChatTranscript } from './components/chat-transcript'
 import { FileTree } from './components/file-tree'
 import { TokenUsageChart } from './components/token-usage-chart'
 import { CommitCheckpointChart } from './components/session-activity-chart'
-import { CommitTable } from './components/sessions-table'
+import { CommitTable } from './components/commits-table'
 import { type Checkpoint, type CommitData } from './data/mock-commit-data'
 
 const branchAutoValue = '__auto_branch__'
@@ -625,16 +625,18 @@ export function DashboardView({
                                     </pre>
                                   </div>
 
-                                  <div className='space-y-2'>
+                                  <div className='space-y-1'>
                                     <p className='text-xs text-muted-foreground'>
                                       Transcript
                                     </p>
-                                    <ChatTranscript
-                                      entries={transcriptEntries}
-                                      sessionId={session.session_id}
-                                      agentName={session.agent}
-                                      userName={userName}
-                                    />
+                                    <div className='max-h-72 overflow-auto rounded-md border bg-background p-2'>
+                                      <ChatTranscript
+                                        entries={transcriptEntries}
+                                        sessionId={session.session_id}
+                                        agentName={session.agent}
+                                        userName={userName}
+                                      />
+                                    </div>
                                   </div>
                                 </CardContent>
                               </Card>

@@ -1,4 +1,4 @@
-import { useState, Fragment } from 'react'
+import { useState, useEffect, Fragment } from 'react'
 import {
   type ColumnFiltersState,
   type SortingState,
@@ -182,6 +182,12 @@ export function CommitTable({ data, onCheckpointClick }: CommitTableProps) {
   const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({})
   const [globalFilter, setGlobalFilter] = useState('')
   const [expanded, setExpanded] = useState<ExpandedState>({})
+  const [selectedRows, setSelectedRows] = useState<Record<string, boolean>>({})
+
+  useEffect(() => {
+    setExpanded({})
+    setSelectedRows({})
+  }, [data])
 
   const table = useReactTable({
     data,
@@ -200,7 +206,21 @@ export function CommitTable({ data, onCheckpointClick }: CommitTableProps) {
     onColumnFiltersChange: setColumnFilters,
     onColumnVisibilityChange: setColumnVisibility,
     onGlobalFilterChange: setGlobalFilter,
-    onExpandedChange: setExpanded,
+    onExpandedChange: (updater) => {
+      setExpanded((prev) => {
+        const next = typeof updater === 'function' ? updater(prev) : updater
+        if (typeof next === 'boolean') return next
+        const prevObj = typeof prev === 'object' ? prev : {}
+        const newlyExpanded = Object.keys(next).find(
+          (key) => next[key] && !prevObj[key]
+        )
+        if (newlyExpanded) {
+          setSelectedRows((old) => ({ ...old, [newlyExpanded]: true }))
+          return { [newlyExpanded]: true }
+        }
+        return next
+      })
+    },
     globalFilterFn: (row, _columnId, filterValue) => {
       const commit = String(row.getValue('commit')).toLowerCase()
       const message = String(row.getValue('message')).toLowerCase()
@@ -282,21 +302,28 @@ export function CommitTable({ data, onCheckpointClick }: CommitTableProps) {
                       </TableCell>
                     ))}
                   </TableRow>
-                  {row.getIsExpanded() && (
-                    <TableRow className='hover:bg-transparent'>
-                      <TableCell
-                        colSpan={columns.length}
-                        className='p-0 border-b border-muted'
+                  <TableRow className='hover:bg-transparent'>
+                    <TableCell
+                      colSpan={columns.length}
+                      className='border-none p-0'
+                    >
+                      <div
+                        className='grid transition-[grid-template-rows] duration-300 ease-out'
+                        style={{ gridTemplateRows: row.getIsExpanded() ? '1fr' : '0fr' }}
                       >
-                        <div className='bg-muted/30'>
-                          <CheckpointTree
-                            checkpoints={row.original.checkpointList}
-                            onCheckpointClick={onCheckpointClick}
-                          />
+                        <div className='overflow-hidden' inert={!row.getIsExpanded() || undefined}>
+                          {selectedRows[row.id] && (
+                            <div className='border-b border-muted bg-muted/30'>
+                              <CheckpointTree
+                                checkpoints={row.original.checkpointList}
+                                onCheckpointClick={onCheckpointClick}
+                              />
+                            </div>
+                          )}
                         </div>
-                      </TableCell>
-                    </TableRow>
-                  )}
+                      </div>
+                    </TableCell>
+                  </TableRow>
                 </Fragment>
               ))
             ) : (
