@@ -160,7 +160,7 @@ function CheckpointTree({
               )}
               style={{ height: rowH }}
             >
-              <span className='flex-1 truncate text-muted-foreground group-hover:text-foreground'>
+              <span className='min-w-0 flex-1 truncate text-muted-foreground group-hover:text-foreground'>
                 {cp.prompt}
               </span>
               <span className='flex shrink-0 items-center gap-1 text-[11px] text-muted-foreground'>
@@ -245,7 +245,7 @@ export function CommitTable({ data, onCheckpointClick }: CommitTableProps) {
     <div className={cn('flex flex-1 flex-col gap-4')}>
       <DataTableToolbar
         table={table}
-        searchPlaceholder='Filter by commit, message, or date...'
+        searchPlaceholder='Filter by commit, message, or date\u2026'
         filters={[
           {
             columnId: 'agent',
@@ -285,7 +285,15 @@ export function CommitTable({ data, onCheckpointClick }: CommitTableProps) {
                 <Fragment key={row.id}>
                   <TableRow
                     className='cursor-pointer'
+                    role='button'
+                    tabIndex={0}
                     onClick={() => row.toggleExpanded()}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault()
+                        row.toggleExpanded()
+                      }
+                    }}
                   >
                     {row.getVisibleCells().map((cell) => (
                       <TableCell

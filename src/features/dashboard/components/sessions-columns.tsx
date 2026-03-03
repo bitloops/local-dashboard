@@ -30,6 +30,7 @@ export const commitColumns: ColumnDef<CommitRow>[] = [
           e.stopPropagation()
           row.toggleExpanded()
         }}
+        aria-label={row.getIsExpanded() ? 'Collapse row' : 'Expand row'}
         className='flex items-center justify-center rounded p-1 hover:bg-muted'
       >
         <ChevronRight
@@ -47,7 +48,7 @@ export const commitColumns: ColumnDef<CommitRow>[] = [
     header: ({ column }) => (
       <DataTableColumnHeader column={column} title='Date' />
     ),
-    cell: ({ row }) => <span>{row.getValue('date')}</span>,
+    cell: ({ row }) => <span className='tabular-nums'>{row.getValue('date')}</span>,
   },
   {
     accessorKey: 'commit',

@@ -1,3 +1,5 @@
+import { useMemo } from 'react';
+
 const TOKEN_RE =
   /("(?:\\.|[^"\\])*"\s*:)|("(?:\\.|[^"\\])*")|(true|false)|(null)|(-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?)/g
 
@@ -47,7 +49,7 @@ type JsonHighlightProps = {
 }
 
 export function JsonHighlight({ value, className = '' }: JsonHighlightProps) {
-  const tokens = tokenize(value)
+  const tokens = useMemo(() => tokenize(value), [value])
 
   return (
     <pre className={`whitespace-pre-wrap break-words font-mono text-xs ${className}`}>

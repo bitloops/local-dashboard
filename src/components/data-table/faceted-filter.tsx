@@ -36,7 +36,8 @@ export function DataTableFacetedFilter<TData, TValue>({
   options,
 }: DataTableFacetedFilterProps<TData, TValue>) {
   const facets = column?.getFacetedUniqueValues()
-  const selectedValues = new Set(column?.getFilterValue() as string[])
+  const filterValue = column?.getFilterValue() as string[] | undefined
+  const selectedValues = React.useMemo(() => new Set(filterValue), [filterValue])
 
   return (
     <Popover>
@@ -81,7 +82,7 @@ export function DataTableFacetedFilter<TData, TValue>({
       </PopoverTrigger>
       <PopoverContent className='w-[200px] p-0' align='start'>
         <Command>
-          <CommandInput placeholder={title} />
+          <CommandInput placeholder={title} aria-label={`Filter ${title}`} />
           <CommandList>
             <CommandEmpty>No results found.</CommandEmpty>
             <CommandGroup>
@@ -91,12 +92,13 @@ export function DataTableFacetedFilter<TData, TValue>({
                   <CommandItem
                     key={option.value}
                     onSelect={() => {
+                      const next = new Set(selectedValues)
                       if (isSelected) {
-                        selectedValues.delete(option.value)
+                        next.delete(option.value)
                       } else {
-                        selectedValues.add(option.value)
+                        next.add(option.value)
                       }
-                      const filterValues = Array.from(selectedValues)
+                      const filterValues = Array.from(next)
                       column?.setFilterValue(
                         filterValues.length ? filterValues : undefined
                       )

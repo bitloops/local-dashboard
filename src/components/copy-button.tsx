@@ -21,7 +21,7 @@ export function CopyButton({ value, className = '' }: CopyButtonProps) {
       type='button'
       onClick={handleCopy}
       className={`inline-flex shrink-0 items-center justify-center rounded-md p-1 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground ${className}`}
-      title='Copy to clipboard'
+      aria-label='Copy to clipboard'
     >
       {copied ? (
         <Check className='h-3.5 w-3.5 text-green-500' />

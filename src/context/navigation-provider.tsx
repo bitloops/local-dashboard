@@ -1,7 +1,8 @@
 import {
   createContext,
+  use,
   useCallback,
-  useContext,
+  useMemo,
   useState,
   type ReactNode,
 } from 'react'
@@ -20,21 +21,26 @@ export function NavigationProvider({ children }: { children: ReactNode }) {
     setPathname(to)
   }, [])
 
+  const value = useMemo(
+    () => ({ pathname, navigate }),
+    [pathname, navigate]
+  )
+
   return (
-    <NavigationCtx.Provider value={{ pathname, navigate }}>
+    <NavigationCtx.Provider value={value}>
       {children}
     </NavigationCtx.Provider>
   )
 }
 
 export function useNavigate() {
-  const ctx = useContext(NavigationCtx)
+  const ctx = use(NavigationCtx)
   if (!ctx) throw new Error('useNavigate must be used within NavigationProvider')
   return ctx.navigate
 }
 
 export function useLocation() {
-  const ctx = useContext(NavigationCtx)
+  const ctx = use(NavigationCtx)
   if (!ctx) throw new Error('useLocation must be used within NavigationProvider')
   return { pathname: ctx.pathname }
 }

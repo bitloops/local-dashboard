@@ -30,7 +30,7 @@ function ChatBubble({ entry, index, agentName, userName }: ChatBubbleProps) {
   const isTool = isToolRole(entry.role)
   const shouldTruncate = !isTool && entry.content.length > TRUNCATE_LENGTH
   const displayContent = shouldTruncate && !expanded
-    ? entry.content.slice(0, TRUNCATE_LENGTH) + '...'
+    ? entry.content.slice(0, TRUNCATE_LENGTH) + '\u2026'
     : entry.content
 
   if (isTool) {
