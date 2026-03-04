@@ -9,6 +9,15 @@ type ChatEntry = {
 
 const TRUNCATE_LENGTH = 300
 
+/** Display only the name; strip email from API labels like "Wayne Omoga OMOGA@GMAIL.COM". */
+function formatDisplayName(label: string): string {
+  return label
+    .split(/\s+/)
+    .filter((part) => !part.includes('@'))
+    .join(' ')
+    .trim() || label
+}
+
 function isUserRole(role: string): boolean {
   return role === 'user' || role === 'human'
 }
@@ -46,7 +55,7 @@ function ChatBubble({ entry, index, agentName, userName }: ChatBubbleProps) {
     )
   }
 
-  const label = isUser ? userName : agentName
+  const label = isUser ? formatDisplayName(userName) : agentName
 
   return (
     <div className={`flex items-start gap-2 ${isUser ? 'flex-row-reverse' : 'flex-row'}`}>
