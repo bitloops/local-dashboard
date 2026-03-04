@@ -1,0 +1,121 @@
+name: release-dashboard-bundle
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+env:
+  NODE_VERSION: "22"
+
+jobs:
+  build_release:
+    name: Build And Publish Bundle
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Validate tag matches package version
+        run: |
+          PACKAGE_VERSION="$(node -p "require('./package.json').version")"
+          if [ "v${PACKAGE_VERSION}" != "${GITHUB_REF_NAME}" ]; then
+            echo "Tag ${GITHUB_REF_NAME} does not match package.json version v${PACKAGE_VERSION}" >&2
+            exit 1
+          fi
+
+      - name: Build dashboard
+        run: pnpm run build
+
+      - name: Ensure zstd is available
+        run: sudo apt-get update && sudo apt-get install -y zstd
+
+      - name: Package bundle and checksum
+        run: |
+          set -euo pipefail
+
+          VERSION="${GITHUB_REF_NAME#v}"
+          RELEASE_DIR="release"
+          STAGE_DIR="$(mktemp -d)"
+          mkdir -p "$RELEASE_DIR"
+
+          cp -R dist/. "$STAGE_DIR"/
+
+          SOURCE_URL="https://github.com/${GITHUB_REPOSITORY}/releases/download/${GITHUB_REF_NAME}/bundle.tar.zst"
+          printf '{"version":"%s","source_url":"%s"}\n' "$VERSION" "$SOURCE_URL" > "$STAGE_DIR/version.json"
+
+          tar --zstd -cf "$RELEASE_DIR/bundle.tar.zst" -C "$STAGE_DIR" .
+          sha256sum "$RELEASE_DIR/bundle.tar.zst" | awk '{print $1}' > "$RELEASE_DIR/bundle.tar.zst.sha256"
+
+          rm -rf "$STAGE_DIR"
+
+      - name: Upload release assets
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            release/bundle.tar.zst
+            release/bundle.tar.zst.sha256
+          fail_on_unmatched_files: true
+          generate_release_notes: true
+
+  verify_release:
+    name: Verify Published Assets
+    runs-on: ubuntu-latest
+    needs: build_release
+    steps:
+      - name: Ensure zstd is available
+        run: sudo apt-get update && sudo apt-get install -y zstd
+
+      - name: Download and verify assets
+        env:
+          BASE_URL: https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+
+          curl -fsSL --retry 5 --retry-delay 2 "$BASE_URL/bundle.tar.zst" -o bundle.tar.zst
+          curl -fsSL --retry 5 --retry-delay 2 "$BASE_URL/bundle.tar.zst.sha256" -o bundle.tar.zst.sha256
+
+          EXPECTED="$(tr -d '\n\r ' < bundle.tar.zst.sha256)"
+          ACTUAL="$(sha256sum bundle.tar.zst | awk '{print $1}')"
+
+          if [ "$EXPECTED" != "$ACTUAL" ]; then
+            echo "Checksum mismatch for published bundle." >&2
+            exit 1
+          fi
+
+          mkdir extracted
+          tar --zstd -xf bundle.tar.zst -C extracted
+
+          test -f extracted/index.html
+          test -f extracted/version.json
+
+          export VERSION="${GITHUB_REF_NAME#v}"
+          node -e "
+            const fs = require('fs');
+            const version = process.env.VERSION;
+            const sourceUrl = process.env.BASE_URL + '/bundle.tar.zst';
+            const json = JSON.parse(fs.readFileSync('extracted/version.json', 'utf8'));
+            if (json.version !== version) {
+              throw new Error(\`version.json version mismatch: expected \${version}, got \${json.version}\`);
+            }
+            if (json.source_url !== sourceUrl) {
+              throw new Error(\`version.json source_url mismatch: expected \${sourceUrl}, got \${json.source_url}\`);
+            }
+          "
