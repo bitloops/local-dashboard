@@ -10,7 +10,7 @@ type ChatEntry = {
 const TRUNCATE_LENGTH = 300
 
 /** Display only the name; strip email from API labels like "Wayne Omoga OMOGA@GMAIL.COM". */
-function formatDisplayName(label: string): string {
+export function formatDisplayName(label: string): string {
   return label
     .split(/\s+/)
     .filter((part) => !part.includes('@'))
@@ -18,11 +18,11 @@ function formatDisplayName(label: string): string {
     .trim() || label
 }
 
-function isUserRole(role: string): boolean {
+export function isUserRole(role: string): boolean {
   return role === 'user' || role === 'human'
 }
 
-function isToolRole(role: string): boolean {
+export function isToolRole(role: string): boolean {
   return role === 'tool' || role === 'system' || role.startsWith('tool')
 }
 

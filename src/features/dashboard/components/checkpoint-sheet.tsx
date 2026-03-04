@@ -39,7 +39,7 @@ type CheckpointSheetProps = {
   onClose: () => void
 }
 
-const formatDateTime = (value: string): string => {
+export const formatDateTime = (value: string): string => {
   const date = new Date(value)
   if (Number.isNaN(date.getTime())) {
     return value
@@ -47,7 +47,7 @@ const formatDateTime = (value: string): string => {
   return date.toLocaleString()
 }
 
-const prettyPrintJson = (value: string): string => {
+export const prettyPrintJson = (value: string): string => {
   const trimmed = value.trim()
   if (!trimmed) {
     return '-'
@@ -61,12 +61,12 @@ const prettyPrintJson = (value: string): string => {
   }
 }
 
-type ChatEntry = {
+export type ChatEntry = {
   role: string
   content: string
 }
 
-const parseTranscriptEntries = (jsonl: string): ChatEntry[] => {
+export const parseTranscriptEntries = (jsonl: string): ChatEntry[] => {
   const lines = jsonl
     .split('\n')
     .map((line) => line.trim())
@@ -110,7 +110,7 @@ export function CheckpointSheet({
   onClose,
 }: CheckpointSheetProps) {
   const selectedCheckpointCreatedAt = selectedCheckpoint?.createdAt
-    ? new Date(selectedCheckpoint.createdAt).toLocaleString()
+    ? formatDateTime(selectedCheckpoint.createdAt)
     : null
 
   const detailFilesTouched =

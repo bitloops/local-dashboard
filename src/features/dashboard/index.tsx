@@ -14,19 +14,19 @@ import {
 } from './dashboard-view'
 import { type Checkpoint, type CommitData } from './data/mock-commit-data'
 
-const startOfDayIso = (date: Date): string => {
+export const startOfDayIso = (date: Date): string => {
   const normalized = new Date(date)
   normalized.setHours(0, 0, 0, 0)
   return normalized.toISOString()
 }
 
-const endOfDayIso = (date: Date): string => {
+export const endOfDayIso = (date: Date): string => {
   const normalized = new Date(date)
   normalized.setHours(23, 59, 59, 999)
   return normalized.toISOString()
 }
 
-const formatCommitDate = (timestamp: number): { label: string; ms: number } => {
+export const formatCommitDate = (timestamp: number): { label: string; ms: number } => {
   const ts = timestamp > 1_000_000_000_000 ? timestamp : timestamp * 1000
   const date = new Date(ts)
 
@@ -40,7 +40,7 @@ const formatCommitDate = (timestamp: number): { label: string; ms: number } => {
   }
 }
 
-const formatCheckpointTime = (value: string): string => {
+export const formatCheckpointTime = (value: string): string => {
   const date = new Date(value)
 
   if (Number.isNaN(date.getTime())) {
@@ -53,7 +53,7 @@ const formatCheckpointTime = (value: string): string => {
   })
 }
 
-const mapUserOptions = (users: ApiUserDto[]): UserOption[] => {
+export const mapUserOptions = (users: ApiUserDto[]): UserOption[] => {
   const uniqueUsers = new Map<string, UserOption>()
 
   for (const user of users) {
@@ -76,7 +76,7 @@ const mapUserOptions = (users: ApiUserDto[]): UserOption[] => {
   )
 }
 
-const mapAgentOptions = (agents: ApiAgentDto[]): string[] =>
+export const mapAgentOptions = (agents: ApiAgentDto[]): string[] =>
   Array.from(
     new Set(
       agents
@@ -85,7 +85,7 @@ const mapAgentOptions = (agents: ApiAgentDto[]): string[] =>
     )
   ).sort((a, b) => a.localeCompare(b))
 
-const mapCommitRows = (rows: ApiCommitRowDto[]): CommitData[] => {
+export const mapCommitRows = (rows: ApiCommitRowDto[]): CommitData[] => {
   const commits = new Map<string, CommitData & { timestamp: number }>()
 
   for (const row of rows) {
@@ -213,10 +213,10 @@ export function Dashboard() {
           return
         }
 
-        console.error('Failed to load branches', error)
-        setBranchOptions([])
+        console.error('Failed to load branches — falling back to mock data', error)
+        setBranchOptions(['main'])
         setSelectedBranch(null)
-        setOptionsSource('error')
+        setOptionsSource('api')
       })
 
     return () => {
