@@ -1,85 +1,27 @@
-# Deploy (Phase A, GitHub Releases + Static Manifest)
+# Deploy (Dashboard Bundle)
 
-This is the minimal release flow for dashboard bundle artifacts consumed by `bitloops dashboard`.
+This is the release flow for `bitloops/local-dashboard` bundle artifacts consumed by `bitloops dashboard`.
 
 ## Release Model
 
-- `main` is protected and only updated via PR merge.
-- A dashboard release is triggered by pushing a semver tag (`vX.Y.Z`) that points to a commit already on `main`.
-- Bundle artifacts are hosted as GitHub Release assets.
-- Version discovery is hosted from a static repo URL:
-  - `https://raw.githubusercontent.com/bitloops/local-dashboard/main/bundle_versions.json`
-- CLI base URL should resolve to the same static root:
-  - `BITLOOPS_DASHBOARD_CDN_BASE_URL=https://raw.githubusercontent.com/bitloops/local-dashboard/main`
-
-## 1. Ship Code to `main`
-
-1. Open PR(s) with dashboard changes.
-2. Wait for CI to pass.
-3. Merge to `main`.
-
-Do not mix version-cutting with normal feature PRs unless the PR is explicitly the release cut.
-
-## 2. Decide to Cut a Release
-
-Cut a release only when:
-
-- Desired dashboard changes are already merged to `main`
-- `main` is green
-- You want a new bundle version discoverable by the CLI
-
-## 3. Create Release PR (`vX.Y.Z`)
-
-Create a release PR that prepares the dashboard version.
-
-Typical changes:
-
-- Bump `package.json` version to `X.Y.Z`
-- Ensure bundle-embedded version metadata is `X.Y.Z` (for `~/.bitloops/dashboard/bundle/version.json` at install time)
-
-Then:
-
-1. Open PR (example: `chore: release dashboard vX.Y.Z`).
-2. Wait for CI.
-3. Merge PR to `main`.
-
-## 4. Create and Push Release Tag
-
-From a clean, up-to-date local `main`:
-
-```bash
-git checkout main
-git pull --ff-only origin main
-./scripts/release.sh
-```
-
-Notes:
-
-- Tag push is compatible with protected `main` because it does not push branch commits.
-- If tag protection rules exist, they must allow release maintainers to push `v*` tags.
-
-## 5. Observe Release Pipeline
-
-Watch the tag-triggered release workflow at `.github/workflows/release.yml`.
-
-Success criteria:
-
-- GitHub Release for `vX.Y.Z` is created
-- Assets are attached:
+- `main` is protected and updated via PR merge.
+- Release is triggered by pushing tag `vX.Y.Z` from `main`.
+- Artifacts are GitHub Release assets:
   - `bundle.tar.zst`
   - `bundle.tar.zst.sha256`
-- Checksum verification job passes
+- Version discovery is static:
+  - `https://raw.githubusercontent.com/bitloops/local-dashboard/main/bundle_versions.json`
 
-Release asset URLs should be:
+## 1. Open One Release PR (`vX.Y.Z`)
 
-- `https://github.com/bitloops/local-dashboard/releases/download/vX.Y.Z/bundle.tar.zst`
-- `https://github.com/bitloops/local-dashboard/releases/download/vX.Y.Z/bundle.tar.zst.sha256`
+Single PR is enough.
 
-## 6. Update `bundle_versions.json` on `main`
+Include:
 
-After release assets are live, open a PR to update `bundle_versions.json` on `main` (this file exists at repo root and is served via the raw static URL).
+- `package.json` version bump to `X.Y.Z`
+- `bundle_versions.json` new entry for `X.Y.Z`
 
-Add a new entry:
+Example manifest entry:
 
 ```json
 {
@@ -91,27 +33,44 @@ Add a new entry:
 }
 ```
 
-Merge this PR once validated. This is the step that makes the release discoverable by CLI clients.
+Then merge the PR after CI passes.
 
-## 7. Quick End-to-End Check
+## 2. Create and Push Tag
 
-Run the CLI with the static manifest base URL:
+From clean, up-to-date `main`:
 
 ```bash
-export BITLOOPS_DASHBOARD_CDN_BASE_URL=https://raw.githubusercontent.com/bitloops/local-dashboard/main
-bitloops dashboard
+git checkout main
+git pull --ff-only origin main
+./scripts/release.sh
 ```
 
-Expected:
+The script creates `v<package.json version>` and pushes only the tag.
 
-- `GET /api/check_bundle_version` resolves the new compatible version
-- Install/update downloads release assets, verifies checksum, and installs successfully
+## 3. Verify Release Workflow
 
-## 8. Rollback Rule
+Watch `.github/workflows/release.yml`.
 
-If a release is bad:
+Success criteria:
+
+- GitHub Release `vX.Y.Z` is created
+- Both assets are uploaded
+- Checksum verification job passes
+
+## 4. Smoke Test Bundle
+
+Confirm you can download, verify checksum, extract, and render `index.html`.
+
+## 5. Why `version.json` Exists
+
+`~/.bitloops/dashboard/bundle/version.json` is used by the CLI to know which dashboard version is installed and whether updates are available.
+
+You do **not** edit this file manually. The release workflow generates it inside the bundle archive from the release tag/version.
+
+## 6. Rollback
+
+If release `vX.Y.Z` is bad:
 
 1. Delete GitHub Release + tag `vX.Y.Z`
-2. Remove or revert the `X.Y.Z` entry from `bundle_versions.json` (if already merged)
-3. Fix forward
-4. Publish a new patch tag (for example `vX.Y.(Z+1)`)
+2. Remove or revert the `X.Y.Z` manifest entry in `bundle_versions.json`
+3. Fix forward and publish `vX.Y.(Z+1)`
