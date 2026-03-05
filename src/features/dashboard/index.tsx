@@ -1,6 +1,17 @@
 import { useEffect, useMemo, useState } from 'react'
-import { BitloopsCli, type ApiCheckpointDetailResponse } from '@/api/types/schema'
-import { DashboardView, type CheckpointDetailLoadState } from './dashboard-view'
+import {
+  BitloopsCli,
+  type ApiAgentDto,
+  type ApiBranchSummaryDto,
+  type ApiCheckpointDetailResponse,
+  type ApiCommitRowDto,
+  type ApiUserDto,
+} from '@/api/types/schema'
+import {
+  DashboardView,
+  type CheckpointDetailLoadState,
+  type UserOption,
+} from './dashboard-view'
 import { type Checkpoint, type CommitData } from './data/mock-commit-data'
 import {
   endOfDayIso,
