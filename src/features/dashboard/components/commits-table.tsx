@@ -177,6 +177,7 @@ function CheckpointTree({
 }
 
 export function CommitTable({ data, onCheckpointClick }: CommitTableProps) {
+  'use no memo' // TanStack Table uses interior mutability; avoid React Compiler memoization
   const [sorting, setSorting] = useState<SortingState>([])
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([])
   const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({})
@@ -189,6 +190,7 @@ export function CommitTable({ data, onCheckpointClick }: CommitTableProps) {
     setSelectedRows({})
   }, [data])
 
+  // eslint-disable-next-line react-hooks/incompatible-library -- useReactTable uses interior mutability; "use no memo" above handles runtime
   const table = useReactTable({
     data,
     columns,

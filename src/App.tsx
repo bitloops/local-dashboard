@@ -1,4 +1,4 @@
-import { useLocation } from '@/context/navigation-provider'
+import { useLocation } from '@/context/use-navigation'
 import { LayoutProvider } from '@/context/layout-provider'
 import { getCookie } from '@/lib/cookies'
 import { cn } from '@/lib/utils'

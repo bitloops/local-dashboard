@@ -8,7 +8,7 @@ import {
   mapCommitRows,
   mapUserOptions,
   startOfDayIso,
-} from './index'
+} from './utils'
 
 describe('formatCheckpointTime', () => {
   it('formats valid ISO timestamp to locale time', () => {

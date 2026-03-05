@@ -1,12 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import {
-  ChatTranscript,
-  formatDisplayName,
-  isUserRole,
-  isToolRole,
-} from './chat-transcript'
+import { formatDisplayName, isUserRole, isToolRole } from './chat-utils'
+import { ChatTranscript } from './chat-transcript'
 
 describe('formatDisplayName', () => {
   it('strips email from "Name EMAIL" API format', () => {

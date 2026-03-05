@@ -1,8 +1,8 @@
 import { useState, type JSX } from 'react'
-import { useLocation, useNavigate } from '@/context/navigation-provider'
+import { useLocation, useNavigate } from '@/context/use-navigation'
 import { NavLink as Link } from '@/components/nav-link'
 import { cn } from '@/lib/utils'
-import { buttonVariants } from '@/components/ui/button'
+import { buttonVariants } from '@/components/ui/button-variants'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import {
   Select,

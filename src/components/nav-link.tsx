@@ -1,4 +1,4 @@
-import { useNavigate } from '@/context/navigation-provider'
+import { useNavigate } from '@/context/use-navigation'
 
 type NavLinkProps = Omit<React.AnchorHTMLAttributes<HTMLAnchorElement>, 'href'> & {
   to: string

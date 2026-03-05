@@ -1,5 +1,5 @@
 import { type ReactNode } from 'react'
-import { useLocation } from '@/context/navigation-provider'
+import { useLocation } from '@/context/use-navigation'
 import { NavLink as Link } from '@/components/nav-link'
 import { ChevronRight } from 'lucide-react'
 import {
