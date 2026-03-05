@@ -1,3 +1,6 @@
+export type FileChangeStats = { additionsCount: number; deletionsCount: number }
+export type FilesTouchedMap = Record<string, FileChangeStats>
+
 export type Checkpoint = {
   id: string
   prompt: string
@@ -8,7 +11,7 @@ export type Checkpoint = {
   strategy?: string
   sessionId?: string
   toolUseId?: string
-  filesTouched?: string[]
+  filesTouched?: FilesTouchedMap
   sessionCount?: number
   checkpointsCount?: number
   isTask?: boolean

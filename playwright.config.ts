@@ -19,7 +19,7 @@ export default defineConfig({
   webServer: {
     command: 'pnpm dev --host 127.0.0.1 --port 5173 --strictPort',
     url: 'http://127.0.0.1:5173/',
-    reuseExistingServer: true,
+    reuseExistingServer: false, // always start fresh so the test browser gets latest app and stub content
     timeout: 120_000,
   },
 })

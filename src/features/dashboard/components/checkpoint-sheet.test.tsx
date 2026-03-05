@@ -93,4 +93,29 @@ describe('CheckpointSheet (component)', () => {
     await userEvent.click(closeButton)
     expect(onClose).toHaveBeenCalled()
   })
+
+  it('shows Files Touched with git-diff style additions/deletions when filesTouched is provided', () => {
+    const checkpoint: Checkpoint = {
+      id: 'cp-1',
+      prompt: 'Fix bug',
+      timestamp: '10:00 AM',
+      filesTouched: {
+        'src/App.tsx': { additionsCount: 5, deletionsCount: 2 },
+        'src/lib/utils.ts': { additionsCount: 0, deletionsCount: 3 },
+      },
+    }
+    render(
+      <CheckpointSheet
+        {...defaultProps}
+        selectedCheckpoint={checkpoint}
+        checkpointDetailSource='api'
+      />
+    )
+    expect(screen.getByText('Files Touched')).toBeInTheDocument()
+    expect(screen.getByText('App.tsx')).toBeInTheDocument()
+    expect(screen.getByText('utils.ts')).toBeInTheDocument()
+    expect(screen.getByText('+5')).toBeInTheDocument()
+    expect(screen.getByText('−2')).toBeInTheDocument()
+    expect(screen.getByText('−3')).toBeInTheDocument()
+  })
 })

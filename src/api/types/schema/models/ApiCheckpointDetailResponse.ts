@@ -3,12 +3,13 @@
 /* tslint:disable */
 /* eslint-disable */
 import type { ApiCheckpointSessionDetailDto } from './ApiCheckpointSessionDetailDto';
+import type { ApiFileChangeStatsDto } from './ApiFileChangeStatsDto';
 import type { ApiTokenUsageDto } from './ApiTokenUsageDto';
 export type ApiCheckpointDetailResponse = {
     branch: string;
     checkpoint_id: string;
     checkpoints_count: number;
-    files_touched: Array<string>;
+    files_touched: Record<string, ApiFileChangeStatsDto>;
     session_count: number;
     sessions: Array<ApiCheckpointSessionDetailDto>;
     strategy: string;

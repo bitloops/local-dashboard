@@ -156,7 +156,7 @@ function makeCommitRow(overrides: Partial<{
       branch: overrides.branch ?? 'main',
       strategy: '',
       tool_use_id: '',
-      files_touched: [],
+      files_touched: {},
       session_id: '',
       session_count: 0,
       checkpoints_count: 0,

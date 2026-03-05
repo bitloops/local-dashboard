@@ -2,6 +2,7 @@
 /* istanbul ignore file */
 /* tslint:disable */
 /* eslint-disable */
+import type { ApiFileChangeStatsDto } from './ApiFileChangeStatsDto';
 import type { ApiTokenUsageDto } from './ApiTokenUsageDto';
 export type ApiCheckpointDto = {
     agent: string;
@@ -9,7 +10,7 @@ export type ApiCheckpointDto = {
     checkpoint_id: string;
     checkpoints_count: number;
     created_at: string;
-    files_touched: Array<string>;
+    files_touched: Record<string, ApiFileChangeStatsDto>;
     is_task: boolean;
     session_count: number;
     session_id: string;

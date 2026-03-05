@@ -113,7 +113,7 @@ describe('Dashboard integration', () => {
       branch: 'main',
       checkpoint_id: cp.id,
       checkpoints_count: 1,
-      files_touched: [],
+      files_touched: {},
       session_count: 1,
       strategy: '',
       sessions: [

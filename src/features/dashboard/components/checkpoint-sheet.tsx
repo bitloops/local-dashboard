@@ -113,8 +113,9 @@ export function CheckpointSheet({
     ? formatDateTime(selectedCheckpoint.createdAt)
     : null
 
-  const detailFilesTouched =
-    checkpointDetail?.files_touched ?? selectedCheckpoint?.filesTouched ?? []
+  const detailFilesTouched: Record<string, { additionsCount: number; deletionsCount: number }> =
+    checkpointDetail?.files_touched ?? selectedCheckpoint?.filesTouched ?? {}
+  const detailFilesPaths = Object.keys(detailFilesTouched)
   const detailSessionCount =
     checkpointDetail?.session_count ?? selectedCheckpoint?.sessionCount ?? 0
   const detailCheckpointsCount =
@@ -189,7 +190,7 @@ export function CheckpointSheet({
                   <div className='grid grid-cols-2 gap-3 sm:grid-cols-4 sm:divide-x sm:divide-border sm:gap-0'>
                     <div className='sm:px-3 sm:first:ps-0 sm:last:pe-0'>
                       <p className='text-xs text-muted-foreground'>Files</p>
-                      <p className='text-lg font-bold text-primary'>{detailFilesTouched.length}</p>
+                      <p className='text-lg font-bold text-primary'>{detailFilesPaths.length}</p>
                     </div>
                     <div className='sm:px-3 sm:first:ps-0 sm:last:pe-0'>
                       <p className='text-xs text-muted-foreground'>Sessions</p>
@@ -228,9 +229,9 @@ export function CheckpointSheet({
 
                 <div>
                   <h3 className='mb-2 text-sm font-semibold'>Files Touched</h3>
-                  {detailFilesTouched.length > 0 ? (
+                  {detailFilesPaths.length > 0 ? (
                     <div className='rounded-md border bg-muted/20 p-3'>
-                      <FileTree paths={detailFilesTouched} />
+                      <FileTree fileStats={detailFilesTouched} />
                     </div>
                   ) : (
                     <p className='text-sm text-muted-foreground'>

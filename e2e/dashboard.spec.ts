@@ -28,8 +28,13 @@ const STUB_COMMITS = [
       strategy: 'task',
       session_id: 'sess-01',
       tool_use_id: '',
-      files_touched: ['src/App.tsx', 'src/components/layout/app-sidebar.tsx'],
-      session_count: 1,
+      files_touched: {
+        'src/App.tsx': { additionsCount: 42, deletionsCount: 8 },
+        'src/components/layout/app-sidebar.tsx': { additionsCount: 120, deletionsCount: 15 },
+        'src/components/ui/sidebar.tsx': { additionsCount: 0, deletionsCount: 3 },
+        'src/styles/globals.css': { additionsCount: 12, deletionsCount: 0 },
+      },
+      session_count: 2,
       checkpoints_count: 4,
       is_task: true,
     },
@@ -48,7 +53,7 @@ const STUB_COMMITS = [
       strategy: 'task',
       session_id: 'sess-01',
       tool_use_id: '',
-      files_touched: ['src/styles/globals.css'],
+      files_touched: { 'src/styles/globals.css': { additionsCount: 3, deletionsCount: 1 } },
       session_count: 1,
       checkpoints_count: 4,
       is_task: true,
@@ -68,7 +73,7 @@ const STUB_COMMITS = [
       strategy: 'prompt',
       session_id: 'sess-02',
       tool_use_id: '',
-      files_touched: ['src/lib/auth.ts'],
+      files_touched: { 'src/lib/auth.ts': { additionsCount: 20, deletionsCount: 5 } },
       session_count: 1,
       checkpoints_count: 7,
       is_task: false,
@@ -80,31 +85,61 @@ const STUB_CHECKPOINT_DETAIL = {
   branch: 'main',
   checkpoint_id: 'cp-01',
   checkpoints_count: 4,
-  files_touched: ['src/App.tsx', 'src/components/layout/app-sidebar.tsx'],
-  session_count: 1,
+  files_touched: {
+    'src/App.tsx': { additionsCount: 42, deletionsCount: 8 },
+    'src/components/layout/app-sidebar.tsx': { additionsCount: 120, deletionsCount: 15 },
+    'src/components/ui/sidebar.tsx': { additionsCount: 0, deletionsCount: 3 },
+    'src/styles/globals.css': { additionsCount: 12, deletionsCount: 0 },
+  },
+  session_count: 2,
   strategy: 'task',
   token_usage: {
-    input_tokens: 10000,
-    output_tokens: 5000,
-    cache_read_tokens: 2000,
-    cache_creation_tokens: 500,
-    api_call_count: 8,
+    input_tokens: 12500,
+    output_tokens: 3200,
+    cache_read_tokens: 4000,
+    cache_creation_tokens: 800,
+    api_call_count: 12,
   },
   sessions: [
     {
       agent: 'claude-code',
-      context_text: 'Project context here.',
+      context_text: 'React 19 app with Vite. Use Tailwind and shadcn/ui. The sidebar should collapse on small screens.',
       created_at: '2025-02-14T10:12:00Z',
       is_task: true,
-      metadata_json: '{"key":"value"}',
-      prompts_text: 'Create the basic layout with sidebar and header',
+      metadata_json: JSON.stringify({
+        model: 'claude-sonnet-4',
+        temperature: 0.2,
+        max_tokens: 4096,
+      }),
+      prompts_text: 'Create the basic layout with sidebar and header. Use the existing AppSidebar component and add a main content area.',
       session_id: 'sess-01',
       session_index: 0,
       tool_use_id: '',
       transcript_jsonl: [
-        JSON.stringify({ role: 'user', content: 'Create the basic layout' }),
-        JSON.stringify({ role: 'assistant', content: 'Sure, here is the layout.' }),
-        JSON.stringify({ role: 'tool', content: 'Tool executed successfully.' }),
+        JSON.stringify({ role: 'user', content: 'Create the basic layout with sidebar and header.' }),
+        JSON.stringify({ role: 'assistant', content: "I'll add a layout with AppSidebar and a main content area using the existing components." }),
+        JSON.stringify({ role: 'tool', content: 'Created src/App.tsx with Layout and SidebarInset.' }),
+        JSON.stringify({ role: 'user', content: 'Make the sidebar collapsible on mobile.' }),
+        JSON.stringify({ role: 'assistant', content: 'Adding a collapsible wrapper and breakpoint-based visibility.' }),
+      ].join('\n'),
+    },
+    {
+      agent: 'claude-code',
+      context_text: 'Follow-up: layout is done. User wants theme toggle in the header.',
+      created_at: '2025-02-14T10:28:00Z',
+      is_task: false,
+      metadata_json: JSON.stringify({
+        model: 'claude-sonnet-4',
+        parent_session_id: 'sess-01',
+      }),
+      prompts_text: 'Add a theme switch (light/dark) in the header. Use the ThemeSwitch component if it exists.',
+      session_id: 'sess-01',
+      session_index: 1,
+      tool_use_id: 'theme_switch',
+      transcript_jsonl: [
+        JSON.stringify({ role: 'user', content: 'Add a theme switch in the header.' }),
+        JSON.stringify({ role: 'assistant', content: "I'll add ThemeSwitch to the header and ensure the provider wraps the app." }),
+        JSON.stringify({ role: 'tool', content: 'Updated Header and main.tsx.' }),
       ].join('\n'),
     },
   ],
@@ -213,9 +248,6 @@ test.describe('App / dashboard load', () => {
 // ---------------------------------------------------------------------------
 
 test.describe('Filters', () => {
-  // The Filters card renders 3 <Select> comboboxes in order: Branch (0), User (1), Agent (2).
-  // Selecting by nth index is more reliable than matching the label text, which can appear
-  // elsewhere on the page (e.g. table column headers).
 
   test('branch filter dropdown shows stub branch options', async ({ page }) => {
     await stubApiRoutes(page)

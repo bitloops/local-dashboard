@@ -18,6 +18,7 @@ export type { ApiCheckpointSessionDetailDto } from './models/ApiCheckpointSessio
 export type { ApiCommitDto } from './models/ApiCommitDto';
 export type { ApiCommitRowDto } from './models/ApiCommitRowDto';
 export type { ApiErrorBody } from './models/ApiErrorBody';
+export type { ApiFileChangeStatsDto } from './models/ApiFileChangeStatsDto';
 export type { ApiErrorEnvelope } from './models/ApiErrorEnvelope';
 export type { ApiKpisResponse } from './models/ApiKpisResponse';
 export type { ApiRootResponse } from './models/ApiRootResponse';
