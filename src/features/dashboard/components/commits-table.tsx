@@ -161,7 +161,7 @@ function CheckpointTree({
               style={{ height: rowH }}
             >
               <span className='min-w-0 flex-1 truncate text-muted-foreground group-hover:text-foreground'>
-                {cp.prompt}
+                {cp.id}
               </span>
               <span className='flex shrink-0 items-center gap-1 text-[11px] text-muted-foreground'>
                 <Clock className='size-3' />

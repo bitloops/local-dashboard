@@ -96,7 +96,6 @@ export const mapCommitRows = (rows: ApiCommitRowDto[]): CommitData[] => {
       id: row.checkpoint.checkpoint_id,
       prompt:
         row.checkpoint.tool_use_id ||
-        row.checkpoint.strategy ||
         row.checkpoint.checkpoint_id,
       timestamp: formatCheckpointTime(row.checkpoint.created_at),
       createdAt: row.checkpoint.created_at,

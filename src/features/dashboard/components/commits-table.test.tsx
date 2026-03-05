@@ -56,7 +56,7 @@ describe('CommitTable', () => {
       name: /expand row/i,
     })
     await userEvent.click(expandButton)
-    const checkpointButton = screen.getByRole('button', { name: /Open me/i })
+    const checkpointButton = screen.getByRole('button', { name: /cp-42/i })
     await userEvent.click(checkpointButton)
     expect(onCheckpointClick).toHaveBeenCalledWith(checkpoint)
   })
