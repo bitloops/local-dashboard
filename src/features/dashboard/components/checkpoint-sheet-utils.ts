@@ -6,6 +6,14 @@ export const formatDateTime = (value: string): string => {
   return date.toLocaleString()
 }
 
+/** Removes only <user_query> and </user_query> tag markup; leaves spacing unchanged. */
+export const stripUserQueryTags = (value: string): string => {
+  if (!value.trim()) return value
+  return value
+    .replace(/<user_query>/gi, '')
+    .replace(/<\/user_query>/gi, '')
+}
+
 export const prettyPrintJson = (value: string): string => {
   const trimmed = value.trim()
   if (!trimmed) {
@@ -41,12 +49,23 @@ export const parseTranscriptEntries = (jsonl: string): ChatEntry[] => {
             ? parsed.type
             : `entry-${index + 1}`
 
+      const message = parsed.message as Record<string, unknown> | undefined
+      const messageContent = message?.content
+      const firstContentBlock = Array.isArray(messageContent)
+        ? (messageContent[0] as Record<string, unknown> | undefined)
+        : undefined
+      const textFromMessage = firstContentBlock?.text
       const contentCandidate =
-        parsed.content ?? parsed.text ?? parsed.message ?? parsed.delta ?? parsed
-      const content =
+        typeof textFromMessage === 'string'
+          ? textFromMessage
+          : parsed.content ?? parsed.text ?? parsed.message ?? parsed.delta ?? parsed
+      let content =
         typeof contentCandidate === 'string'
           ? contentCandidate
           : JSON.stringify(contentCandidate, null, 2)
+      if (role === 'user') {
+        content = stripUserQueryTags(content)
+      }
 
       return {
         role,

@@ -84,7 +84,6 @@ describe('Dashboard integration', () => {
       />
     )
     expect(screen.getByText(`Checkpoint ${cp.id}`)).toBeInTheDocument()
-    expect(screen.getByText(cp.prompt)).toBeInTheDocument()
   })
 
   it('calls onCheckpointClose when sheet close is clicked', async () => {

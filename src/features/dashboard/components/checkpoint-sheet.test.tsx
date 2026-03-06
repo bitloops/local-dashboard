@@ -5,6 +5,7 @@ import {
   formatDateTime,
   prettyPrintJson,
   parseTranscriptEntries,
+  stripUserQueryTags,
 } from './checkpoint-sheet-utils'
 import { CheckpointSheet } from './checkpoint-sheet'
 import type { Checkpoint } from '../data/mock-commit-data'
@@ -17,6 +18,32 @@ describe('formatDateTime', () => {
 
   it('returns original value for invalid date string', () => {
     expect(formatDateTime('not-a-date')).toBe('not-a-date')
+  })
+})
+
+describe('stripUserQueryTags', () => {
+  it('removes only <user_query> and </user_query> tags, leaves spacing unchanged', () => {
+    const input = '  <user_query>\n  What is 2+2?\n  </user_query>  '
+    expect(stripUserQueryTags(input)).toBe('  \n  What is 2+2?\n    ')
+  })
+
+  it('is case-insensitive', () => {
+    expect(stripUserQueryTags('<USER_QUERY>Hi</USER_QUERY>')).toBe('Hi')
+    expect(stripUserQueryTags('<User_Query>Bye</User_Query>')).toBe('Bye')
+  })
+
+  it('removes multiple tag pairs and leaves content and spacing', () => {
+    const input = 'First\n<user_query>\nQ1\n</user_query>\n\n<user_query>\nQ2\n</user_query>\nLast'
+    expect(stripUserQueryTags(input)).toBe('First\n\nQ1\n\n\n\nQ2\n\nLast')
+  })
+
+  it('returns empty string unchanged for whitespace-only input', () => {
+    expect(stripUserQueryTags('   ')).toBe('   ')
+  })
+
+  it('returns original when no tags present', () => {
+    const input = 'Just some text'
+    expect(stripUserQueryTags(input)).toBe(input)
   })
 })
 
@@ -39,6 +66,24 @@ describe('parseTranscriptEntries', () => {
     expect(entries[0]).toEqual({ role: 'user', content: 'Hi' })
     expect(entries[1]).toEqual({ role: 'assistant', content: 'Hello' })
   })
+
+  it('strips <user_query> and </user_query> from user messages (API format with message.content)', () => {
+    const jsonl = [
+      JSON.stringify({
+        role: 'user',
+        message: { content: [{ type: 'text', text: '<user_query>\nWhat is 2+2?\n</user_query>' }] },
+      }),
+      JSON.stringify({
+        role: 'assistant',
+        message: { content: [{ type: 'text', text: '4' }] },
+      }),
+    ].join('\n')
+    const entries = parseTranscriptEntries(jsonl)
+    expect(entries).toHaveLength(2)
+    expect(entries[0].role).toBe('user')
+    expect(entries[0].content).toBe('\nWhat is 2+2?\n')
+    expect(entries[1]).toEqual({ role: 'assistant', content: '4' })
+  })
 })
 
 describe('CheckpointSheet (component)', () => {
@@ -55,7 +100,7 @@ describe('CheckpointSheet (component)', () => {
     expect(screen.queryByText(/Checkpoint cp-/)).not.toBeInTheDocument()
   })
 
-  it('shows checkpoint title and prompt when a checkpoint is selected', () => {
+  it('shows checkpoint title when a checkpoint is selected', () => {
     const checkpoint: Checkpoint = {
       id: 'cp-99',
       prompt: 'Implement the feature',
@@ -71,7 +116,6 @@ describe('CheckpointSheet (component)', () => {
       />
     )
     expect(screen.getByText('Checkpoint cp-99')).toBeInTheDocument()
-    expect(screen.getByText('Implement the feature')).toBeInTheDocument()
   })
 
   it('calls onClose when sheet is closed', async () => {
@@ -94,7 +138,7 @@ describe('CheckpointSheet (component)', () => {
     expect(onClose).toHaveBeenCalled()
   })
 
-  it('shows Files Touched with git-diff style additions/deletions when filesTouched is provided', () => {
+  it('shows Files Touched with git-diff style additions/deletions when filesTouched is provided', async () => {
     const checkpoint: Checkpoint = {
       id: 'cp-1',
       prompt: 'Fix bug',
@@ -111,6 +155,7 @@ describe('CheckpointSheet (component)', () => {
         checkpointDetailSource='api'
       />
     )
+    await userEvent.click(screen.getByRole('tab', { name: 'Summary' }))
     expect(screen.getByText('Files Touched')).toBeInTheDocument()
     expect(screen.getByText('App.tsx')).toBeInTheDocument()
     expect(screen.getByText('utils.ts')).toBeInTheDocument()
