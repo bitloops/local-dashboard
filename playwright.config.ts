@@ -1,0 +1,25 @@
+import { defineConfig, devices } from '@playwright/test'
+
+/**
+ * E2E tests run against `pnpm dev`. API calls are stubbed in specs so no real backend is required.
+ * @see https://playwright.dev/docs/test-configuration
+ */
+export default defineConfig({
+  testDir: './e2e',
+  fullyParallel: true,
+  forbidOnly: !!process.env.CI,
+  retries: process.env.CI ? 2 : 0,
+  workers: process.env.CI ? 1 : undefined,
+  reporter: 'list',
+  use: {
+    baseURL: 'http://127.0.0.1:5173/',
+    trace: 'on-first-retry',
+  },
+  projects: [{ name: 'chromium', use: { ...devices['Desktop Chrome'] } }],
+  webServer: {
+    command: 'pnpm dev --host 127.0.0.1 --port 5173 --strictPort',
+    url: 'http://127.0.0.1:5173/',
+    reuseExistingServer: false, // always start fresh so the test browser gets latest app and stub content
+    timeout: 120_000,
+  },
+})

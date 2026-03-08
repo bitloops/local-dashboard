@@ -1,10 +1,25 @@
 import { StrictMode } from 'react'
-import { createRoot } from 'react-dom/client'
-import './index.css'
-import App from './App.tsx'
+import ReactDOM from 'react-dom/client'
+import { Toaster } from '@/components/ui/sonner'
+import { FontProvider } from './context/font-provider'
+import { ThemeProvider } from './context/theme-provider'
+import { NavigationProvider } from './context/navigation-provider'
+import { App } from './App'
+import './styles/index.css'
 
-createRoot(document.getElementById('root')!).render(
-  <StrictMode>
-    <App />
-  </StrictMode>,
-)
+const rootElement = document.getElementById('root')!
+if (!rootElement.innerHTML) {
+  const root = ReactDOM.createRoot(rootElement)
+  root.render(
+    <StrictMode>
+      <ThemeProvider>
+        <FontProvider>
+          <NavigationProvider>
+            <App />
+            <Toaster duration={5000} />
+          </NavigationProvider>
+        </FontProvider>
+      </ThemeProvider>
+    </StrictMode>
+  )
+}
