@@ -26,6 +26,7 @@ import { FileTree } from './file-tree'
 import { JsonHighlight } from './json-highlight'
 import { type Checkpoint } from '../data/mock-commit-data'
 import { type CheckpointDetailLoadState } from '../dashboard-view'
+import { formatAgentLabel } from '../utils'
 import {
   formatDateTime,
   parseTranscriptEntries,
@@ -225,7 +226,7 @@ export function CheckpointSheet({
                                       </CardDescription>
                                     </div>
                                     <div className='flex flex-wrap gap-2'>
-                                      <Badge variant='secondary'>{session.agent}</Badge>
+                                      <Badge variant='secondary'>{formatAgentLabel(session.agent)}</Badge>
                                       <Badge variant='outline'>
                                         {session.is_task ? 'Task' : 'Prompt'}
                                       </Badge>
@@ -276,7 +277,7 @@ export function CheckpointSheet({
                                         <ChatTranscript
                                           entries={transcriptEntries}
                                           sessionId={session.session_id}
-                                          agentName={session.agent}
+                                          agentName={formatAgentLabel(session.agent)}
                                           userName={userName}
                                         />
                                       </div>

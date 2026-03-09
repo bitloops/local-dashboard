@@ -18,6 +18,8 @@ const agentLabels: Record<string, string> = {
   'claude-code': 'Claude Code',
   'gemini-cli': 'Gemini CLI',
   'open-code': 'OpenCode',
+  'cursor': 'Cursor',
+  'openai': 'OpenAI',
 }
 
 export const commitColumns: ColumnDef<CommitRow>[] = [

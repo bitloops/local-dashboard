@@ -64,6 +64,15 @@ export const mapUserOptions = (users: ApiUserDto[]): UserOption[] => {
   )
 }
 
+/** Format agent key for display; each word capitalised (e.g. "claude-code" → "Claude Code"). */
+export function formatAgentLabel(agentKey: string): string {
+  return agentKey
+    .split(/[\s-]+/)
+    .filter(Boolean)
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+    .join(' ')
+}
+
 export const mapAgentOptions = (agents: ApiAgentDto[]): string[] =>
   Array.from(
     new Set(

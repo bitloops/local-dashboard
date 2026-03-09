@@ -35,6 +35,8 @@ const agentOptions = [
   { label: 'Claude Code', value: 'claude-code' },
   { label: 'Gemini CLI', value: 'gemini-cli' },
   { label: 'OpenCode', value: 'open-code' },
+  { label: 'Cursor', value: 'cursor' },
+  { label: 'OpenAI', value: 'openai' },
 ]
 
 type CommitTableProps = {

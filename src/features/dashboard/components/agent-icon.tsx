@@ -1,22 +1,12 @@
 import { Bot } from 'lucide-react'
 
-const AGENT_SLUGS = new Set(['claude-code', 'gemini-cli', 'open-code'])
-
-/** Map API display names (and variants) to asset slug for icon lookup */
-const DISPLAY_NAME_TO_SLUG: Record<string, string> = {
-  'claude code': 'claude-code',
-  'claude-code': 'claude-code',
-  'gemini cli': 'gemini-cli',
-  'gemini-cli': 'gemini-cli',
-  'opencode': 'open-code',
-  'open code': 'open-code',
-  'open-code': 'open-code',
-}
+/** Hyphenated slugs the API sends; used for icon path /images/{slug}.svg */
+const AGENT_SLUGS = new Set(['claude-code', 'gemini-cli', 'open-code', 'cursor', 'openai'])
 
 function agentToSlug(agent: string): string | null {
   if (!agent || typeof agent !== 'string') return null
-  const normalized = agent.toLowerCase().trim().replace(/\s+/g, ' ')
-  return DISPLAY_NAME_TO_SLUG[normalized] ?? (AGENT_SLUGS.has(agent) ? agent : null)
+  const slug = agent.toLowerCase().trim().replace(/\s+/g, '-')
+  return AGENT_SLUGS.has(slug) ? slug : null
 }
 
 type AgentIconProps = {

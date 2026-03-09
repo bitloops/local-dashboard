@@ -23,6 +23,7 @@ import {
 import { CheckpointSheet } from './components/checkpoint-sheet'
 import { CommitTable } from './components/commits-table'
 import { type Checkpoint, type CommitData } from './data/mock-commit-data'
+import { formatAgentLabel } from './utils'
 
 const CommitCheckpointChart = lazy(() =>
   import('./components/session-activity-chart').then((m) => ({ default: m.CommitCheckpointChart }))
@@ -211,7 +212,7 @@ export function DashboardView({
                     <SelectItem value={allFilterValue}>All agents</SelectItem>
                     {agentOptions.map((agent) => (
                       <SelectItem key={agent} value={agent}>
-                        {agent}
+                        {formatAgentLabel(agent)}
                       </SelectItem>
                     ))}
                   </SelectContent>
