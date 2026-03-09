@@ -8,6 +8,12 @@ export type SidebarContextProps = {
   setOpenMobile: (open: boolean) => void;
   isMobile: boolean;
   toggleSidebar: () => void;
+  /** Right sidebar (e.g. checkpoint panel) */
+  rightOpen: boolean;
+  setRightOpen: (open: boolean) => void;
+  rightOpenMobile: boolean;
+  setRightOpenMobile: (open: boolean) => void;
+  toggleRightSidebar: () => void;
 };
 
 export const SidebarContext =

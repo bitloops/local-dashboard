@@ -1,5 +1,5 @@
 import { type CSSProperties, useState } from 'react'
-import { Sparkles, Terminal, User } from 'lucide-react'
+import { Terminal, User } from 'lucide-react'
 import { PrismLight as SyntaxHighlighter } from 'react-syntax-highlighter'
 import json from 'react-syntax-highlighter/dist/esm/languages/prism/json'
 import javascript from 'react-syntax-highlighter/dist/esm/languages/prism/javascript'
@@ -141,11 +141,12 @@ function ToolPairBlock({
           <Terminal className='size-3 shrink-0 text-muted-foreground' aria-hidden />
           <span className='font-medium text-muted-foreground'>Call</span>
         </div>
-        <div className='w-full overflow-x-auto px-2 pt-1'>
+        <div className='w-full overflow-x-auto px-2 pt-1 mb-2'>
           <ToolMessageContent text={use.text} />
         </div>
         {result !== null && (
           <>
+            <div className='w-full border-b border-border' role='separator' aria-hidden />
             <div className='w-full border-b border-border py-1 px-2'>
               <span className='font-medium text-muted-foreground'>Response</span>
             </div>
@@ -168,7 +169,7 @@ type ChatBubbleProps = {
   userName: string
 }
 
-function ChatBubble({ message, index, agentName, userName }: ChatBubbleProps) {
+function ChatBubble({ message, agentName, userName }: ChatBubbleProps) {
   const [expanded, setExpanded] = useState(false)
   const isUser = message.actor === 'user'
   const isSystem = isSystemVariant(message.variant)
@@ -205,10 +206,13 @@ function ChatBubble({ message, index, agentName, userName }: ChatBubbleProps) {
     return (
       <div className='ms-8 flex max-w-[85%]'>
         <div className='inline-flex min-w-0 items-start gap-1.5 rounded-lg border border-muted bg-background px-2.5 py-1.5'>
-          <Sparkles className='mt-0.5 size-3.5 shrink-0 text-primary' aria-hidden />
-          <p className='text-[11px] italic text-foreground whitespace-pre-wrap break-words'>
-            {thinkingBody}
-          </p>
+          <AgentIcon agent={agentName} className='mt-0.5 size-3.5 shrink-0' />
+          <div className='flex flex-col gap-0.5'>
+            <span className='text-[11px] text-muted-foreground'>Thinking...</span>
+            <p className='text-[11px] italic text-foreground whitespace-pre-wrap break-words'>
+              {thinkingBody}
+            </p>
+          </div>
         </div>
       </div>
     )
@@ -228,7 +232,7 @@ function ChatBubble({ message, index, agentName, userName }: ChatBubbleProps) {
 
       <div className='min-w-0 max-w-[80%]'>
         <p className={`mb-0.5 text-[10px] text-muted-foreground ${isUser ? 'text-right' : 'text-left'}`}>
-          {label} <span className='opacity-50'>#{index + 1}</span>
+          {label}
         </p>
         <div
           className={`overflow-hidden rounded-xl px-3 py-2 text-xs leading-relaxed ${

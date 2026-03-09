@@ -20,7 +20,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { CheckpointSheet } from './components/checkpoint-sheet'
+import { Sidebar, SidebarRail } from '@/components/ui/sidebar'
+import { useSidebar } from '@/components/ui/use-sidebar'
+import { CheckpointDetailContent } from './components/checkpoint-sheet'
 import { CommitTable } from './components/commits-table'
 import { type Checkpoint, type CommitData } from './data/mock-commit-data'
 import { formatAgentLabel } from './utils'
@@ -89,9 +91,15 @@ export function DashboardView({
   onToDateChange,
   onClearFilters,
   onCheckpointSelect,
-  onCheckpointClose,
 }: DashboardViewProps) {
   const [selectedCommit, setSelectedCommit] = useState<string | null>(null)
+  const { setOpen, setRightOpen } = useSidebar()
+
+  const handleCheckpointSelect = (checkpoint: Checkpoint) => {
+    onCheckpointSelect(checkpoint)
+    setOpen(false)
+    setRightOpen(true)
+  }
 
   const hasActiveFilters =
     Boolean(selectedBranch) ||
@@ -111,7 +119,7 @@ export function DashboardView({
 
   return (
     <>
-      <Header>
+      <Header className='pe-8'>
         <div className='ms-auto flex items-center space-x-4'>
           <ThemeSwitch />
         </div>
@@ -309,17 +317,20 @@ export function DashboardView({
           <h2 className='mb-4 text-lg font-semibold tracking-tight'>
             Recent Commits
           </h2>
-          <CommitTable data={rows} onCheckpointClick={onCheckpointSelect} />
+          <CommitTable data={rows} onCheckpointClick={handleCheckpointSelect} />
         </div>
       </Main>
 
-      <CheckpointSheet
-        selectedCheckpoint={selectedCheckpoint}
-        checkpointDetail={checkpointDetail}
-        checkpointDetailSource={checkpointDetailSource}
-        userName={userName}
-        onClose={onCheckpointClose}
-      />
+      <Sidebar side='right' collapsible='offcanvas' resizable defaultWidth={600} minWidth={480} maxWidth={700}>
+        <SidebarRail side='right' />
+        <CheckpointDetailContent
+          selectedCheckpoint={selectedCheckpoint}
+          checkpointDetail={checkpointDetail}
+          checkpointDetailSource={checkpointDetailSource}
+          userName={userName}
+          onClose={() => setRightOpen(false)}
+        />
+      </Sidebar>
     </>
   )
 }

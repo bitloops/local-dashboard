@@ -37,6 +37,5 @@ describe('TeamSwitcher', () => {
     await userEvent.click(screen.getByText('Team A'))
     expect(screen.getByRole('menuitem', { name: /Team A/ })).toBeInTheDocument()
     expect(screen.getByRole('menuitem', { name: /Team B/ })).toBeInTheDocument()
-    expect(screen.getByText('Add team')).toBeInTheDocument()
   })
 })

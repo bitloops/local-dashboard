@@ -1,7 +1,7 @@
 import * as React from "react";
 import { Slot } from "@radix-ui/react-slot";
 import { type VariantProps, cva } from "class-variance-authority";
-import { PanelLeftIcon } from "lucide-react";
+import { GripVertical, PanelLeftIcon, PanelRightClose } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -31,6 +31,7 @@ const SIDEBAR_COOKIE_MAX_AGE = 60 * 60 * 24 * 7;
 const MOBILE_BREAKPOINT = 768;
 const MOBILE_QUERY = `(max-width: ${MOBILE_BREAKPOINT - 1}px)`;
 const SIDEBAR_WIDTH = "16rem";
+const SIDEBAR_WIDTH_RIGHT = "37.5rem"; // 600px for checkpoint panel
 const SIDEBAR_WIDTH_MOBILE = "18rem";
 const SIDEBAR_WIDTH_ICON = "3rem";
 const SIDEBAR_KEYBOARD_SHORTCUT = "b";
@@ -39,6 +40,9 @@ function SidebarProvider({
   defaultOpen = true,
   open: openProp,
   onOpenChange: setOpenProp,
+  defaultRightOpen = false,
+  rightOpen: rightOpenProp,
+  onRightOpenChange: setRightOpenProp,
   className,
   style,
   children,
@@ -47,6 +51,9 @@ function SidebarProvider({
   defaultOpen?: boolean;
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
+  defaultRightOpen?: boolean;
+  rightOpen?: boolean;
+  onRightOpenChange?: (open: boolean) => void;
 }) {
   const isMobile = React.useSyncExternalStore(
     (callback) => {
@@ -58,6 +65,7 @@ function SidebarProvider({
     () => false,
   );
   const [openMobile, setOpenMobile] = React.useState(false);
+  const [rightOpenMobile, setRightOpenMobile] = React.useState(false);
 
   // This is the internal state of the sidebar.
   // We use openProp and setOpenProp for control from outside the component.
@@ -78,10 +86,31 @@ function SidebarProvider({
     [setOpenProp, open],
   );
 
+  const [_rightOpen, _setRightOpen] = React.useState(defaultRightOpen);
+  const rightOpen = rightOpenProp ?? _rightOpen;
+  const setRightOpen = React.useCallback(
+    (value: boolean | ((value: boolean) => boolean)) => {
+      const openState = typeof value === "function" ? value(rightOpen) : value;
+      if (setRightOpenProp) {
+        setRightOpenProp(openState);
+      } else {
+        _setRightOpen(openState);
+      }
+      // Right sidebar is not persisted; always starts closed on reload.
+    },
+    [setRightOpenProp, rightOpen],
+  );
+
   // Helper to toggle the sidebar.
   const toggleSidebar = React.useCallback(() => {
     return isMobile ? setOpenMobile((open) => !open) : setOpen((open) => !open);
   }, [isMobile, setOpen, setOpenMobile]);
+
+  const toggleRightSidebar = React.useCallback(() => {
+    return isMobile
+      ? setRightOpenMobile((open) => !open)
+      : setRightOpen((open) => !open);
+  }, [isMobile, setRightOpen, setRightOpenMobile]);
 
   // Adds a keyboard shortcut to toggle the sidebar.
   React.useEffect(() => {
@@ -112,8 +141,26 @@ function SidebarProvider({
       openMobile,
       setOpenMobile,
       toggleSidebar,
+      rightOpen,
+      setRightOpen,
+      rightOpenMobile,
+      setRightOpenMobile,
+      toggleRightSidebar,
     }),
-    [state, open, setOpen, isMobile, openMobile, setOpenMobile, toggleSidebar],
+    [
+      state,
+      open,
+      setOpen,
+      isMobile,
+      openMobile,
+      setOpenMobile,
+      toggleSidebar,
+      rightOpen,
+      setRightOpen,
+      rightOpenMobile,
+      setRightOpenMobile,
+      toggleRightSidebar,
+    ],
   );
 
   return (
@@ -141,10 +188,18 @@ function SidebarProvider({
   );
 }
 
+const SIDEBAR_RIGHT_DEFAULT_WIDTH = 600;
+const SIDEBAR_RIGHT_MIN_WIDTH = 480;
+const SIDEBAR_RIGHT_MAX_WIDTH = 700;
+
 function Sidebar({
   side = "left",
   variant = "sidebar",
   collapsible = "offcanvas",
+  resizable = false,
+  defaultWidth = SIDEBAR_RIGHT_DEFAULT_WIDTH,
+  minWidth = SIDEBAR_RIGHT_MIN_WIDTH,
+  maxWidth = SIDEBAR_RIGHT_MAX_WIDTH,
   className,
   children,
   ...props
@@ -152,8 +207,57 @@ function Sidebar({
   side?: "left" | "right";
   variant?: "sidebar" | "floating" | "inset";
   collapsible?: "offcanvas" | "icon" | "none";
+  resizable?: boolean;
+  defaultWidth?: number;
+  minWidth?: number;
+  maxWidth?: number;
 }) {
-  const { isMobile, state, openMobile, setOpenMobile } = useSidebar();
+  const {
+    isMobile,
+    open,
+    setOpen,
+    openMobile,
+    setOpenMobile,
+    rightOpen,
+    setRightOpen,
+    rightOpenMobile,
+    setRightOpenMobile,
+  } = useSidebar();
+
+  const isRight = side === "right";
+  const openState = isRight ? rightOpen : open;
+  const mobileOpen = isRight ? rightOpenMobile : openMobile;
+  const setMobileOpen = isRight ? setRightOpenMobile : setOpenMobile;
+
+  const [rightWidth, setRightWidth] = React.useState(defaultWidth);
+  const canResize = resizable && isRight;
+
+  const onResizeStart = React.useCallback(
+    (e: React.PointerEvent) => {
+      e.preventDefault();
+      const startX = e.clientX;
+      const startWidth = rightWidth;
+      document.body.style.cursor = "col-resize";
+      document.body.style.userSelect = "none";
+
+      const onPointerMove = (ev: PointerEvent) => {
+        const delta = startX - ev.clientX;
+        const limit = maxWidth ?? window.innerWidth * 0.8;
+        setRightWidth(Math.min(limit, Math.max(minWidth, startWidth + delta)));
+      };
+
+      const onPointerUp = () => {
+        document.body.style.cursor = "";
+        document.body.style.userSelect = "";
+        document.removeEventListener("pointermove", onPointerMove);
+        document.removeEventListener("pointerup", onPointerUp);
+      };
+
+      document.addEventListener("pointermove", onPointerMove);
+      document.addEventListener("pointerup", onPointerUp);
+    },
+    [rightWidth, maxWidth, minWidth],
+  );
 
   if (collapsible === "none") {
     return (
@@ -172,7 +276,7 @@ function Sidebar({
 
   if (isMobile) {
     return (
-      <Sheet open={openMobile} onOpenChange={setOpenMobile} {...props}>
+      <Sheet open={mobileOpen} onOpenChange={setMobileOpen} {...props}>
         <SheetContent
           data-sidebar="sidebar"
           data-slot="sidebar"
@@ -195,15 +299,47 @@ function Sidebar({
     );
   }
 
+  const desktopState = openState ? "expanded" : "collapsed";
+
+  const rightSidebarWidth =
+    side === "right" && canResize ? `${rightWidth}px` : undefined;
+  const wrapperStyle =
+    side === "right"
+      ? ({ "--sidebar-width": rightSidebarWidth ?? SIDEBAR_WIDTH_RIGHT } as React.CSSProperties)
+      : undefined;
+
   return (
     <div
       className="group peer hidden text-sidebar-foreground md:block"
-      data-state={state}
-      data-collapsible={state === "collapsed" ? collapsible : ""}
+      data-state={desktopState}
+      data-collapsible={desktopState === "collapsed" ? collapsible : ""}
       data-variant={variant}
       data-side={side}
       data-slot="sidebar"
+      style={wrapperStyle}
     >
+      {/* When right sidebar is collapsed, show an always-visible strip that opens the panel (resize handle as toggle) */}
+      {isRight && desktopState === "collapsed" && (
+        <div
+          className="fixed inset-y-0 end-0 z-[60] flex w-8 cursor-pointer items-center justify-center border-s border-border/40 bg-muted/50 transition-colors hover:bg-muted active:bg-muted/80 md:flex"
+          onClick={() => {
+            setOpen(false);
+            setRightOpen(true);
+          }}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" || e.key === " ") {
+              e.preventDefault();
+              setOpen(false);
+              setRightOpen(true);
+            }
+          }}
+          role="button"
+          tabIndex={0}
+          aria-label="Open checkpoint panel"
+        >
+          <GripVertical className="size-4 text-white/70" />
+        </div>
+      )}
       {/* This is what handles the sidebar gap on desktop */}
       <div
         data-slot="sidebar-gap"
@@ -219,7 +355,8 @@ function Sidebar({
       <div
         data-slot="sidebar-container"
         className={cn(
-          "fixed inset-y-0 z-10 hidden h-svh w-(--sidebar-width) transition-[inset-inline,width] duration-200 ease-linear md:flex",
+          "fixed inset-y-0 hidden h-svh w-(--sidebar-width) transition-[inset-inline,width] duration-200 ease-linear md:flex",
+          side === "left" ? "z-10" : "z-[60]",
           side === "left"
             ? "start-0 group-data-[collapsible=offcanvas]:-start-[calc(var(--sidebar-width))]"
             : "end-0 group-data-[collapsible=offcanvas]:-end-[calc(var(--sidebar-width))]",
@@ -231,10 +368,24 @@ function Sidebar({
         )}
         {...props}
       >
+        {canResize && (
+          <div
+            role="separator"
+            aria-orientation="vertical"
+            aria-label="Resize checkpoint panel"
+            onPointerDown={onResizeStart}
+            className="absolute inset-y-0 start-0 z-20 flex w-8 cursor-col-resize items-center justify-center border-e border-border/40 bg-muted/50 transition-colors hover:bg-muted active:bg-muted/80"
+          >
+            <GripVertical className="size-4 text-white/70" />
+          </div>
+        )}
         <div
           data-sidebar="sidebar"
           data-slot="sidebar-inner"
-          className="flex h-full w-full flex-col bg-sidebar group-data-[variant=floating]:rounded-lg group-data-[variant=floating]:border group-data-[variant=floating]:border-sidebar-border group-data-[variant=floating]:shadow-sm"
+          className={cn(
+            "flex h-full w-full flex-col bg-sidebar group-data-[variant=floating]:rounded-lg group-data-[variant=floating]:border group-data-[variant=floating]:border-sidebar-border group-data-[variant=floating]:shadow-sm",
+            canResize && "ps-8",
+          )}
         >
           {children}
         </div>
@@ -246,9 +397,11 @@ function Sidebar({
 function SidebarTrigger({
   className,
   onClick,
+  side = "left",
   ...props
-}: React.ComponentProps<typeof Button>) {
-  const { toggleSidebar } = useSidebar();
+}: React.ComponentProps<typeof Button> & { side?: "left" | "right" }) {
+  const { toggleSidebar, toggleRightSidebar } = useSidebar();
+  const toggle = side === "right" ? toggleRightSidebar : toggleSidebar;
 
   return (
     <Button
@@ -259,27 +412,38 @@ function SidebarTrigger({
       className={cn("size-7", className)}
       onClick={(event) => {
         onClick?.(event);
-        toggleSidebar();
+        toggle();
       }}
       {...props}
     >
-      <PanelLeftIcon />
-      <span className="sr-only">Toggle Sidebar</span>
+      {side === "right" ? (
+        <PanelRightClose className="size-4" />
+      ) : (
+        <PanelLeftIcon />
+      )}
+      <span className="sr-only">
+        {side === "right" ? "Toggle checkpoint panel" : "Toggle Sidebar"}
+      </span>
     </Button>
   );
 }
 
-function SidebarRail({ className, ...props }: React.ComponentProps<"button">) {
-  const { toggleSidebar } = useSidebar();
+function SidebarRail({
+  className,
+  side = "left",
+  ...props
+}: React.ComponentProps<"button"> & { side?: "left" | "right" }) {
+  const { toggleSidebar, toggleRightSidebar } = useSidebar();
+  const toggle = side === "right" ? toggleRightSidebar : toggleSidebar;
 
   return (
     <button
       data-sidebar="rail"
       data-slot="sidebar-rail"
-      aria-label="Toggle Sidebar"
+      aria-label={side === "right" ? "Toggle checkpoint panel" : "Toggle Sidebar"}
       tabIndex={-1}
-      onClick={toggleSidebar}
-      title="Toggle Sidebar"
+      onClick={toggle}
+      title={side === "right" ? "Toggle checkpoint panel" : "Toggle Sidebar"}
       className={cn(
         "absolute inset-y-0 z-20 hidden w-4 -translate-x-1/2 transition-[transform,background-color] ease-linear group-data-[side=left]:-end-4 group-data-[side=right]:start-0 after:absolute after:inset-y-0 after:start-1/2 after:w-[2px] after:bg-sidebar-border sm:flex",
         "in-data-[side=left]:cursor-w-resize in-data-[side=right]:cursor-e-resize",
