@@ -12,28 +12,13 @@ This is the release flow for `bitloops/local-dashboard` bundle artifacts consume
 - Version discovery is static:
   - `https://raw.githubusercontent.com/bitloops/local-dashboard/main/bundle_versions.json`
 
-## 1. Open One Release PR (`vX.Y.Z`)
-
-Single PR is enough.
+## 1. Open Release PR for Version Bump (`vX.Y.Z`)
 
 Include:
 
 - `package.json` version bump to `X.Y.Z`
-- `bundle_versions.json` new entry for `X.Y.Z`
 
-Example manifest entry:
-
-```json
-{
-  "version": "X.Y.Z",
-  "min_required_cli_version": "A.B.C",
-  "max_required_cli_version": "latest",
-  "download_url": "https://github.com/bitloops/local-dashboard/releases/download/vX.Y.Z/bundle.tar.zst",
-  "checksum_url": "https://github.com/bitloops/local-dashboard/releases/download/vX.Y.Z/bundle.tar.zst.sha256"
-}
-```
-
-Then merge the PR after CI passes.
+Merge the PR after CI passes. **Do not include `bundle_versions.json` yet.**
 
 ## 2. Create and Push Tag
 
@@ -61,13 +46,29 @@ Success criteria:
 
 Confirm you can download, verify checksum, extract, and render `index.html`.
 
-## 5. Why `version.json` Exists
+## 5. Update Bundle Versions
+
+After release is confirmed working, open a PR to add the new entry to `bundle_versions.json`:
+
+```json
+{
+  "version": "X.Y.Z",
+  "min_required_cli_version": "A.B.C",
+  "max_required_cli_version": "latest",
+  "download_url": "https://github.com/bitloops/local-dashboard/releases/download/vX.Y.Z/bundle.tar.zst",
+  "checksum_url": "https://github.com/bitloops/local-dashboard/releases/download/vX.Y.Z/bundle.tar.zst.sha256"
+}
+```
+
+Merge after CI passes. This ensures `bundle_versions.json` only references assets that exist.
+
+## 6. Why `version.json` Exists
 
 `~/.bitloops/dashboard/bundle/version.json` is used by the CLI to know which dashboard version is installed and whether updates are available.
 
 You do **not** edit this file manually. The release workflow generates it inside the bundle archive from the release tag/version.
 
-## 6. Rollback
+## 7. Rollback
 
 If release `vX.Y.Z` is bad:
 
