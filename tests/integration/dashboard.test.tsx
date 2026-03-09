@@ -127,8 +127,18 @@ describe('Dashboard integration', () => {
           session_index: 0,
           tool_use_id: '',
           transcript_jsonl: [
-            JSON.stringify({ role: 'user', content: 'Hello' }),
-            JSON.stringify({ role: 'assistant', content: 'Hi there' }),
+            JSON.stringify({
+              type: 'user',
+              message: { content: 'Hello' },
+              timestamp: '2025-03-04T12:00:00Z',
+              uuid: 'u1',
+            }),
+            JSON.stringify({
+              type: 'assistant',
+              message: { content: [{ type: 'text', text: 'Hi there' }] },
+              timestamp: '2025-03-04T12:00:01Z',
+              uuid: 'a1',
+            }),
           ].join('\n'),
         },
       ],

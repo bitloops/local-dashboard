@@ -14,3 +14,10 @@ export function isUserRole(role: string): boolean {
 export function isToolRole(role: string): boolean {
   return role === 'tool' || role === 'system' || role.startsWith('tool')
 }
+
+type TranscriptVariant = 'chat' | 'thinking' | 'tool_use' | 'tool_result'
+
+/** Variants that render as system/tool-style (dashed border, compact). */
+export function isSystemVariant(variant: TranscriptVariant): boolean {
+  return variant === 'tool_use' || variant === 'tool_result'
+}

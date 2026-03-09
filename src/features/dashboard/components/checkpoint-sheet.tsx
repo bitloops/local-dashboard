@@ -228,9 +228,6 @@ export function CheckpointSheet({
                                     <div className='flex flex-wrap gap-2'>
                                       <Badge variant='secondary'>{formatAgentLabel(session.agent)}</Badge>
                                       <Badge variant='outline'>
-                                        {session.is_task ? 'Task' : 'Prompt'}
-                                      </Badge>
-                                      <Badge variant='outline'>
                                         {formatDateTime(session.created_at)}
                                       </Badge>
                                     </div>

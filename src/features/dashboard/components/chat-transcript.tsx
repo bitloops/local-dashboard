@@ -1,38 +1,213 @@
-import { useState } from 'react'
-import { Terminal, User } from 'lucide-react'
+import { type CSSProperties, useState } from 'react'
+import { Sparkles, Terminal, User } from 'lucide-react'
+import { PrismLight as SyntaxHighlighter } from 'react-syntax-highlighter'
+import json from 'react-syntax-highlighter/dist/esm/languages/prism/json'
+import javascript from 'react-syntax-highlighter/dist/esm/languages/prism/javascript'
+import bash from 'react-syntax-highlighter/dist/esm/languages/prism/bash'
+import typescript from 'react-syntax-highlighter/dist/esm/languages/prism/typescript'
+import { oneDark } from 'react-syntax-highlighter/dist/esm/styles/prism'
+import { prettyPrintJson } from './checkpoint-sheet-utils'
+import type { TranscriptMessage } from './checkpoint-sheet-utils'
 import { AgentIcon } from './agent-icon'
-import { formatDisplayName, isUserRole, isToolRole } from './chat-utils'
+import { formatDisplayName, isSystemVariant } from './chat-utils'
 
-type ChatEntry = {
-  role: string
-  content: string
-}
+SyntaxHighlighter.registerLanguage('json', json)
+SyntaxHighlighter.registerLanguage('javascript', javascript)
+SyntaxHighlighter.registerLanguage('bash', bash)
+SyntaxHighlighter.registerLanguage('typescript', typescript)
 
 const TRUNCATE_LENGTH = 300
 
+function tryParseJson(s: string): string | null {
+  const t = s.trim()
+  if (!t) return null
+  try {
+    JSON.parse(t)
+    return t
+  } catch {
+    return null
+  }
+}
+
+function detectLanguage(text: string): { language: string; code: string; prefix?: string } {
+  const trimmed = text.trim()
+  if (!trimmed) return { language: 'plaintext', code: text }
+
+  const jsonPart = tryParseJson(trimmed)
+  if (jsonPart) return { language: 'json', code: prettyPrintJson(jsonPart) }
+
+  const toolPrefix = /^Tool:\s*\S+\n/s
+  const match = text.match(toolPrefix)
+  if (match) {
+    const after = text.slice(match[0].length).trim()
+    const jsonAfter = tryParseJson(after)
+    if (jsonAfter) {
+      return { language: 'json', code: prettyPrintJson(jsonAfter), prefix: match[0] }
+    }
+    if (/^\$|^#|^(echo|cat|cd|ls|npm|pnpm|yarn|git)\s/.test(after)) {
+      return { language: 'bash', code: after, prefix: match[0] }
+    }
+    return { language: 'javascript', code: after, prefix: match[0] }
+  }
+
+  if (/^\$|^#|^(echo|cat|cd|ls|npm|pnpm|yarn|git)\s/.test(trimmed)) {
+    return { language: 'bash', code: text }
+  }
+  if (/\b(function|=>|const|let|var|import|export)\b/.test(trimmed) || trimmed.startsWith('{') || trimmed.startsWith('[')) {
+    return { language: 'javascript', code: text }
+  }
+  return { language: 'plaintext', code: text }
+}
+
+const preKey = 'pre[class*="language-"]'
+const codeKey = 'code[class*="language-"]'
+const codeBlockStyle: Record<string, CSSProperties> = {
+  ...(oneDark as Record<string, CSSProperties>),
+  [preKey]: {
+    ...(typeof oneDark[preKey] === 'object' && oneDark[preKey] !== null ? (oneDark[preKey] as CSSProperties) : {}),
+    margin: 0,
+    padding: 0,
+    fontSize: '11px',
+    background: 'transparent',
+  },
+  [codeKey]: {
+    ...(typeof oneDark[codeKey] === 'object' && oneDark[codeKey] !== null ? (oneDark[codeKey] as CSSProperties) : {}),
+    fontSize: '11px',
+    background: 'transparent',
+  },
+}
+
+function ToolMessageContent({ text }: { text: string }) {
+  const { language, code, prefix } = detectLanguage(text)
+
+  if (language === 'plaintext') {
+    return <p className='text-[11px] text-muted-foreground whitespace-pre-wrap break-words'>{text}</p>
+  }
+
+  return (
+    <span className='text-[11px]'>
+      {prefix && <span className='whitespace-pre-wrap text-muted-foreground'>{prefix}</span>}
+      <SyntaxHighlighter
+        language={language}
+        style={codeBlockStyle}
+        customStyle={{ margin: 0, padding: 0, background: 'transparent', fontSize: '11px', whiteSpace: 'pre-wrap' }}
+        codeTagProps={{ style: { fontSize: '11px' } }}
+        PreTag='span'
+        showLineNumbers={false}
+        wrapLongLines
+      >
+        {code}
+      </SyntaxHighlighter>
+    </span>
+  )
+}
+
+type TranscriptNode =
+  | { type: 'single'; message: TranscriptMessage }
+  | { type: 'tool-pair'; use: TranscriptMessage; result: TranscriptMessage | null }
+
+function groupToolPairs(entries: TranscriptMessage[]): TranscriptNode[] {
+  const nodes: TranscriptNode[] = []
+  let i = 0
+  while (i < entries.length) {
+    const msg = entries[i]
+    if (msg.variant === 'tool_use' && i + 1 < entries.length && entries[i + 1].variant === 'tool_result') {
+      nodes.push({ type: 'tool-pair', use: msg, result: entries[i + 1] })
+      i += 2
+      continue
+    }
+    if (msg.variant === 'tool_use') {
+      nodes.push({ type: 'tool-pair', use: msg, result: null })
+      i += 1
+      continue
+    }
+    nodes.push({ type: 'single', message: msg })
+    i += 1
+  }
+  return nodes
+}
+
+function ToolPairBlock({
+  use,
+  result,
+}: {
+  use: TranscriptMessage
+  result: TranscriptMessage | null
+}) {
+  return (
+    <div className='ms-8 max-w-[85%]'>
+      <div className='min-w-0 overflow-hidden rounded-md border border-border bg-muted/30 pt-1 text-[11px]'>
+        <div className='flex w-full items-center gap-1.5 border-b border-border py-1 px-2'>
+          <Terminal className='size-3 shrink-0 text-muted-foreground' aria-hidden />
+          <span className='font-medium text-muted-foreground'>Call</span>
+        </div>
+        <div className='w-full overflow-x-auto px-2 pt-1'>
+          <ToolMessageContent text={use.text} />
+        </div>
+        {result !== null && (
+          <>
+            <div className='w-full border-b border-border py-1 px-2'>
+              <span className='font-medium text-muted-foreground'>Response</span>
+            </div>
+            <div
+              className={`w-full overflow-x-auto px-2 pt-1 pb-1.5 ${result.isError ? 'bg-destructive/10' : ''}`}
+            >
+              <ToolMessageContent text={result.text} />
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  )
+}
+
 type ChatBubbleProps = {
-  entry: ChatEntry
+  message: TranscriptMessage
   index: number
   agentName: string
   userName: string
 }
 
-function ChatBubble({ entry, index, agentName, userName }: ChatBubbleProps) {
+function ChatBubble({ message, index, agentName, userName }: ChatBubbleProps) {
   const [expanded, setExpanded] = useState(false)
-  const isUser = isUserRole(entry.role)
-  const isTool = isToolRole(entry.role)
-  const shouldTruncate = !isTool && entry.content.length > TRUNCATE_LENGTH
+  const isUser = message.actor === 'user'
+  const isSystem = isSystemVariant(message.variant)
+  const isThinking = message.variant === 'thinking'
+  const shouldTruncate = !isSystem && !isThinking && message.text.length > TRUNCATE_LENGTH
   const displayContent = shouldTruncate && !expanded
-    ? entry.content.slice(0, TRUNCATE_LENGTH) + '\u2026'
-    : entry.content
+    ? message.text.slice(0, TRUNCATE_LENGTH) + '\u2026'
+    : message.text
 
-  if (isTool) {
+  if (isSystem) {
     return (
-      <div className='ms-8 flex'>
-        <div className='inline-flex max-w-[85%] items-start gap-1.5 rounded-md border border-dashed bg-muted/30 px-2.5 py-1.5'>
-          <Terminal className='mt-0.5 size-3 shrink-0 text-muted-foreground' />
-          <p className='text-[11px] text-muted-foreground whitespace-pre-wrap break-words'>
-            {entry.content}
+      <div className='ms-8 max-w-[85%]'>
+        <div
+          className={`min-w-0 overflow-hidden rounded-md border border-border bg-muted/30 py-1 text-[11px] ${
+            message.isError ? 'border-destructive/50 bg-destructive/10' : ''
+          }`}
+        >
+          <div className='flex w-full items-center gap-1.5 border-b border-border py-1 px-2'>
+            <Terminal className='size-3 shrink-0 text-muted-foreground' aria-hidden />
+            <span className='font-medium text-muted-foreground'>Output</span>
+          </div>
+          <div className='w-full overflow-x-auto py-1 px-2'>
+            <ToolMessageContent text={message.text} />
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  if (isThinking) {
+    const thinkingBody = message.text.startsWith('Thinking: ')
+      ? message.text.slice(10)
+      : message.text
+    return (
+      <div className='ms-8 flex max-w-[85%]'>
+        <div className='inline-flex min-w-0 items-start gap-1.5 rounded-lg border border-muted bg-background px-2.5 py-1.5'>
+          <Sparkles className='mt-0.5 size-3.5 shrink-0 text-primary' aria-hidden />
+          <p className='text-[11px] italic text-foreground whitespace-pre-wrap break-words'>
+            {thinkingBody}
           </p>
         </div>
       </div>
@@ -58,8 +233,8 @@ function ChatBubble({ entry, index, agentName, userName }: ChatBubbleProps) {
         <div
           className={`overflow-hidden rounded-xl px-3 py-2 text-xs leading-relaxed ${
             isUser
-              ? 'rounded-tr-sm bg-primary/15 text-foreground'
-              : 'rounded-tl-sm bg-muted/60 text-foreground'
+              ? 'rounded-tr-sm bg-muted/60 text-foreground'
+              : 'rounded-tl-sm bg-primary text-primary-foreground'
           }`}
         >
           <p className='whitespace-pre-wrap break-words'>
@@ -69,7 +244,7 @@ function ChatBubble({ entry, index, agentName, userName }: ChatBubbleProps) {
             <button
               type='button'
               onClick={() => setExpanded(!expanded)}
-              className='mt-1 text-[11px] font-medium text-primary hover:underline'
+              className={`mt-1 text-[11px] font-medium hover:underline ${isUser ? 'text-foreground' : 'text-primary-foreground'}`}
             >
               {expanded ? 'Show less' : 'Show more'}
             </button>
@@ -81,7 +256,7 @@ function ChatBubble({ entry, index, agentName, userName }: ChatBubbleProps) {
 }
 
 type ChatTranscriptProps = {
-  entries: ChatEntry[]
+  entries: TranscriptMessage[]
   sessionId: string
   agentName: string
   userName: string
@@ -96,17 +271,27 @@ export function ChatTranscript({ entries, sessionId, agentName, userName }: Chat
     )
   }
 
+  const nodes = groupToolPairs(entries)
+
   return (
     <div className='space-y-3'>
-      {entries.map((entry, index) => (
-        <ChatBubble
-          key={`${sessionId}-${index}`}
-          entry={entry}
-          index={index}
-          agentName={agentName}
-          userName={userName}
-        />
-      ))}
+      {nodes.map((node, index) =>
+        node.type === 'tool-pair' ? (
+          <ToolPairBlock
+            key={`${sessionId}-${node.use.id}-${node.result?.id ?? 'none'}`}
+            use={node.use}
+            result={node.result}
+          />
+        ) : (
+          <ChatBubble
+            key={node.message.id ? `${sessionId}-${node.message.id}` : `${sessionId}-${index}`}
+            message={node.message}
+            index={index}
+            agentName={agentName}
+            userName={userName}
+          />
+        )
+      )}
     </div>
   )
 }
