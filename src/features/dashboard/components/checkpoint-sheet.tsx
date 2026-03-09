@@ -21,9 +21,10 @@ import {
   SheetTitle,
 } from '@/components/ui/sheet'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { ChatTranscript } from './chat-transcript'
+import { PrismLight as SyntaxHighlighter } from 'react-syntax-highlighter'
+import json from 'react-syntax-highlighter/dist/esm/languages/prism/json'
+import { ChatTranscript, codeBlockStyle } from './chat-transcript'
 import { FileTree } from './file-tree'
-import { JsonHighlight } from './json-highlight'
 import { type Checkpoint } from '../data/mock-commit-data'
 import { type CheckpointDetailLoadState } from '../dashboard-view'
 import { formatAgentLabel } from '../utils'
@@ -33,6 +34,8 @@ import {
   stripUserQueryTags,
   prettyPrintJson,
 } from './checkpoint-sheet-utils'
+
+SyntaxHighlighter.registerLanguage('json', json)
 
 const TokenUsageChart = lazy(() =>
   import('./token-usage-chart').then((m) => ({ default: m.TokenUsageChart }))
@@ -106,6 +109,7 @@ export function CheckpointSheet({
       }}
     >
       <SheetContent side='right' className='p-0' resizable defaultWidth={600} maxWidth={700}>
+        <div className='flex min-h-0 min-w-0 flex-1 flex-col'>
         <SheetHeader className='border-b pb-4 text-start'>
           <SheetTitle className='flex items-center gap-1'>
             {selectedCheckpoint
@@ -119,7 +123,7 @@ export function CheckpointSheet({
         </SheetHeader>
 
         <ScrollArea className='h-[calc(100%-88px)]'>
-          <div className='space-y-5 p-4'>
+          <div className='min-w-0 space-y-5 p-4'>
             {selectedCheckpoint && (
               <>
                 <div className='space-y-3'>
@@ -261,8 +265,31 @@ export function CheckpointSheet({
                                         </p>
                                         <CopyButton value={prettyPrintJson(session.metadata_json)} />
                                       </div>
-                                      <div className='max-h-36 overflow-auto rounded-md border bg-background p-2'>
-                                        <JsonHighlight value={prettyPrintJson(session.metadata_json)} />
+                                      <div className='max-h-36 min-w-0 w-full overflow-auto rounded-md border bg-background p-2'>
+                                        <SyntaxHighlighter
+                                          language='json'
+                                          style={codeBlockStyle}
+                                          customStyle={{
+                                            margin: 0,
+                                            padding: 0,
+                                            maxWidth: '100%',
+                                            minWidth: 0,
+                                            width: '100%',
+                                            overflow: 'auto',
+                                          }}
+                                          showLineNumbers={false}
+                                          PreTag='div'
+                                          codeTagProps={{
+                                            style: {
+                                              fontSize: '11px',
+                                              whiteSpace: 'pre-wrap',
+                                              wordBreak: 'break-word',
+                                            },
+                                          }}
+                                          wrapLongLines
+                                        >
+                                          {prettyPrintJson(session.metadata_json)}
+                                        </SyntaxHighlighter>
                                       </div>
                                     </div>
 
@@ -360,8 +387,31 @@ export function CheckpointSheet({
                         <h3 className='text-sm font-semibold'>Metadata</h3>
                         <CopyButton value={metadataJson} />
                       </div>
-                      <div className='max-h-60 overflow-auto rounded-md border bg-muted/20 p-3'>
-                        <JsonHighlight value={metadataJson} />
+                      <div className='max-h-60 min-w-0 w-full overflow-auto rounded-md border bg-muted/20 p-3'>
+                        <SyntaxHighlighter
+                          language='json'
+                          style={codeBlockStyle}
+                          customStyle={{
+                            margin: 0,
+                            padding: 0,
+                            maxWidth: '100%',
+                            minWidth: 0,
+                            width: '100%',
+                            overflow: 'auto',
+                          }}
+                          showLineNumbers={false}
+                          PreTag='div'
+                          codeTagProps={{
+                            style: {
+                              fontSize: '11px',
+                              whiteSpace: 'pre-wrap',
+                              wordBreak: 'break-word',
+                            },
+                          }}
+                          wrapLongLines
+                        >
+                          {metadataJson}
+                        </SyntaxHighlighter>
                       </div>
                     </div>
                   </>
@@ -370,6 +420,7 @@ export function CheckpointSheet({
             )}
           </div>
         </ScrollArea>
+        </div>
       </SheetContent>
     </Sheet>
   )

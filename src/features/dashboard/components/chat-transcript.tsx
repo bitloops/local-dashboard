@@ -61,7 +61,7 @@ function detectLanguage(text: string): { language: string; code: string; prefix?
 
 const preKey = 'pre[class*="language-"]'
 const codeKey = 'code[class*="language-"]'
-const codeBlockStyle: Record<string, CSSProperties> = {
+export const codeBlockStyle: Record<string, CSSProperties> = {
   ...(oneDark as Record<string, CSSProperties>),
   [preKey]: {
     ...(typeof oneDark[preKey] === 'object' && oneDark[preKey] !== null ? (oneDark[preKey] as CSSProperties) : {}),
