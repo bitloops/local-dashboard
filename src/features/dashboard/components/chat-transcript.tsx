@@ -1,15 +1,15 @@
-import { type CSSProperties, useState } from 'react'
+import { useState } from 'react'
 import { Terminal, User } from 'lucide-react'
 import { PrismLight as SyntaxHighlighter } from 'react-syntax-highlighter'
 import json from 'react-syntax-highlighter/dist/esm/languages/prism/json'
 import javascript from 'react-syntax-highlighter/dist/esm/languages/prism/javascript'
 import bash from 'react-syntax-highlighter/dist/esm/languages/prism/bash'
 import typescript from 'react-syntax-highlighter/dist/esm/languages/prism/typescript'
-import { oneDark } from 'react-syntax-highlighter/dist/esm/styles/prism'
 import { prettyPrintJson } from './checkpoint-sheet-utils'
 import type { TranscriptMessage } from './checkpoint-sheet-utils'
 import { AgentIcon } from './agent-icon'
 import { formatDisplayName, isSystemVariant } from './chat-utils'
+import { codeBlockStyle } from './code-block-style'
 
 SyntaxHighlighter.registerLanguage('json', json)
 SyntaxHighlighter.registerLanguage('javascript', javascript)
@@ -57,24 +57,6 @@ function detectLanguage(text: string): { language: string; code: string; prefix?
     return { language: 'javascript', code: text }
   }
   return { language: 'plaintext', code: text }
-}
-
-const preKey = 'pre[class*="language-"]'
-const codeKey = 'code[class*="language-"]'
-export const codeBlockStyle: Record<string, CSSProperties> = {
-  ...(oneDark as Record<string, CSSProperties>),
-  [preKey]: {
-    ...(typeof oneDark[preKey] === 'object' && oneDark[preKey] !== null ? (oneDark[preKey] as CSSProperties) : {}),
-    margin: 0,
-    padding: 0,
-    fontSize: '11px',
-    background: 'transparent',
-  },
-  [codeKey]: {
-    ...(typeof oneDark[codeKey] === 'object' && oneDark[codeKey] !== null ? (oneDark[codeKey] as CSSProperties) : {}),
-    fontSize: '11px',
-    background: 'transparent',
-  },
 }
 
 function ToolMessageContent({ text }: { text: string }) {

@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useState } from 'react'
+import { lazy, Suspense, useState } from 'react'
 import {
   type ApiCheckpointDetailResponse,
   type ApiCheckpointSessionDetailDto,
@@ -19,7 +19,8 @@ import { XIcon } from 'lucide-react'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { PrismLight as SyntaxHighlighter } from 'react-syntax-highlighter'
 import json from 'react-syntax-highlighter/dist/esm/languages/prism/json'
-import { ChatTranscript, codeBlockStyle } from './chat-transcript'
+import { ChatTranscript } from './chat-transcript'
+import { codeBlockStyle } from './code-block-style'
 import { FileTree } from './file-tree'
 import { type Checkpoint } from '../data/mock-commit-data'
 import { type CheckpointDetailLoadState } from '../dashboard-view'
@@ -65,11 +66,6 @@ function CheckpointDetailContentInner({
   onClose,
 }: CheckpointDetailContentProps) {
   const [viewMode, setViewMode] = useState<SheetViewMode>('session')
-  const [selectedSessionIndex, setSelectedSessionIndex] = useState(0)
-
-  useEffect(() => {
-    setSelectedSessionIndex(0)
-  }, [selectedCheckpoint?.id])
 
   const selectedCheckpointCreatedAt = selectedCheckpoint?.createdAt
     ? formatDateTime(selectedCheckpoint.createdAt)
@@ -194,8 +190,8 @@ function CheckpointDetailContentInner({
                   {detailSessions.length > 0 && (
                     <Card className='overflow-hidden bg-muted/20 pt-0'>
                       <Tabs
-                        value={String(selectedSessionIndex)}
-                        onValueChange={(v: string) => setSelectedSessionIndex(Number(v))}
+                        key={selectedCheckpoint.id}
+                        defaultValue='0'
                       >
                         <TabsList variant='line' className='h-auto justify-start rounded-none border-0 bg-transparent'>
                           {detailSessions.map(

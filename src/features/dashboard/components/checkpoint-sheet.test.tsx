@@ -231,7 +231,7 @@ describe('CheckpointSheet (component)', () => {
         checkpointDetailSource='api'
       />
     )
-    await userEvent.click(screen.getByRole('tab', { name: 'Summary' }))
+    await userEvent.click(screen.getByRole('tab', { name: 'Details' }))
     expect(screen.getByText('Files Touched')).toBeInTheDocument()
     expect(screen.getByText('App.tsx')).toBeInTheDocument()
     expect(screen.getByText('utils.ts')).toBeInTheDocument()
