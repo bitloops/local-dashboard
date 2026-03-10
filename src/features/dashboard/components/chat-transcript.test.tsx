@@ -62,7 +62,7 @@ function msg(
     variant: 'chat' | 'thinking' | 'tool_use' | 'tool_result'
     text: string
     isError?: boolean
-  }> = {}
+  }> = {},
 ) {
   return {
     id: 'm1',
@@ -83,14 +83,26 @@ describe('ChatTranscript', () => {
 
   it('shows empty state message when no entries', () => {
     render(<ChatTranscript entries={[]} {...defaultProps} />)
-    expect(screen.getByText('No transcript entries available.')).toBeInTheDocument()
+    expect(
+      screen.getByText('No transcript entries available.'),
+    ).toBeInTheDocument()
   })
 
   it('renders one bubble per transcript entry', () => {
     const entries = [
       msg({ id: '1', actor: 'user', variant: 'chat', text: 'User message' }),
-      msg({ id: '2', actor: 'assistant', variant: 'chat', text: 'Agent reply' }),
-      msg({ id: '3', actor: 'assistant', variant: 'tool_result', text: 'Tool output' }),
+      msg({
+        id: '2',
+        actor: 'assistant',
+        variant: 'chat',
+        text: 'Agent reply',
+      }),
+      msg({
+        id: '3',
+        actor: 'assistant',
+        variant: 'tool_result',
+        text: 'Tool output',
+      }),
     ]
     render(<ChatTranscript entries={entries} {...defaultProps} />)
     expect(screen.getByText('User message')).toBeInTheDocument()
@@ -99,7 +111,9 @@ describe('ChatTranscript', () => {
   })
 
   it('shows user label without email and user bubble styling', () => {
-    const entries = [msg({ id: '1', actor: 'user', variant: 'chat', text: 'Hi' })]
+    const entries = [
+      msg({ id: '1', actor: 'user', variant: 'chat', text: 'Hi' }),
+    ]
     render(<ChatTranscript entries={entries} {...defaultProps} />)
     expect(screen.getByText(/Wayne Omoga/)).toBeInTheDocument()
     const bubble = screen.getByText('Hi').closest('div')
@@ -107,7 +121,9 @@ describe('ChatTranscript', () => {
   })
 
   it('shows agent label and agent bubble styling', () => {
-    const entries = [msg({ id: '1', actor: 'assistant', variant: 'chat', text: 'Hello' })]
+    const entries = [
+      msg({ id: '1', actor: 'assistant', variant: 'chat', text: 'Hello' }),
+    ]
     render(<ChatTranscript entries={entries} {...defaultProps} />)
     expect(screen.getByText('Agent')).toBeInTheDocument()
     const bubble = screen.getByText('Hello').closest('div')
@@ -115,7 +131,14 @@ describe('ChatTranscript', () => {
   })
 
   it('shows tool_result entries in a code block', () => {
-    const entries = [msg({ id: '1', actor: 'assistant', variant: 'tool_result', text: 'Tool result' })]
+    const entries = [
+      msg({
+        id: '1',
+        actor: 'assistant',
+        variant: 'tool_result',
+        text: 'Tool result',
+      }),
+    ]
     render(<ChatTranscript entries={entries} {...defaultProps} />)
     expect(screen.getByText('Tool result')).toBeInTheDocument()
     const codeBlock = screen.getByText('Tool result').closest('.rounded-md')
@@ -130,7 +153,12 @@ describe('ChatTranscript', () => {
         variant: 'tool_use',
         text: 'Tool: Glob\n{"pattern": "**/*.js"}',
       }),
-      msg({ id: '2', actor: 'assistant', variant: 'tool_result', text: 'src/a.js\nsrc/b.js' }),
+      msg({
+        id: '2',
+        actor: 'assistant',
+        variant: 'tool_result',
+        text: 'src/a.js\nsrc/b.js',
+      }),
     ]
     render(<ChatTranscript entries={entries} {...defaultProps} />)
     expect(screen.getByText('Call')).toBeInTheDocument()
@@ -149,24 +177,34 @@ describe('ChatTranscript', () => {
       }),
     ]
     render(<ChatTranscript entries={entries} {...defaultProps} />)
-    expect(screen.getByText('The user is asking about the feature.')).toBeInTheDocument()
+    expect(
+      screen.getByText('The user is asking about the feature.'),
+    ).toBeInTheDocument()
   })
 
   it('truncates long content with Show more / Show less', async () => {
     const longContent = 'x'.repeat(301)
-    const entries = [msg({ id: '1', actor: 'user', variant: 'chat', text: longContent })]
+    const entries = [
+      msg({ id: '1', actor: 'user', variant: 'chat', text: longContent }),
+    ]
     render(<ChatTranscript entries={entries} {...defaultProps} />)
 
     const truncated = 'x'.repeat(300) + '\u2026'
     expect(screen.getByText(truncated)).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /show more/i })).toBeInTheDocument()
+    expect(
+      screen.getByRole('button', { name: /show more/i }),
+    ).toBeInTheDocument()
 
     await userEvent.click(screen.getByRole('button', { name: /show more/i }))
     expect(screen.getByText(longContent)).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /show less/i })).toBeInTheDocument()
+    expect(
+      screen.getByRole('button', { name: /show less/i }),
+    ).toBeInTheDocument()
 
     await userEvent.click(screen.getByRole('button', { name: /show less/i }))
     expect(screen.getByText(truncated)).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /show more/i })).toBeInTheDocument()
+    expect(
+      screen.getByRole('button', { name: /show more/i }),
+    ).toBeInTheDocument()
   })
 })

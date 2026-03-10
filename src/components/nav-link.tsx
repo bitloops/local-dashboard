@@ -1,11 +1,20 @@
 import { useNavigate } from '@/context/use-navigation'
 
-type NavLinkProps = Omit<React.AnchorHTMLAttributes<HTMLAnchorElement>, 'href'> & {
+type NavLinkProps = Omit<
+  React.AnchorHTMLAttributes<HTMLAnchorElement>,
+  'href'
+> & {
   to: string
   ref?: React.Ref<HTMLAnchorElement>
 }
 
-export function NavLink({ to, ref, onClick, children, ...props }: NavLinkProps) {
+export function NavLink({
+  to,
+  ref,
+  onClick,
+  children,
+  ...props
+}: NavLinkProps) {
   const navigate = useNavigate()
 
   return (

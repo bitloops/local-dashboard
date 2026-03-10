@@ -31,7 +31,7 @@ export function App() {
           className={cn(
             '@container/content',
             'has-data-[layout=fixed]:h-svh',
-            'peer-data-[variant=inset]:has-data-[layout=fixed]:h-[calc(100svh-(var(--spacing)*4))]'
+            'peer-data-[variant=inset]:has-data-[layout=fixed]:h-[calc(100svh-(var(--spacing)*4))]',
           )}
         >
           <PageRouter />

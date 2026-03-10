@@ -119,9 +119,7 @@ describe('mapUserOptions', () => {
   })
 
   it('skips users with empty key after trim', () => {
-    const result = mapUserOptions([
-      { key: '  ', name: 'X', email: 'x@x.com' },
-    ])
+    const result = mapUserOptions([{ key: '  ', name: 'X', email: 'x@x.com' }])
     expect(result).toEqual([])
   })
 
@@ -139,7 +137,10 @@ describe('mapUserOptions', () => {
       { key: 'b', name: 'Beta', email: 'b@b.com' },
       { key: 'a', name: 'Alpha', email: 'a@a.com' },
     ])
-    expect(result.map((o) => o.label)).toEqual(['Alpha (a@a.com)', 'Beta (b@b.com)'])
+    expect(result.map((o) => o.label)).toEqual([
+      'Alpha (a@a.com)',
+      'Beta (b@b.com)',
+    ])
   })
 })
 
@@ -149,9 +150,11 @@ describe('mapAgentOptions', () => {
   })
 
   it('returns unique sorted keys', () => {
-    const result = mapAgentOptions(
-      [{ key: 'agent-b' }, { key: 'agent-a' }, { key: 'agent-b' }]
-    )
+    const result = mapAgentOptions([
+      { key: 'agent-b' },
+      { key: 'agent-a' },
+      { key: 'agent-b' },
+    ])
     expect(result).toEqual(['agent-a', 'agent-b'])
   })
 
@@ -173,15 +176,17 @@ describe('formatAgentLabel', () => {
   })
 })
 
-function makeCommitRow(overrides: Partial<{
-  sha: string
-  timestamp: number
-  message: string
-  created_at: string
-  checkpoint_id: string
-  agent: string
-  branch: string
-}>): ApiCommitRowDto {
+function makeCommitRow(
+  overrides: Partial<{
+    sha: string
+    timestamp: number
+    message: string
+    created_at: string
+    checkpoint_id: string
+    agent: string
+    branch: string
+  }>,
+): ApiCommitRowDto {
   return {
     commit: {
       sha: overrides.sha ?? 'abc1234567890',
@@ -213,7 +218,9 @@ describe('mapCommitRows', () => {
   })
 
   it('maps one row to CommitData with correct field mapping', () => {
-    const rows = [makeCommitRow({ sha: 'abc1234567890', message: 'feat: add x' })]
+    const rows = [
+      makeCommitRow({ sha: 'abc1234567890', message: 'feat: add x' }),
+    ]
     const result = mapCommitRows(rows)
     expect(result).toHaveLength(1)
     expect(result[0].commit).toBe('abc1234')
@@ -226,7 +233,9 @@ describe('mapCommitRows', () => {
 
   it('maps author_name to author', () => {
     const row = makeCommitRow({ sha: 'x123', message: 'msg' })
-    const rows = [{ ...row, commit: { ...row.commit, author_name: 'Jane Doe' } }]
+    const rows = [
+      { ...row, commit: { ...row.commit, author_name: 'Jane Doe' } },
+    ]
     const result = mapCommitRows(rows)
     expect(result[0].author).toBe('Jane Doe')
   })
@@ -243,9 +252,7 @@ describe('mapCommitRows', () => {
   })
 
   it('handles invalid timestamp via formatCommitDate fallback', () => {
-    const rows = [
-      makeCommitRow({ timestamp: Number.NaN }),
-    ]
+    const rows = [makeCommitRow({ timestamp: Number.NaN })]
     const result = mapCommitRows(rows)
     expect(result).toHaveLength(1)
     expect(result[0].date).toBe('-')

@@ -1,4 +1,8 @@
-import type { ApiAgentDto, ApiCommitRowDto, ApiUserDto } from '@/api/types/schema'
+import type {
+  ApiAgentDto,
+  ApiCommitRowDto,
+  ApiUserDto,
+} from '@/api/types/schema'
 import type { CommitData } from './data/mock-commit-data'
 import type { UserOption } from './dashboard-view'
 
@@ -28,7 +32,9 @@ export const endOfDayUnixSeconds = (date: Date): number => {
   return Math.floor(normalized.getTime() / 1000)
 }
 
-export const formatCommitDate = (timestamp: number): { label: string; ms: number } => {
+export const formatCommitDate = (
+  timestamp: number,
+): { label: string; ms: number } => {
   const ts = timestamp > 1_000_000_000_000 ? timestamp : timestamp * 1000
   const date = new Date(ts)
 
@@ -37,7 +43,10 @@ export const formatCommitDate = (timestamp: number): { label: string; ms: number
   }
 
   return {
-    label: date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' }),
+    label: date.toLocaleDateString(undefined, {
+      month: 'short',
+      day: 'numeric',
+    }),
     ms: date.getTime(),
   }
 }
@@ -74,7 +83,7 @@ export const mapUserOptions = (users: ApiUserDto[]): UserOption[] => {
   }
 
   return Array.from(uniqueUsers.values()).sort((a, b) =>
-    a.label.localeCompare(b.label)
+    a.label.localeCompare(b.label),
   )
 }
 
@@ -92,8 +101,8 @@ export const mapAgentOptions = (agents: ApiAgentDto[]): string[] =>
     new Set(
       agents
         .map((agent) => agent.key.trim())
-        .filter((agent): agent is string => agent.length > 0)
-    )
+        .filter((agent): agent is string => agent.length > 0),
+    ),
   ).sort((a, b) => a.localeCompare(b))
 
 export const mapCommitRows = (rows: ApiCommitRowDto[]): CommitData[] => {
@@ -105,9 +114,7 @@ export const mapCommitRows = (rows: ApiCommitRowDto[]): CommitData[] => {
 
     const checkpoint = {
       id: row.checkpoint.checkpoint_id,
-      prompt:
-        row.checkpoint.tool_use_id ||
-        row.checkpoint.checkpoint_id,
+      prompt: row.checkpoint.tool_use_id || row.checkpoint.checkpoint_id,
       timestamp: formatCheckpointTime(row.checkpoint.created_at),
       createdAt: row.checkpoint.created_at,
       branch: row.checkpoint.branch,

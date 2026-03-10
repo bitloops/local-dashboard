@@ -32,7 +32,7 @@ export function DatePicker({
           data-empty={!selected}
           className={cn(
             'w-[240px] justify-start text-start font-normal data-[empty=true]:text-muted-foreground',
-            className
+            className,
           )}
         >
           {selected ? (

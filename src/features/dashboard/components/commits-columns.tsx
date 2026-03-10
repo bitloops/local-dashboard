@@ -19,8 +19,8 @@ const agentLabels: Record<string, string> = {
   'claude-code': 'Claude Code',
   'gemini-cli': 'Gemini CLI',
   'open-code': 'OpenCode',
-  'cursor': 'Cursor',
-  'openai': 'OpenAI',
+  cursor: 'Cursor',
+  openai: 'OpenAI',
 }
 
 export const commitColumns: ColumnDef<CommitRow>[] = [
@@ -61,7 +61,9 @@ export const commitColumns: ColumnDef<CommitRow>[] = [
     header: ({ column }) => (
       <DataTableColumnHeader column={column} title='Date' />
     ),
-    cell: ({ row }) => <span className='tabular-nums'>{row.getValue('date')}</span>,
+    cell: ({ row }) => (
+      <span className='tabular-nums'>{row.getValue('date')}</span>
+    ),
   },
   {
     accessorKey: 'commit',
@@ -82,9 +84,7 @@ export const commitColumns: ColumnDef<CommitRow>[] = [
     ),
     meta: { className: 'max-w-0 w-1/2', tdClassName: 'ps-4' },
     cell: ({ row }) => (
-      <span className='block truncate text-sm'>
-        {row.getValue('message')}
-      </span>
+      <span className='block truncate text-sm'>{row.getValue('message')}</span>
     ),
     enableSorting: false,
   },

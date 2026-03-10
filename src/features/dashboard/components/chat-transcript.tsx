@@ -29,7 +29,11 @@ function tryParseJson(s: string): string | null {
   }
 }
 
-function detectLanguage(text: string): { language: string; code: string; prefix?: string } {
+function detectLanguage(text: string): {
+  language: string
+  code: string
+  prefix?: string
+} {
   const trimmed = text.trim()
   if (!trimmed) return { language: 'plaintext', code: text }
 
@@ -42,7 +46,11 @@ function detectLanguage(text: string): { language: string; code: string; prefix?
     const after = text.slice(match[0].length).trim()
     const jsonAfter = tryParseJson(after)
     if (jsonAfter) {
-      return { language: 'json', code: prettyPrintJson(jsonAfter), prefix: match[0] }
+      return {
+        language: 'json',
+        code: prettyPrintJson(jsonAfter),
+        prefix: match[0],
+      }
     }
     if (/^\$|^#|^(echo|cat|cd|ls|npm|pnpm|yarn|git)\s/.test(after)) {
       return { language: 'bash', code: after, prefix: match[0] }
@@ -53,7 +61,11 @@ function detectLanguage(text: string): { language: string; code: string; prefix?
   if (/^\$|^#|^(echo|cat|cd|ls|npm|pnpm|yarn|git)\s/.test(trimmed)) {
     return { language: 'bash', code: text }
   }
-  if (/\b(function|=>|const|let|var|import|export)\b/.test(trimmed) || trimmed.startsWith('{') || trimmed.startsWith('[')) {
+  if (
+    /\b(function|=>|const|let|var|import|export)\b/.test(trimmed) ||
+    trimmed.startsWith('{') ||
+    trimmed.startsWith('[')
+  ) {
     return { language: 'javascript', code: text }
   }
   return { language: 'plaintext', code: text }
@@ -63,16 +75,30 @@ function ToolMessageContent({ text }: { text: string }) {
   const { language, code, prefix } = detectLanguage(text)
 
   if (language === 'plaintext') {
-    return <p className='text-[11px] text-muted-foreground whitespace-pre-wrap break-words'>{text}</p>
+    return (
+      <p className='text-[11px] text-muted-foreground whitespace-pre-wrap break-words'>
+        {text}
+      </p>
+    )
   }
 
   return (
     <span className='text-[11px]'>
-      {prefix && <span className='whitespace-pre-wrap text-muted-foreground'>{prefix}</span>}
+      {prefix && (
+        <span className='whitespace-pre-wrap text-muted-foreground'>
+          {prefix}
+        </span>
+      )}
       <SyntaxHighlighter
         language={language}
         style={codeBlockStyle}
-        customStyle={{ margin: 0, padding: 0, background: 'transparent', fontSize: '11px', whiteSpace: 'pre-wrap' }}
+        customStyle={{
+          margin: 0,
+          padding: 0,
+          background: 'transparent',
+          fontSize: '11px',
+          whiteSpace: 'pre-wrap',
+        }}
         codeTagProps={{ style: { fontSize: '11px' } }}
         PreTag='span'
         showLineNumbers={false}
@@ -86,14 +112,22 @@ function ToolMessageContent({ text }: { text: string }) {
 
 type TranscriptNode =
   | { type: 'single'; message: TranscriptMessage }
-  | { type: 'tool-pair'; use: TranscriptMessage; result: TranscriptMessage | null }
+  | {
+      type: 'tool-pair'
+      use: TranscriptMessage
+      result: TranscriptMessage | null
+    }
 
 function groupToolPairs(entries: TranscriptMessage[]): TranscriptNode[] {
   const nodes: TranscriptNode[] = []
   let i = 0
   while (i < entries.length) {
     const msg = entries[i]
-    if (msg.variant === 'tool_use' && i + 1 < entries.length && entries[i + 1].variant === 'tool_result') {
+    if (
+      msg.variant === 'tool_use' &&
+      i + 1 < entries.length &&
+      entries[i + 1].variant === 'tool_result'
+    ) {
       nodes.push({ type: 'tool-pair', use: msg, result: entries[i + 1] })
       i += 2
       continue
@@ -120,7 +154,10 @@ function ToolPairBlock({
     <div className='ms-8 max-w-[85%]'>
       <div className='min-w-0 overflow-hidden rounded-md border border-border bg-muted/30 pt-1 text-[11px]'>
         <div className='flex w-full items-center gap-1.5 border-b border-border py-1 px-2'>
-          <Terminal className='size-3 shrink-0 text-muted-foreground' aria-hidden />
+          <Terminal
+            className='size-3 shrink-0 text-muted-foreground'
+            aria-hidden
+          />
           <span className='font-medium text-muted-foreground'>Call</span>
         </div>
         <div className='w-full overflow-x-auto px-2 pt-1 mb-2'>
@@ -128,9 +165,15 @@ function ToolPairBlock({
         </div>
         {result !== null && (
           <>
-            <div className='w-full border-b border-border' role='separator' aria-hidden />
+            <div
+              className='w-full border-b border-border'
+              role='separator'
+              aria-hidden
+            />
             <div className='w-full border-b border-border py-1 px-2'>
-              <span className='font-medium text-muted-foreground'>Response</span>
+              <span className='font-medium text-muted-foreground'>
+                Response
+              </span>
             </div>
             <div
               className={`w-full overflow-x-auto px-2 pt-1 pb-1.5 ${result.isError ? 'bg-destructive/10' : ''}`}
@@ -156,10 +199,12 @@ function ChatBubble({ message, agentName, userName }: ChatBubbleProps) {
   const isUser = message.actor === 'user'
   const isSystem = isSystemVariant(message.variant)
   const isThinking = message.variant === 'thinking'
-  const shouldTruncate = !isSystem && !isThinking && message.text.length > TRUNCATE_LENGTH
-  const displayContent = shouldTruncate && !expanded
-    ? message.text.slice(0, TRUNCATE_LENGTH) + '\u2026'
-    : message.text
+  const shouldTruncate =
+    !isSystem && !isThinking && message.text.length > TRUNCATE_LENGTH
+  const displayContent =
+    shouldTruncate && !expanded
+      ? message.text.slice(0, TRUNCATE_LENGTH) + '\u2026'
+      : message.text
 
   if (isSystem) {
     return (
@@ -170,7 +215,10 @@ function ChatBubble({ message, agentName, userName }: ChatBubbleProps) {
           }`}
         >
           <div className='flex w-full items-center gap-1.5 border-b border-border py-1 px-2'>
-            <Terminal className='size-3 shrink-0 text-muted-foreground' aria-hidden />
+            <Terminal
+              className='size-3 shrink-0 text-muted-foreground'
+              aria-hidden
+            />
             <span className='font-medium text-muted-foreground'>Output</span>
           </div>
           <div className='w-full overflow-x-auto py-1 px-2'>
@@ -190,7 +238,9 @@ function ChatBubble({ message, agentName, userName }: ChatBubbleProps) {
         <div className='inline-flex min-w-0 items-start gap-1.5 rounded-lg border border-muted bg-background px-2.5 py-1.5'>
           <AgentIcon agent={agentName} className='mt-0.5 size-3.5 shrink-0' />
           <div className='flex flex-col gap-0.5'>
-            <span className='text-[11px] text-muted-foreground'>Thinking...</span>
+            <span className='text-[11px] text-muted-foreground'>
+              Thinking...
+            </span>
             <p className='text-[11px] italic text-foreground whitespace-pre-wrap break-words'>
               {thinkingBody}
             </p>
@@ -203,7 +253,9 @@ function ChatBubble({ message, agentName, userName }: ChatBubbleProps) {
   const label = isUser ? formatDisplayName(userName) : agentName
 
   return (
-    <div className={`flex items-start gap-2 ${isUser ? 'flex-row-reverse' : 'flex-row'}`}>
+    <div
+      className={`flex items-start gap-2 ${isUser ? 'flex-row-reverse' : 'flex-row'}`}
+    >
       <div className='flex size-6 shrink-0 items-center justify-center rounded-full bg-muted'>
         {isUser ? (
           <UserCircle className='h-3.5 w-3.5 text-muted-foreground' />
@@ -213,7 +265,9 @@ function ChatBubble({ message, agentName, userName }: ChatBubbleProps) {
       </div>
 
       <div className='min-w-0 max-w-[80%]'>
-        <p className={`mb-0.5 text-[10px] text-muted-foreground ${isUser ? 'text-right' : 'text-left'}`}>
+        <p
+          className={`mb-0.5 text-[10px] text-muted-foreground ${isUser ? 'text-right' : 'text-left'}`}
+        >
           {label}
         </p>
         <div
@@ -223,9 +277,7 @@ function ChatBubble({ message, agentName, userName }: ChatBubbleProps) {
               : 'rounded-tl-sm bg-primary text-primary-foreground'
           }`}
         >
-          <p className='whitespace-pre-wrap break-words'>
-            {displayContent}
-          </p>
+          <p className='whitespace-pre-wrap break-words'>{displayContent}</p>
           {shouldTruncate && (
             <button
               type='button'
@@ -248,7 +300,12 @@ type ChatTranscriptProps = {
   userName: string
 }
 
-export function ChatTranscript({ entries, sessionId, agentName, userName }: ChatTranscriptProps) {
+export function ChatTranscript({
+  entries,
+  sessionId,
+  agentName,
+  userName,
+}: ChatTranscriptProps) {
   if (entries.length === 0) {
     return (
       <p className='text-sm text-muted-foreground'>
@@ -270,13 +327,17 @@ export function ChatTranscript({ entries, sessionId, agentName, userName }: Chat
           />
         ) : (
           <ChatBubble
-            key={node.message.id ? `${sessionId}-${node.message.id}` : `${sessionId}-${index}`}
+            key={
+              node.message.id
+                ? `${sessionId}-${node.message.id}`
+                : `${sessionId}-${index}`
+            }
             message={node.message}
             index={index}
             agentName={agentName}
             userName={userName}
           />
-        )
+        ),
       )}
     </div>
   )

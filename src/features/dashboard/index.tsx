@@ -27,7 +27,7 @@ export function Dashboard() {
       new BitloopsCli({
         BASE: import.meta.env.VITE_BITLOOPS_CLI_BASE ?? 'http://127.0.0.1:5667',
       }),
-    []
+    [],
   )
 
   const [selectedBranch, setSelectedBranch] = useState<string | null>(null)
@@ -40,15 +40,14 @@ export function Dashboard() {
   const [userOptions, setUserOptions] = useState<UserOption[]>([])
   const [agentOptions, setAgentOptions] = useState<string[]>([])
   const [rows, setRows] = useState<CommitData[]>([])
-  const [selectedCheckpoint, setSelectedCheckpoint] = useState<Checkpoint | null>(
-    null
-  )
+  const [selectedCheckpoint, setSelectedCheckpoint] =
+    useState<Checkpoint | null>(null)
   const [checkpointDetail, setCheckpointDetail] =
     useState<ApiCheckpointDetailResponse | null>(null)
   const [checkpointDetailSource, setCheckpointDetailSource] =
     useState<CheckpointDetailLoadState>('idle')
   const [dataSource, setDataSource] = useState<'loading' | 'api' | 'error'>(
-    'loading'
+    'loading',
   )
   const [optionsSource, setOptionsSource] = useState<
     'loading' | 'api' | 'error'
@@ -222,7 +221,7 @@ export function Dashboard() {
         if (cancelled) return
         console.error(
           `Failed to load checkpoint details for ${selectedCheckpoint.id}`,
-          error
+          error,
         )
         setCheckpointDetail(null)
         setCheckpointDetailSource('error')

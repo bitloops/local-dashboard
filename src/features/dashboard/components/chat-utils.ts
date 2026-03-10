@@ -1,10 +1,12 @@
 /** Display only the name; strip email from API labels like "Wayne Omoga OMOGA@GMAIL.COM". */
 export function formatDisplayName(label: string): string {
-  return label
-    .split(/\s+/)
-    .filter((part) => !part.includes('@'))
-    .join(' ')
-    .trim() || label
+  return (
+    label
+      .split(/\s+/)
+      .filter((part) => !part.includes('@'))
+      .join(' ')
+      .trim() || label
+  )
 }
 
 export function isUserRole(role: string): boolean {

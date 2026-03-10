@@ -37,7 +37,10 @@ export function DataTableFacetedFilter<TData, TValue>({
 }: DataTableFacetedFilterProps<TData, TValue>) {
   const facets = column?.getFacetedUniqueValues()
   const filterValue = column?.getFilterValue() as string[] | undefined
-  const selectedValues = React.useMemo(() => new Set(filterValue), [filterValue])
+  const selectedValues = React.useMemo(
+    () => new Set(filterValue),
+    [filterValue],
+  )
 
   return (
     <Popover>
@@ -100,7 +103,7 @@ export function DataTableFacetedFilter<TData, TValue>({
                       }
                       const filterValues = Array.from(next)
                       column?.setFilterValue(
-                        filterValues.length ? filterValues : undefined
+                        filterValues.length ? filterValues : undefined,
                       )
                     }}
                   >
@@ -109,7 +112,7 @@ export function DataTableFacetedFilter<TData, TValue>({
                         'flex size-4 items-center justify-center rounded-sm border border-primary',
                         isSelected
                           ? 'bg-primary text-primary-foreground'
-                          : 'opacity-50 [&_svg]:invisible'
+                          : 'opacity-50 [&_svg]:invisible',
                       )}
                     >
                       <CheckIcon className={cn('h-4 w-4 text-background')} />

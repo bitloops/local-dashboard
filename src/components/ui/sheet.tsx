@@ -34,7 +34,7 @@ function SheetOverlay({
       data-slot='sheet-overlay'
       className={cn(
         'fixed inset-0 z-50 bg-black/50 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:animate-in data-[state=open]:fade-in-0',
-        className
+        className,
       )}
       {...props}
     />
@@ -94,18 +94,18 @@ function SheetContent({
           side === 'right' &&
             cn(
               'inset-y-0 end-0 h-full border-s data-[state=closed]:slide-out-to-end data-[state=open]:slide-in-from-end',
-              !canResize && 'w-3/4 sm:max-w-sm'
+              !canResize && 'w-3/4 sm:max-w-sm',
             ),
           side === 'left' &&
             cn(
               'inset-y-0 start-0 h-full border-e data-[state=closed]:slide-out-to-start data-[state=open]:slide-in-from-start',
-              !canResize && 'w-3/4 sm:max-w-sm'
+              !canResize && 'w-3/4 sm:max-w-sm',
             ),
           side === 'top' &&
             'inset-x-0 top-0 h-auto border-b data-[state=closed]:slide-out-to-top data-[state=open]:slide-in-from-top',
           side === 'bottom' &&
             'inset-x-0 bottom-0 h-auto border-t data-[state=closed]:slide-out-to-bottom data-[state=open]:slide-in-from-bottom',
-          className
+          className,
         )}
         style={canResize ? { width } : undefined}
         {...props}
@@ -122,7 +122,7 @@ function SheetContent({
           className={cn(
             'flex min-h-0 flex-1 flex-col',
             canResize && side === 'right' && 'ps-7',
-            canResize && side === 'left' && 'pe-7'
+            canResize && side === 'left' && 'pe-7',
           )}
         >
           {children}

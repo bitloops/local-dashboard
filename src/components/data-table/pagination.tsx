@@ -33,7 +33,7 @@ export function DataTablePagination<TData>({
       className={cn(
         'flex items-center justify-between overflow-clip px-2',
         '@max-2xl/content:flex-col-reverse @max-2xl/content:gap-4',
-        className
+        className,
       )}
       style={{ overflowClipMargin: 1 }}
     >

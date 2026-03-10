@@ -7,7 +7,12 @@ describe('JsonHighlight', () => {
     render(<JsonHighlight value='{"a": 1}' />)
     const pre = document.querySelector('pre')
     expect(pre).toBeInTheDocument()
-    expect(pre).toHaveClass('whitespace-pre-wrap', 'break-words', 'font-mono', 'text-xs')
+    expect(pre).toHaveClass(
+      'whitespace-pre-wrap',
+      'break-words',
+      'font-mono',
+      'text-xs',
+    )
   })
 
   it('renders JSON keys and values with highlighting', () => {
@@ -18,7 +23,7 @@ describe('JsonHighlight', () => {
 
   it('applies custom className', () => {
     const { container } = render(
-      <JsonHighlight value='{}' className='custom-class' />
+      <JsonHighlight value='{}' className='custom-class' />,
     )
     const pre = container.querySelector('pre')
     expect(pre).toHaveClass('custom-class')

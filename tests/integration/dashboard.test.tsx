@@ -15,16 +15,18 @@ function renderDashboard(ui: React.ReactElement): ReturnType<typeof render> {
   return render(<SidebarProvider>{ui}</SidebarProvider>)
 }
 
-function defaultProps(overrides: Partial<{
-  rows: CommitData[]
-  dataSource: 'loading' | 'api' | 'error'
-  optionsSource: 'loading' | 'api' | 'error'
-  selectedCheckpoint: Checkpoint | null
-  checkpointDetail: ApiCheckpointDetailResponse | null
-  checkpointDetailSource: 'idle' | 'loading' | 'api' | 'error'
-  onCheckpointSelect: (checkpoint: Checkpoint) => void
-  onCheckpointClose: () => void
-}> = {}) {
+function defaultProps(
+  overrides: Partial<{
+    rows: CommitData[]
+    dataSource: 'loading' | 'api' | 'error'
+    optionsSource: 'loading' | 'api' | 'error'
+    selectedCheckpoint: Checkpoint | null
+    checkpointDetail: ApiCheckpointDetailResponse | null
+    checkpointDetailSource: 'idle' | 'loading' | 'api' | 'error'
+    onCheckpointSelect: (checkpoint: Checkpoint) => void
+    onCheckpointClose: () => void
+  }> = {},
+) {
   const rows = overrides.rows ?? commitData.slice(0, 3)
   return {
     rows,
@@ -57,7 +59,9 @@ function defaultProps(overrides: Partial<{
 describe('Dashboard integration', () => {
   it('renders dashboard with table rows when data is provided', () => {
     renderDashboard(<DashboardView {...defaultProps()} />)
-    expect(screen.getByRole('heading', { name: 'Dashboard' })).toBeInTheDocument()
+    expect(
+      screen.getByRole('heading', { name: 'Dashboard' }),
+    ).toBeInTheDocument()
     expect(screen.getByText('Recent Commits')).toBeInTheDocument()
     const firstMessage = commitData[0].message
     expect(screen.getByText(firstMessage)).toBeInTheDocument()
@@ -65,10 +69,10 @@ describe('Dashboard integration', () => {
 
   it('shows error message when dataSource is error', () => {
     renderDashboard(
-      <DashboardView {...defaultProps({ dataSource: 'error' })} />
+      <DashboardView {...defaultProps({ dataSource: 'error' })} />,
     )
     expect(
-      screen.getByText(/Could not load dashboard data from the API/)
+      screen.getByText(/Could not load dashboard data from the API/),
     ).toBeInTheDocument()
   })
 
@@ -82,7 +86,7 @@ describe('Dashboard integration', () => {
           selectedCheckpoint: cp,
           checkpointDetailSource: 'api',
         })}
-      />
+      />,
     )
     expect(screen.getByText(`Checkpoint ${cp.id}`)).toBeInTheDocument()
   })
@@ -97,11 +101,13 @@ describe('Dashboard integration', () => {
           rows,
           onCheckpointSelect,
         })}
-      />
+      />,
     )
     const expandButton = screen.getByRole('button', { name: /expand row/i })
     await userEvent.click(expandButton)
-    const checkpointButton = screen.getByRole('button', { name: new RegExp(cp.id, 'i') })
+    const checkpointButton = screen.getByRole('button', {
+      name: new RegExp(cp.id, 'i'),
+    })
     await userEvent.click(checkpointButton)
     expect(onCheckpointSelect).toHaveBeenCalledTimes(1)
     expect(onCheckpointSelect).toHaveBeenCalledWith(cp)
@@ -117,11 +123,11 @@ describe('Dashboard integration', () => {
           selectedCheckpoint: cp,
           checkpointDetailSource: 'loading',
         })}
-      />
+      />,
     )
     expect(screen.getByText(`Checkpoint ${cp.id}`)).toBeInTheDocument()
     expect(
-      screen.getByText(/Loading chat data for this checkpoint/)
+      screen.getByText(/Loading chat data for this checkpoint/),
     ).toBeInTheDocument()
   })
 
@@ -171,7 +177,7 @@ describe('Dashboard integration', () => {
           checkpointDetail,
           checkpointDetailSource: 'api',
         })}
-      />
+      />,
     )
     expect(screen.getByText('Hello')).toBeInTheDocument()
     expect(screen.getByText('Hi there')).toBeInTheDocument()
@@ -187,10 +193,10 @@ describe('Dashboard integration', () => {
           selectedCheckpoint: cp,
           checkpointDetailSource: 'error',
         })}
-      />
+      />,
     )
     expect(
-      screen.getByText(/Could not load chat data from/)
+      screen.getByText(/Could not load chat data from/),
     ).toBeInTheDocument()
   })
 

@@ -36,7 +36,7 @@ describe('FileTree', () => {
             'src/App.tsx': { additionsCount: 10, deletionsCount: 2 },
             'src/lib/auth.ts': { additionsCount: 0, deletionsCount: 5 },
           }}
-        />
+        />,
       )
       expect(screen.getByText('App.tsx')).toBeInTheDocument()
       expect(screen.getByText('auth.ts')).toBeInTheDocument()
@@ -47,7 +47,9 @@ describe('FileTree', () => {
 
     it('shows only additions when deletionsCount is 0', () => {
       render(
-        <FileTree fileStats={{ 'README.md': { additionsCount: 3, deletionsCount: 0 } }} />
+        <FileTree
+          fileStats={{ 'README.md': { additionsCount: 3, deletionsCount: 0 } }}
+        />,
       )
       expect(screen.getByText('README.md')).toBeInTheDocument()
       expect(screen.getByText('+3')).toBeInTheDocument()
@@ -56,7 +58,9 @@ describe('FileTree', () => {
 
     it('shows only deletions when additionsCount is 0', () => {
       render(
-        <FileTree fileStats={{ 'old.ts': { additionsCount: 0, deletionsCount: 7 } }} />
+        <FileTree
+          fileStats={{ 'old.ts': { additionsCount: 0, deletionsCount: 7 } }}
+        />,
       )
       expect(screen.getByText('old.ts')).toBeInTheDocument()
       expect(screen.getByText('−7')).toBeInTheDocument()
@@ -65,7 +69,9 @@ describe('FileTree', () => {
 
     it('shows no diff when both counts are 0', () => {
       render(
-        <FileTree fileStats={{ 'empty.ts': { additionsCount: 0, deletionsCount: 0 } }} />
+        <FileTree
+          fileStats={{ 'empty.ts': { additionsCount: 0, deletionsCount: 0 } }}
+        />,
       )
       expect(screen.getByText('empty.ts')).toBeInTheDocument()
       expect(screen.queryByText('+0')).not.toBeInTheDocument()

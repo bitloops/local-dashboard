@@ -6,11 +6,7 @@ import {
 import { CopyButton } from '@/components/copy-button'
 import { Badge } from '@/components/ui/badge'
 import { cn } from '@/lib/utils'
-import {
-  Card,
-  CardDescription,
-  CardTitle,
-} from '@/components/ui/card'
+import { Card, CardDescription, CardTitle } from '@/components/ui/card'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Separator } from '@/components/ui/separator'
 import { Button } from '@/components/ui/button'
@@ -35,7 +31,7 @@ import {
 SyntaxHighlighter.registerLanguage('json', json)
 
 const TokenUsageChart = lazy(() =>
-  import('./token-usage-chart').then((m) => ({ default: m.TokenUsageChart }))
+  import('./token-usage-chart').then((m) => ({ default: m.TokenUsageChart })),
 )
 
 export type CheckpointDetailContentProps = {
@@ -71,16 +67,21 @@ function CheckpointDetailContentInner({
     ? formatDateTime(selectedCheckpoint.createdAt)
     : null
 
-  const detailFilesTouched: Record<string, { additionsCount: number; deletionsCount: number }> =
-    checkpointDetail?.files_touched ?? selectedCheckpoint?.filesTouched ?? {}
+  const detailFilesTouched: Record<
+    string,
+    { additionsCount: number; deletionsCount: number }
+  > = checkpointDetail?.files_touched ?? selectedCheckpoint?.filesTouched ?? {}
   const detailFilesPaths = Object.keys(detailFilesTouched)
   const detailSessionCount =
     checkpointDetail?.session_count ?? selectedCheckpoint?.sessionCount ?? 0
   const detailCheckpointsCount =
-    checkpointDetail?.checkpoints_count ?? selectedCheckpoint?.checkpointsCount ?? 0
+    checkpointDetail?.checkpoints_count ??
+    selectedCheckpoint?.checkpointsCount ??
+    0
   const detailStrategy =
     checkpointDetail?.strategy ?? selectedCheckpoint?.strategy ?? '-'
-  const detailBranch = checkpointDetail?.branch ?? selectedCheckpoint?.branch ?? '-'
+  const detailBranch =
+    checkpointDetail?.branch ?? selectedCheckpoint?.branch ?? '-'
   const detailTokenUsage = checkpointDetail?.token_usage
   const detailSessions = checkpointDetail?.sessions ?? []
 
@@ -97,7 +98,7 @@ function CheckpointDetailContentInner({
           checkpoints: detailCheckpointsCount,
         },
         null,
-        2
+        2,
       )
     : ''
 
@@ -108,12 +109,15 @@ function CheckpointDetailContentInner({
           {selectedCheckpoint
             ? `Checkpoint ${selectedCheckpoint.id}`
             : 'Checkpoint'}
-          {selectedCheckpoint && (
-            <CopyButton value={selectedCheckpoint.id} />
-          )}
+          {selectedCheckpoint && <CopyButton value={selectedCheckpoint.id} />}
         </h2>
         {onClose && (
-          <Button variant='ghost' size='icon' onClick={onClose} aria-label='Close checkpoint panel'>
+          <Button
+            variant='ghost'
+            size='icon'
+            onClick={onClose}
+            aria-label='Close checkpoint panel'
+          >
             <XIcon className='size-4' />
           </Button>
         )}
@@ -145,7 +149,7 @@ function CheckpointDetailContentInner({
                     'flex-1 rounded-md px-3 py-2 text-sm font-medium transition-colors',
                     viewMode === 'session'
                       ? 'bg-background text-foreground shadow-sm'
-                      : 'text-muted-foreground hover:text-foreground'
+                      : 'text-muted-foreground hover:text-foreground',
                   )}
                 >
                   Session
@@ -159,7 +163,7 @@ function CheckpointDetailContentInner({
                     'flex-1 rounded-md px-3 py-2 text-sm font-medium transition-colors',
                     viewMode === 'summary'
                       ? 'bg-background text-foreground shadow-sm'
-                      : 'text-muted-foreground hover:text-foreground'
+                      : 'text-muted-foreground hover:text-foreground',
                   )}
                 >
                   Details
@@ -189,11 +193,11 @@ function CheckpointDetailContentInner({
 
                   {detailSessions.length > 0 && (
                     <Card className='overflow-hidden bg-muted/20 pt-0'>
-                      <Tabs
-                        key={selectedCheckpoint.id}
-                        defaultValue='0'
-                      >
-                        <TabsList variant='line' className='h-auto justify-start rounded-none border-0 bg-transparent'>
+                      <Tabs key={selectedCheckpoint.id} defaultValue='0'>
+                        <TabsList
+                          variant='line'
+                          className='h-auto justify-start rounded-none border-0 bg-transparent'
+                        >
                           {detailSessions.map(
                             (s: ApiCheckpointSessionDetailDto, idx: number) => (
                               <TabsTrigger
@@ -203,13 +207,16 @@ function CheckpointDetailContentInner({
                               >
                                 Session {s.session_index + 1}
                               </TabsTrigger>
-                            )
+                            ),
                           )}
                         </TabsList>
                         {detailSessions.map(
-                          (session: ApiCheckpointSessionDetailDto, idx: number) => {
+                          (
+                            session: ApiCheckpointSessionDetailDto,
+                            idx: number,
+                          ) => {
                             const transcriptEntries = parseTranscriptEntries(
-                              session.transcript_jsonl
+                              session.transcript_jsonl,
                             )
                             return (
                               <TabsContent
@@ -227,7 +234,9 @@ function CheckpointDetailContentInner({
                                   </CardDescription>
                                 </div>
                                 <div className='flex flex-wrap gap-2'>
-                                  <Badge variant='secondary'>{formatAgentLabel(session.agent)}</Badge>
+                                  <Badge variant='secondary'>
+                                    {formatAgentLabel(session.agent)}
+                                  </Badge>
                                   <Badge variant='outline'>
                                     {formatDateTime(session.created_at)}
                                   </Badge>
@@ -260,7 +269,11 @@ function CheckpointDetailContentInner({
                                     <p className='text-xs text-muted-foreground'>
                                       Metadata JSON
                                     </p>
-                                    <CopyButton value={prettyPrintJson(session.metadata_json)} />
+                                    <CopyButton
+                                      value={prettyPrintJson(
+                                        session.metadata_json,
+                                      )}
+                                    />
                                   </div>
                                   <div className='max-h-36 min-w-0 w-full overflow-auto rounded-md border bg-background p-2'>
                                     <SyntaxHighlighter
@@ -298,14 +311,16 @@ function CheckpointDetailContentInner({
                                     <ChatTranscript
                                       entries={transcriptEntries}
                                       sessionId={session.session_id}
-                                      agentName={formatAgentLabel(session.agent)}
+                                      agentName={formatAgentLabel(
+                                        session.agent,
+                                      )}
                                       userName={userName}
                                     />
                                   </div>
                                 </div>
                               </TabsContent>
                             )
-                          }
+                          },
                         )}
                       </Tabs>
                     </Card>
@@ -319,11 +334,17 @@ function CheckpointDetailContentInner({
                     <div className='grid grid-cols-2 gap-3 sm:grid-cols-4 sm:divide-x sm:divide-border sm:gap-0'>
                       <div className='sm:px-3 sm:first:ps-0 sm:last:pe-0'>
                         <p className='text-xs text-muted-foreground'>Files</p>
-                        <p className='text-lg font-bold text-primary'>{detailFilesPaths.length}</p>
+                        <p className='text-lg font-bold text-primary'>
+                          {detailFilesPaths.length}
+                        </p>
                       </div>
                       <div className='sm:px-3 sm:first:ps-0 sm:last:pe-0'>
-                        <p className='text-xs text-muted-foreground'>Sessions</p>
-                        <p className='text-lg font-bold text-primary'>{detailSessionCount}</p>
+                        <p className='text-xs text-muted-foreground'>
+                          Sessions
+                        </p>
+                        <p className='text-lg font-bold text-primary'>
+                          {detailSessionCount}
+                        </p>
                       </div>
                       <div className='sm:px-3 sm:first:ps-0 sm:last:pe-0'>
                         <p className='text-xs text-muted-foreground'>Tokens</p>
@@ -334,9 +355,13 @@ function CheckpointDetailContentInner({
                         </p>
                       </div>
                       <div className='sm:px-3 sm:first:ps-0 sm:last:pe-0'>
-                        <p className='text-xs text-muted-foreground'>API Calls</p>
+                        <p className='text-xs text-muted-foreground'>
+                          API Calls
+                        </p>
                         <p className='text-lg font-bold text-primary'>
-                          {detailTokenUsage ? detailTokenUsage.api_call_count : '-'}
+                          {detailTokenUsage
+                            ? detailTokenUsage.api_call_count
+                            : '-'}
                         </p>
                       </div>
                     </div>
@@ -346,7 +371,9 @@ function CheckpointDetailContentInner({
                     <>
                       <Separator />
                       <div>
-                        <h3 className='mb-2 text-sm font-semibold'>Commit Message</h3>
+                        <h3 className='mb-2 text-sm font-semibold'>
+                          Commit Message
+                        </h3>
                         <p className='rounded-md border bg-muted/30 p-3 text-sm'>
                           {selectedCheckpoint.commitMessage}
                         </p>
@@ -357,7 +384,9 @@ function CheckpointDetailContentInner({
                   <Separator />
 
                   <div>
-                    <h3 className='mb-2 text-sm font-semibold'>Files Touched</h3>
+                    <h3 className='mb-2 text-sm font-semibold'>
+                      Files Touched
+                    </h3>
                     {detailFilesPaths.length > 0 ? (
                       <div className='rounded-md border bg-muted/20 p-3'>
                         <FileTree fileStats={detailFilesTouched} />
@@ -372,7 +401,11 @@ function CheckpointDetailContentInner({
                   <Separator />
                   <div>
                     <h3 className='mb-2 text-sm font-semibold'>Token Usage</h3>
-                    <Suspense fallback={<div className='h-40 animate-pulse rounded-md bg-muted/30' />}>
+                    <Suspense
+                      fallback={
+                        <div className='h-40 animate-pulse rounded-md bg-muted/30' />
+                      }
+                    >
                       <TokenUsageChart usage={detailTokenUsage} />
                     </Suspense>
                   </div>
@@ -437,7 +470,13 @@ export function CheckpointSheet({
         }
       }}
     >
-      <SheetContent side='right' className='p-0' resizable defaultWidth={600} maxWidth={700}>
+      <SheetContent
+        side='right'
+        className='p-0'
+        resizable
+        defaultWidth={600}
+        maxWidth={700}
+      >
         <CheckpointDetailContent
           selectedCheckpoint={selectedCheckpoint}
           checkpointDetail={checkpointDetail}

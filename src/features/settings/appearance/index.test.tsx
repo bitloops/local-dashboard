@@ -17,18 +17,24 @@ describe('SettingsAppearance', () => {
     render(
       <Wrapper>
         <SettingsAppearance />
-      </Wrapper>
+      </Wrapper>,
     )
-    expect(screen.getByRole('heading', { name: 'Appearance' })).toBeInTheDocument()
-    expect(screen.getByText(/Customize the appearance of the app/)).toBeInTheDocument()
+    expect(
+      screen.getByRole('heading', { name: 'Appearance' }),
+    ).toBeInTheDocument()
+    expect(
+      screen.getByText(/Customize the appearance of the app/),
+    ).toBeInTheDocument()
   })
 
   it('renders the appearance form', () => {
     render(
       <Wrapper>
         <SettingsAppearance />
-      </Wrapper>
+      </Wrapper>,
     )
-    expect(screen.getByRole('button', { name: 'Update preferences' })).toBeInTheDocument()
+    expect(
+      screen.getByRole('button', { name: 'Update preferences' }),
+    ).toBeInTheDocument()
   })
 })

@@ -61,7 +61,7 @@ export function AppearanceForm() {
                     className={cn(
                       buttonVariants({ variant: 'outline' }),
                       'w-[200px] appearance-none font-normal capitalize',
-                      'dark:bg-background dark:hover:bg-background'
+                      'dark:bg-background dark:hover:bg-background',
                     )}
                     {...field}
                   >

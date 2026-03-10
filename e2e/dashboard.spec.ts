@@ -30,8 +30,14 @@ const STUB_COMMITS = [
       tool_use_id: '',
       files_touched: {
         'src/App.tsx': { additionsCount: 42, deletionsCount: 8 },
-        'src/components/layout/app-sidebar.tsx': { additionsCount: 120, deletionsCount: 15 },
-        'src/components/ui/sidebar.tsx': { additionsCount: 0, deletionsCount: 3 },
+        'src/components/layout/app-sidebar.tsx': {
+          additionsCount: 120,
+          deletionsCount: 15,
+        },
+        'src/components/ui/sidebar.tsx': {
+          additionsCount: 0,
+          deletionsCount: 3,
+        },
         'src/styles/globals.css': { additionsCount: 12, deletionsCount: 0 },
       },
       session_count: 2,
@@ -53,7 +59,9 @@ const STUB_COMMITS = [
       strategy: 'task',
       session_id: 'sess-01',
       tool_use_id: '',
-      files_touched: { 'src/styles/globals.css': { additionsCount: 3, deletionsCount: 1 } },
+      files_touched: {
+        'src/styles/globals.css': { additionsCount: 3, deletionsCount: 1 },
+      },
       session_count: 1,
       checkpoints_count: 4,
       is_task: true,
@@ -73,7 +81,9 @@ const STUB_COMMITS = [
       strategy: 'prompt',
       session_id: 'sess-02',
       tool_use_id: '',
-      files_touched: { 'src/lib/auth.ts': { additionsCount: 20, deletionsCount: 5 } },
+      files_touched: {
+        'src/lib/auth.ts': { additionsCount: 20, deletionsCount: 5 },
+      },
       session_count: 1,
       checkpoints_count: 7,
       is_task: false,
@@ -87,7 +97,10 @@ const STUB_CHECKPOINT_DETAIL = {
   checkpoints_count: 4,
   files_touched: {
     'src/App.tsx': { additionsCount: 42, deletionsCount: 8 },
-    'src/components/layout/app-sidebar.tsx': { additionsCount: 120, deletionsCount: 15 },
+    'src/components/layout/app-sidebar.tsx': {
+      additionsCount: 120,
+      deletionsCount: 15,
+    },
     'src/components/ui/sidebar.tsx': { additionsCount: 0, deletionsCount: 3 },
     'src/styles/globals.css': { additionsCount: 12, deletionsCount: 0 },
   },
@@ -103,7 +116,8 @@ const STUB_CHECKPOINT_DETAIL = {
   sessions: [
     {
       agent: 'claude-code',
-      context_text: 'React 19 app with Vite. Use Tailwind and shadcn/ui. The sidebar should collapse on small screens.',
+      context_text:
+        'React 19 app with Vite. Use Tailwind and shadcn/ui. The sidebar should collapse on small screens.',
       created_at: '2025-02-14T10:12:00Z',
       is_task: true,
       metadata_json: JSON.stringify({
@@ -111,35 +125,65 @@ const STUB_CHECKPOINT_DETAIL = {
         temperature: 0.2,
         max_tokens: 4096,
       }),
-      prompts_text: 'Create the basic layout with sidebar and header. Use the existing AppSidebar component and add a main content area.',
+      prompts_text:
+        'Create the basic layout with sidebar and header. Use the existing AppSidebar component and add a main content area.',
       session_id: 'sess-01',
       session_index: 0,
       tool_use_id: '',
       transcript_jsonl: [
-        JSON.stringify({ role: 'user', content: 'Create the basic layout with sidebar and header.' }),
-        JSON.stringify({ role: 'assistant', content: "I'll add a layout with AppSidebar and a main content area using the existing components." }),
-        JSON.stringify({ role: 'tool', content: 'Created src/App.tsx with Layout and SidebarInset.' }),
-        JSON.stringify({ role: 'user', content: 'Make the sidebar collapsible on mobile.' }),
-        JSON.stringify({ role: 'assistant', content: 'Adding a collapsible wrapper and breakpoint-based visibility.' }),
+        JSON.stringify({
+          role: 'user',
+          content: 'Create the basic layout with sidebar and header.',
+        }),
+        JSON.stringify({
+          role: 'assistant',
+          content:
+            "I'll add a layout with AppSidebar and a main content area using the existing components.",
+        }),
+        JSON.stringify({
+          role: 'tool',
+          content: 'Created src/App.tsx with Layout and SidebarInset.',
+        }),
+        JSON.stringify({
+          role: 'user',
+          content: 'Make the sidebar collapsible on mobile.',
+        }),
+        JSON.stringify({
+          role: 'assistant',
+          content:
+            'Adding a collapsible wrapper and breakpoint-based visibility.',
+        }),
       ].join('\n'),
     },
     {
       agent: 'claude-code',
-      context_text: 'Follow-up: layout is done. User wants theme toggle in the header.',
+      context_text:
+        'Follow-up: layout is done. User wants theme toggle in the header.',
       created_at: '2025-02-14T10:28:00Z',
       is_task: false,
       metadata_json: JSON.stringify({
         model: 'claude-sonnet-4',
         parent_session_id: 'sess-01',
       }),
-      prompts_text: 'Add a theme switch (light/dark) in the header. Use the ThemeSwitch component if it exists.',
+      prompts_text:
+        'Add a theme switch (light/dark) in the header. Use the ThemeSwitch component if it exists.',
       session_id: 'sess-01',
       session_index: 1,
       tool_use_id: 'theme_switch',
       transcript_jsonl: [
-        JSON.stringify({ role: 'user', content: 'Add a theme switch in the header.' }),
-        JSON.stringify({ role: 'assistant', content: "I'll add ThemeSwitch to the header and ensure the provider wraps the app." }),
-        JSON.stringify({ role: 'tool', content: 'Updated Header and main.tsx.' }),
+        JSON.stringify({
+          role: 'user',
+          content: 'Add a theme switch in the header.',
+        }),
+        JSON.stringify({
+          role: 'assistant',
+          content:
+            "I'll add ThemeSwitch to the header and ensure the provider wraps the app.",
+        }),
+        JSON.stringify({
+          role: 'tool',
+          content: 'Updated Header and main.tsx.',
+        }),
       ].join('\n'),
     },
   ],
@@ -153,26 +197,50 @@ const STUB_CHECKPOINT_DETAIL = {
 async function stubApiRoutes(page: Page) {
   // Intercept API requests regardless of host/port so tests are deterministic.
   await page.route('**/api/branches*', (route: Route) => {
-    void route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(STUB_BRANCHES) })
+    void route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(STUB_BRANCHES),
+    })
   })
 
   await page.route('**/api/users*', (route: Route) => {
-    void route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(STUB_USERS) })
+    void route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(STUB_USERS),
+    })
   })
 
   await page.route('**/api/agents*', (route: Route) => {
-    void route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(STUB_AGENTS) })
+    void route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(STUB_AGENTS),
+    })
   })
 
   await page.route('**/api/commits*', (route: Route) => {
-    void route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(STUB_COMMITS) })
+    void route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(STUB_COMMITS),
+    })
   })
 
   await page.route('**/api/checkpoint*', (route: Route) => {
-    void route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(STUB_CHECKPOINT_DETAIL) })
+    void route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(STUB_CHECKPOINT_DETAIL),
+    })
   })
   await page.route('**/api/checkpoints*', (route: Route) => {
-    void route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(STUB_CHECKPOINT_DETAIL) })
+    void route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(STUB_CHECKPOINT_DETAIL),
+    })
   })
 }
 
@@ -181,7 +249,9 @@ async function stubApiRoutes(page: Page) {
 // ---------------------------------------------------------------------------
 
 test.describe('App / dashboard load', () => {
-  test('visiting / loads the dashboard with heading and filters', async ({ page }) => {
+  test('visiting / loads the dashboard with heading and filters', async ({
+    page,
+  }) => {
     await stubApiRoutes(page)
     await page.goto('/')
 
@@ -190,13 +260,19 @@ test.describe('App / dashboard load', () => {
     await expect(page.getByText('Recent Commits')).toBeVisible()
   })
 
-  test('dashboard displays stat cards after API data loads', async ({ page }) => {
+  test('dashboard displays stat cards after API data loads', async ({
+    page,
+  }) => {
     await stubApiRoutes(page)
     await page.goto('/')
 
     await expect(page.getByText('Throughput')).toBeVisible()
-    await expect(page.getByText('Checkpoints', { exact: true }).first()).toBeVisible()
-    await expect(page.getByText('Agents', { exact: true }).first()).toBeVisible()
+    await expect(
+      page.getByText('Checkpoints', { exact: true }).first(),
+    ).toBeVisible()
+    await expect(
+      page.getByText('Agents', { exact: true }).first(),
+    ).toBeVisible()
     await expect(page.getByText('Active Branches')).toBeVisible()
   })
 
@@ -205,41 +281,61 @@ test.describe('App / dashboard load', () => {
     await page.goto('/')
 
     // Both distinct commit messages from STUB_COMMITS should appear in the table
-    await expect(page.getByText('feat: add dashboard layout scaffold')).toBeVisible()
-    await expect(page.getByText('fix: resolve auth token refresh loop')).toBeVisible()
+    await expect(
+      page.getByText('feat: add dashboard layout scaffold'),
+    ).toBeVisible()
+    await expect(
+      page.getByText('fix: resolve auth token refresh loop'),
+    ).toBeVisible()
   })
 
-  test('dashboard shows API error banner when data endpoints fail', async ({ page }) => {
+  test('dashboard shows API error banner when data endpoints fail', async ({
+    page,
+  }) => {
     const base = 'http://127.0.0.1:5667'
 
     // All other data endpoints fail
     await page.route(`${base}/api/**`, (route: Route) => {
-      void route.fulfill({ status: 500, contentType: 'application/json', body: JSON.stringify({ error: 'Internal Server Error' }) })
+      void route.fulfill({
+        status: 500,
+        contentType: 'application/json',
+        body: JSON.stringify({ error: 'Internal Server Error' }),
+      })
     })
 
     // Branches must succeed so effectiveBranch is set and the data request fires.
     // Register this after the catch-all so it takes precedence for /api/branches*.
     await page.route(`${base}/api/branches*`, (route: Route) => {
-      void route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(STUB_BRANCHES) })
+      void route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify(STUB_BRANCHES),
+      })
     })
 
     await page.goto('/')
 
     await expect(
-      page.getByText(/Could not load dashboard data from the API/)
+      page.getByText(/Could not load dashboard data from the API/),
     ).toBeVisible()
   })
 
-  test('shows "No branches" message when /api/branches returns empty', async ({ page }) => {
+  test('shows "No branches" message when /api/branches returns empty', async ({
+    page,
+  }) => {
     const base = 'http://127.0.0.1:5667'
     await page.route(`${base}/api/branches*`, (route: Route) => {
-      void route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify([]) })
+      void route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify([]),
+      })
     })
 
     await page.goto('/')
 
     await expect(
-      page.getByText(/No branches are currently available/)
+      page.getByText(/No branches are currently available/),
     ).toBeVisible()
   })
 })
@@ -249,7 +345,6 @@ test.describe('App / dashboard load', () => {
 // ---------------------------------------------------------------------------
 
 test.describe('Filters', () => {
-
   test('branch filter dropdown shows stub branch options', async ({ page }) => {
     await stubApiRoutes(page)
     await page.goto('/')
@@ -259,11 +354,15 @@ test.describe('Filters', () => {
     await branchTrigger.click()
 
     await expect(page.getByRole('option', { name: /Auto/ })).toBeVisible()
-    await expect(page.getByRole('option', { name: 'main', exact: true })).toBeVisible()
+    await expect(
+      page.getByRole('option', { name: 'main', exact: true }),
+    ).toBeVisible()
     await expect(page.getByRole('option', { name: 'feat/auth' })).toBeVisible()
   })
 
-  test('selecting a branch updates the branch trigger label', async ({ page }) => {
+  test('selecting a branch updates the branch trigger label', async ({
+    page,
+  }) => {
     await stubApiRoutes(page)
     await page.goto('/')
 
@@ -274,7 +373,9 @@ test.describe('Filters', () => {
     await expect(branchTrigger).toContainText('feat/auth')
   })
 
-  test('clear filters button is disabled until a filter is active', async ({ page }) => {
+  test('clear filters button is disabled until a filter is active', async ({
+    page,
+  }) => {
     await stubApiRoutes(page)
     await page.goto('/')
 
@@ -292,7 +393,9 @@ test.describe('Filters', () => {
     await expect(clearBtn).toBeEnabled()
   })
 
-  test('clicking clear filters resets the branch selection to Auto', async ({ page }) => {
+  test('clicking clear filters resets the branch selection to Auto', async ({
+    page,
+  }) => {
     await stubApiRoutes(page)
     await page.goto('/')
 
@@ -308,15 +411,25 @@ test.describe('Filters', () => {
     await expect(branchTrigger).toContainText('Auto')
   })
 
-  test('filter section contains User, Agent, From, and To controls', async ({ page }) => {
+  test('filter section contains User, Agent, From, and To controls', async ({
+    page,
+  }) => {
     await stubApiRoutes(page)
     await page.goto('/')
 
     // Match the small <p> label elements inside the Filters card
-    await expect(page.locator('p.text-muted-foreground', { hasText: 'User' }).first()).toBeVisible()
-    await expect(page.locator('p.text-muted-foreground', { hasText: 'Agent' }).first()).toBeVisible()
-    await expect(page.locator('p.text-muted-foreground', { hasText: 'From' })).toBeVisible()
-    await expect(page.locator('p.text-muted-foreground', { hasText: 'To' })).toBeVisible()
+    await expect(
+      page.locator('p.text-muted-foreground', { hasText: 'User' }).first(),
+    ).toBeVisible()
+    await expect(
+      page.locator('p.text-muted-foreground', { hasText: 'Agent' }).first(),
+    ).toBeVisible()
+    await expect(
+      page.locator('p.text-muted-foreground', { hasText: 'From' }),
+    ).toBeVisible()
+    await expect(
+      page.locator('p.text-muted-foreground', { hasText: 'To' }),
+    ).toBeVisible()
   })
 })
 
@@ -332,7 +445,9 @@ test.describe('Checkpoint sheet', () => {
     await tree.getByRole('button').first().click()
   }
 
-  test('expanding a commit row reveals its checkpoint entries', async ({ page }) => {
+  test('expanding a commit row reveals its checkpoint entries', async ({
+    page,
+  }) => {
     await stubApiRoutes(page)
     await page.goto('/')
 
@@ -342,19 +457,24 @@ test.describe('Checkpoint sheet', () => {
     // Checkpoint tree appears and shows checkpoint id (e.g. cp-01) from stub.
     const tree = page.getByRole('tree')
     await expect(tree).toBeVisible({ timeout: 10_000 })
-
   })
 
-  test('clicking a checkpoint opens the sheet with the checkpoint ID', async ({ page }) => {
+  test('clicking a checkpoint opens the sheet with the checkpoint ID', async ({
+    page,
+  }) => {
     await stubApiRoutes(page)
     await page.goto('/')
 
     await openFirstCheckpoint(page)
 
-    await expect(page.getByRole('heading', { name: /Checkpoint cp-/i })).toBeVisible()
+    await expect(
+      page.getByRole('heading', { name: /Checkpoint cp-/i }),
+    ).toBeVisible()
   })
 
-  test('checkpoint sheet shows Files Touched and Metadata sections', async ({ page }) => {
+  test('checkpoint sheet shows Files Touched and Metadata sections', async ({
+    page,
+  }) => {
     await stubApiRoutes(page)
     await page.goto('/')
 
@@ -365,7 +485,9 @@ test.describe('Checkpoint sheet', () => {
     await expect(page.getByText('Metadata')).toBeVisible()
   })
 
-  test('checkpoint sheet shows transcript entries or chat-load fallback state', async ({ page }) => {
+  test('checkpoint sheet shows transcript entries or chat-load fallback state', async ({
+    page,
+  }) => {
     await stubApiRoutes(page)
     await page.goto('/')
 
@@ -374,55 +496,88 @@ test.describe('Checkpoint sheet', () => {
     // Chat Sessions section is always rendered. Depending on environment/network,
     // transcript data may be shown, it may be empty, or an explicit load error may appear.
     await expect(page.getByText('Chat Sessions')).toBeVisible()
-    const transcriptOrFallback = page.getByText('No transcript entries available.').or(
-      page.getByText(/Could not load chat data from/)
-    ).or(
-      page.getByText(/I'?ll add a layout with AppSidebar/i)
-    )
+    const transcriptOrFallback = page
+      .getByText('No transcript entries available.')
+      .or(page.getByText(/Could not load chat data from/))
+      .or(page.getByText(/I'?ll add a layout with AppSidebar/i))
     await expect(transcriptOrFallback.first()).toBeVisible({ timeout: 8000 })
   })
 
-  test('checkpoint sheet closes when the close button is clicked', async ({ page }) => {
+  test('checkpoint sheet closes when the close button is clicked', async ({
+    page,
+  }) => {
     await stubApiRoutes(page)
     await page.goto('/')
 
     await openFirstCheckpoint(page)
-    await expect(page.getByRole('heading', { name: /Checkpoint cp-/i })).toBeVisible()
+    await expect(
+      page.getByRole('heading', { name: /Checkpoint cp-/i }),
+    ).toBeVisible()
 
     await page.getByRole('button', { name: /close/i }).click()
 
-    await expect(page.getByRole('heading', { name: /Checkpoint cp-/i })).not.toBeVisible()
+    await expect(
+      page.getByRole('heading', { name: /Checkpoint cp-/i }),
+    ).not.toBeVisible()
   })
 
-  test('checkpoint sheet shows error state when detail API fails', async ({ page }) => {
+  test('checkpoint sheet shows error state when detail API fails', async ({
+    page,
+  }) => {
     // All list endpoints succeed
     await page.route('**/api/branches*', (route) => {
-      void route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(STUB_BRANCHES) })
+      void route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify(STUB_BRANCHES),
+      })
     })
     await page.route('**/api/users*', (route) => {
-      void route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(STUB_USERS) })
+      void route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify(STUB_USERS),
+      })
     })
     await page.route('**/api/agents*', (route) => {
-      void route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(STUB_AGENTS) })
+      void route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify(STUB_AGENTS),
+      })
     })
     await page.route('**/api/commits*', (route) => {
-      void route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(STUB_COMMITS) })
+      void route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify(STUB_COMMITS),
+      })
     })
     // Checkpoint detail endpoint fails
     await page.route('**/api/checkpoint*', (route) => {
-      void route.fulfill({ status: 500, contentType: 'application/json', body: JSON.stringify({ error: 'error' }) })
+      void route.fulfill({
+        status: 500,
+        contentType: 'application/json',
+        body: JSON.stringify({ error: 'error' }),
+      })
     })
     await page.route('**/api/checkpoints*', (route) => {
-      void route.fulfill({ status: 500, contentType: 'application/json', body: JSON.stringify({ error: 'error' }) })
+      void route.fulfill({
+        status: 500,
+        contentType: 'application/json',
+        body: JSON.stringify({ error: 'error' }),
+      })
     })
 
     await page.goto('/')
     await openFirstCheckpoint(page)
 
     await expect(
-      page.getByText(/Could not load chat data from/).or(
-        page.getByText('No chat sessions were returned for this checkpoint.')
-      )
+      page
+        .getByText(/Could not load chat data from/)
+        .or(
+          page.getByText('No chat sessions were returned for this checkpoint.'),
+        ),
     ).toBeVisible({ timeout: 8000 })
   })
 })
@@ -432,13 +587,17 @@ test.describe('Checkpoint sheet', () => {
 // ---------------------------------------------------------------------------
 
 test.describe('Settings', () => {
-  test('navigating to /settings shows the Settings heading and description', async ({ page }) => {
+  test('navigating to /settings shows the Settings heading and description', async ({
+    page,
+  }) => {
     await stubApiRoutes(page)
     await page.goto('/')
     await page.getByRole('link', { name: 'Settings' }).click()
 
     await expect(page.getByRole('heading', { name: 'Settings' })).toBeVisible()
-    await expect(page.getByText('Customize theme and display options.')).toBeVisible()
+    await expect(
+      page.getByText('Customize theme and display options.'),
+    ).toBeVisible()
   })
 
   test('settings page renders the Appearance sub-section', async ({ page }) => {
@@ -446,7 +605,9 @@ test.describe('Settings', () => {
     await page.goto('/')
     await page.getByRole('link', { name: 'Settings' }).click()
 
-    await expect(page.getByRole('heading', { name: 'Appearance' })).toBeVisible()
+    await expect(
+      page.getByRole('heading', { name: 'Appearance' }),
+    ).toBeVisible()
   })
 })
 
@@ -455,7 +616,9 @@ test.describe('Settings', () => {
 // ---------------------------------------------------------------------------
 
 test.describe('Navigation', () => {
-  test('sidebar contains Dashboard, Settings, and Help navigation links', async ({ page }) => {
+  test('sidebar contains Dashboard, Settings, and Help navigation links', async ({
+    page,
+  }) => {
     await stubApiRoutes(page)
     await page.goto('/')
 
@@ -464,7 +627,9 @@ test.describe('Navigation', () => {
     await expect(page.getByRole('link', { name: 'Help' })).toBeVisible()
   })
 
-  test('clicking Settings in the sidebar loads the settings page', async ({ page }) => {
+  test('clicking Settings in the sidebar loads the settings page', async ({
+    page,
+  }) => {
     await stubApiRoutes(page)
     await page.goto('/')
 
@@ -473,7 +638,9 @@ test.describe('Navigation', () => {
     await expect(page.getByRole('heading', { name: 'Settings' })).toBeVisible()
   })
 
-  test('clicking Dashboard in the sidebar returns to the dashboard', async ({ page }) => {
+  test('clicking Dashboard in the sidebar returns to the dashboard', async ({
+    page,
+  }) => {
     await stubApiRoutes(page)
     await page.goto('/')
 
@@ -486,16 +653,22 @@ test.describe('Navigation', () => {
     await expect(page.getByRole('heading', { name: 'Dashboard' })).toBeVisible()
   })
 
-  test('clicking Help in the sidebar shows the Coming Soon page', async ({ page }) => {
+  test('clicking Help in the sidebar shows the Coming Soon page', async ({
+    page,
+  }) => {
     await stubApiRoutes(page)
     await page.goto('/')
 
     await page.getByRole('link', { name: 'Help' }).click()
 
-    await expect(page.getByRole('heading', { name: /Coming Soon/i })).toBeVisible()
+    await expect(
+      page.getByRole('heading', { name: /Coming Soon/i }),
+    ).toBeVisible()
   })
 
-  test('sidebar team switcher shows the Bitloops brand name', async ({ page }) => {
+  test('sidebar team switcher shows the Bitloops brand name', async ({
+    page,
+  }) => {
     await stubApiRoutes(page)
     await page.goto('/')
 

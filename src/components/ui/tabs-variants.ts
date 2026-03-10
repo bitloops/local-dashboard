@@ -5,8 +5,7 @@ export const tabsListVariants = cva('', {
     variant: {
       default:
         'inline-flex h-9 items-center justify-center rounded-lg bg-muted p-1 text-muted-foreground',
-      line:
-        'inline-flex w-fit border-b border-border p-0 text-muted-foreground',
+      line: 'inline-flex w-fit border-b border-border p-0 text-muted-foreground',
     },
   },
   defaultVariants: {
@@ -19,13 +18,13 @@ export const tabsTriggerVariants = cva(
   {
     variants: {
       variant: {
-        default: 'data-[state=active]:bg-background data-[state=active]:shadow-sm',
-        line:
-          'rounded-none border-b-2 border-transparent px-4 py-3 data-[state=active]:border-primary data-[state=active]:text-foreground -mb-px',
+        default:
+          'data-[state=active]:bg-background data-[state=active]:shadow-sm',
+        line: 'rounded-none border-b-2 border-transparent px-4 py-3 data-[state=active]:border-primary data-[state=active]:text-foreground -mb-px',
       },
     },
     defaultVariants: {
       variant: 'default',
     },
-  }
+  },
 )

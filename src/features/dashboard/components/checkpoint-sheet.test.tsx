@@ -13,7 +13,9 @@ import type { Checkpoint } from '../data/mock-commit-data'
 describe('formatDateTime', () => {
   it('formats valid ISO string to locale string', () => {
     const result = formatDateTime('2025-03-04T14:30:00.000Z')
-    expect(new Date(result).getTime()).toBe(new Date('2025-03-04T14:30:00.000Z').getTime())
+    expect(new Date(result).getTime()).toBe(
+      new Date('2025-03-04T14:30:00.000Z').getTime(),
+    )
   })
 
   it('returns original value for invalid date string', () => {
@@ -33,7 +35,8 @@ describe('stripUserQueryTags', () => {
   })
 
   it('removes multiple tag pairs and leaves content and spacing', () => {
-    const input = 'First\n<user_query>\nQ1\n</user_query>\n\n<user_query>\nQ2\n</user_query>\nLast'
+    const input =
+      'First\n<user_query>\nQ1\n</user_query>\n\n<user_query>\nQ2\n</user_query>\nLast'
     expect(stripUserQueryTags(input)).toBe('First\n\nQ1\n\n\n\nQ2\n\nLast')
   })
 
@@ -156,7 +159,8 @@ describe('parseTranscriptEntries', () => {
   })
 
   it('skips malformed lines', () => {
-    const jsonl = '{"type":"user","message":{"content":"Hi"}}\nnot json\n{"type":"progress","data":{"hookEvent":"x"}}'
+    const jsonl =
+      '{"type":"user","message":{"content":"Hi"}}\nnot json\n{"type":"progress","data":{"hookEvent":"x"}}'
     const entries = parseTranscriptEntries(jsonl)
     expect(entries).toHaveLength(1)
   })
@@ -189,7 +193,7 @@ describe('CheckpointSheet (component)', () => {
         {...defaultProps}
         selectedCheckpoint={checkpoint}
         checkpointDetailSource='api'
-      />
+      />,
     )
     expect(screen.getByText('Checkpoint cp-99')).toBeInTheDocument()
   })
@@ -205,10 +209,10 @@ describe('CheckpointSheet (component)', () => {
         {...defaultProps}
         selectedCheckpoint={checkpoint}
         checkpointDetailSource='loading'
-      />
+      />,
     )
     expect(
-      screen.getByText(/Loading chat data for this checkpoint/)
+      screen.getByText(/Loading chat data for this checkpoint/),
     ).toBeInTheDocument()
   })
 
@@ -225,7 +229,7 @@ describe('CheckpointSheet (component)', () => {
         selectedCheckpoint={checkpoint}
         onClose={onClose}
         checkpointDetailSource='api'
-      />
+      />,
     )
     const closeButton = screen.getByRole('button', { name: /close/i })
     await userEvent.click(closeButton)
@@ -247,7 +251,7 @@ describe('CheckpointSheet (component)', () => {
         {...defaultProps}
         selectedCheckpoint={checkpoint}
         checkpointDetailSource='api'
-      />
+      />,
     )
     await userEvent.click(screen.getByRole('tab', { name: 'Details' }))
     expect(screen.getByText('Files Touched')).toBeInTheDocument()

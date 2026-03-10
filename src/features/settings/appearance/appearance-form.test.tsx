@@ -17,18 +17,20 @@ describe('AppearanceForm', () => {
     render(
       <Wrapper>
         <AppearanceForm />
-      </Wrapper>
+      </Wrapper>,
     )
     expect(screen.getByLabelText(/^Font$/i)).toBeInTheDocument()
     expect(screen.getByText('Theme')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Update preferences' })).toBeInTheDocument()
+    expect(
+      screen.getByRole('button', { name: 'Update preferences' }),
+    ).toBeInTheDocument()
   })
 
   it('renders Light and Dark theme options', () => {
     render(
       <Wrapper>
         <AppearanceForm />
-      </Wrapper>
+      </Wrapper>,
     )
     expect(screen.getByText('Light')).toBeInTheDocument()
     expect(screen.getByText('Dark')).toBeInTheDocument()
@@ -38,7 +40,7 @@ describe('AppearanceForm', () => {
     render(
       <Wrapper>
         <AppearanceForm />
-      </Wrapper>
+      </Wrapper>,
     )
     const select = screen.getByRole('combobox', { name: /font/i })
     expect(select).toBeInTheDocument()

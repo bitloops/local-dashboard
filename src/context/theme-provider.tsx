@@ -1,4 +1,11 @@
-import { createContext, use, useCallback, useEffect, useMemo, useState } from 'react'
+import {
+  createContext,
+  use,
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+} from 'react'
 import { getCookie, setCookie, removeCookie } from '@/lib/cookies'
 
 type Theme = 'dark' | 'light' | 'system'
@@ -39,11 +46,11 @@ export function ThemeProvider({
   ...props
 }: ThemeProviderProps) {
   const [theme, _setTheme] = useState<Theme>(
-    () => (getCookie(storageKey) as Theme) || defaultTheme
+    () => (getCookie(storageKey) as Theme) || defaultTheme,
   )
 
   const [systemDark, setSystemDark] = useState(
-    () => window.matchMedia('(prefers-color-scheme: dark)').matches
+    () => window.matchMedia('(prefers-color-scheme: dark)').matches,
   )
 
   useEffect(() => {
@@ -67,7 +74,7 @@ export function ThemeProvider({
       setCookie(storageKey, next, THEME_COOKIE_MAX_AGE)
       _setTheme(next)
     },
-    [storageKey]
+    [storageKey],
   )
 
   const resetTheme = useCallback(() => {
@@ -77,7 +84,7 @@ export function ThemeProvider({
 
   const contextValue = useMemo(
     () => ({ defaultTheme, resolvedTheme, theme, setTheme, resetTheme }),
-    [defaultTheme, resolvedTheme, theme, setTheme, resetTheme]
+    [defaultTheme, resolvedTheme, theme, setTheme, resetTheme],
   )
 
   return (

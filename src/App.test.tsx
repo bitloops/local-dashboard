@@ -20,17 +20,21 @@ describe('App', () => {
     render(
       <Wrapper>
         <App />
-      </Wrapper>
+      </Wrapper>,
     )
-    expect(screen.getByRole('link', { name: 'Skip to Main' })).toBeInTheDocument()
+    expect(
+      screen.getByRole('link', { name: 'Skip to Main' }),
+    ).toBeInTheDocument()
   })
 
   it('renders Dashboard at root path', () => {
     render(
       <Wrapper>
         <App />
-      </Wrapper>
+      </Wrapper>,
     )
-    expect(screen.getByRole('link', { name: 'Skip to Main' })).toBeInTheDocument()
+    expect(
+      screen.getByRole('link', { name: 'Skip to Main' }),
+    ).toBeInTheDocument()
   })
 })

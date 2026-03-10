@@ -9,7 +9,7 @@ describe('useTableUrlState', () => {
       useTableUrlState({
         search: { page: 2, pageSize: 25 },
         navigate,
-      })
+      }),
     )
     expect(result.current.pagination).toEqual({ pageIndex: 1, pageSize: 25 })
   })
@@ -20,7 +20,7 @@ describe('useTableUrlState', () => {
       useTableUrlState({
         search: {},
         navigate,
-      })
+      }),
     )
     expect(result.current.pagination).toEqual({ pageIndex: 0, pageSize: 10 })
   })
@@ -31,7 +31,7 @@ describe('useTableUrlState', () => {
       useTableUrlState({
         search: {},
         navigate,
-      })
+      }),
     )
     act(() => {
       result.current.onPaginationChange((prev) => ({
@@ -56,7 +56,7 @@ describe('useTableUrlState', () => {
         columnFilters: [
           { columnId: 'agent', searchKey: 'agent', type: 'string' },
         ],
-      })
+      }),
     )
     expect(result.current.columnFilters).toEqual([
       { id: 'agent', value: 'claude' },
@@ -69,7 +69,7 @@ describe('useTableUrlState', () => {
       useTableUrlState({
         search: { filter: 'hello' },
         navigate,
-      })
+      }),
     )
     expect(result.current.globalFilter).toBe('hello')
   })
@@ -80,7 +80,7 @@ describe('useTableUrlState', () => {
       useTableUrlState({
         search: { page: 5 },
         navigate,
-      })
+      }),
     )
     act(() => {
       result.current.ensurePageInRange(3, { resetTo: 'first' })

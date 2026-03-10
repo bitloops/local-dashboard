@@ -28,7 +28,9 @@ import { type Checkpoint, type CommitData } from './data/mock-commit-data'
 import { formatAgentLabel } from './utils'
 
 const CommitCheckpointChart = lazy(() =>
-  import('./components/session-activity-chart').then((m) => ({ default: m.CommitCheckpointChart }))
+  import('./components/session-activity-chart').then((m) => ({
+    default: m.CommitCheckpointChart,
+  })),
 )
 
 const branchAutoValue = '__auto_branch__'
@@ -110,8 +112,8 @@ export function DashboardView({
     Boolean(toDate)
 
   const userName = selectedUser
-    ? userOptions.find((u) => u.value === selectedUser)?.label ?? 'You'
-    : userOptions[0]?.label ?? 'You'
+    ? (userOptions.find((u) => u.value === selectedUser)?.label ?? 'You')
+    : (userOptions[0]?.label ?? 'You')
 
   const totalCommits = rows.length
   const totalCheckpoints = rows.reduce((sum, row) => sum + row.checkpoints, 0)
@@ -274,19 +276,43 @@ export function DashboardView({
 
         <div className='grid gap-4 sm:grid-cols-2 lg:grid-cols-4'>
           {[
-            { title: 'Throughput', icon: Gauge, value: `${totalCommits} commits`, description: 'For current filters' },
-            { title: 'Checkpoints', icon: Bookmark, value: String(totalCheckpoints), description: 'Across visible commits' },
-            { title: 'Agents', icon: Bot, value: String(totalAgents), description: 'In visible commits' },
-            { title: 'Active Branches', icon: GitBranch, value: String(activeBranches), description: 'Matching current range' },
+            {
+              title: 'Throughput',
+              icon: Gauge,
+              value: `${totalCommits} commits`,
+              description: 'For current filters',
+            },
+            {
+              title: 'Checkpoints',
+              icon: Bookmark,
+              value: String(totalCheckpoints),
+              description: 'Across visible commits',
+            },
+            {
+              title: 'Agents',
+              icon: Bot,
+              value: String(totalAgents),
+              description: 'In visible commits',
+            },
+            {
+              title: 'Active Branches',
+              icon: GitBranch,
+              value: String(activeBranches),
+              description: 'Matching current range',
+            },
           ].map((stat) => (
             <Card key={stat.title}>
               <CardHeader className='flex items-center justify-between space-y-0 pb-2'>
-                <CardTitle className='text-sm font-medium'>{stat.title}</CardTitle>
+                <CardTitle className='text-sm font-medium'>
+                  {stat.title}
+                </CardTitle>
                 <stat.icon className='h-4 w-4 text-muted-foreground' />
               </CardHeader>
               <CardContent>
                 <div className='text-2xl font-bold'>{stat.value}</div>
-                <p className='text-xs text-muted-foreground'>{stat.description}</p>
+                <p className='text-xs text-muted-foreground'>
+                  {stat.description}
+                </p>
               </CardContent>
             </Card>
           ))}
@@ -305,7 +331,11 @@ export function DashboardView({
             </CardDescription>
           </CardHeader>
           <CardContent className='px-6'>
-            <Suspense fallback={<div className='h-[350px] animate-pulse rounded-md bg-muted/30' />}>
+            <Suspense
+              fallback={
+                <div className='h-[350px] animate-pulse rounded-md bg-muted/30' />
+              }
+            >
               <CommitCheckpointChart
                 data={rows}
                 onCommitClick={setSelectedCommit}
@@ -322,7 +352,14 @@ export function DashboardView({
         </div>
       </Main>
 
-      <Sidebar side='right' collapsible='offcanvas' resizable defaultWidth={600} minWidth={480} maxWidth={700}>
+      <Sidebar
+        side='right'
+        collapsible='offcanvas'
+        resizable
+        defaultWidth={600}
+        minWidth={480}
+        maxWidth={700}
+      >
         <SidebarRail side='right' />
         <CheckpointDetailContent
           selectedCheckpoint={selectedCheckpoint}

@@ -13,7 +13,7 @@ describe('NavLink', () => {
     render(
       <Wrapper>
         <NavLink to='/dashboard'>Dashboard</NavLink>
-      </Wrapper>
+      </Wrapper>,
     )
     const link = screen.getByRole('link', { name: 'Dashboard' })
     expect(link).toBeInTheDocument()
@@ -27,7 +27,7 @@ describe('NavLink', () => {
         <NavLink to='/settings' onClick={onClick}>
           Settings
         </NavLink>
-      </Wrapper>
+      </Wrapper>,
     )
     const link = screen.getByRole('link', { name: 'Settings' })
     await userEvent.click(link)

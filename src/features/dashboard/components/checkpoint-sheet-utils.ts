@@ -9,9 +9,7 @@ export const formatDateTime = (value: string): string => {
 /** Removes only <user_query> and </user_query> tag markup; leaves spacing unchanged. */
 export const stripUserQueryTags = (value: string): string => {
   if (!value.trim()) return value
-  return value
-    .replace(/<user_query>/gi, '')
-    .replace(/<\/user_query>/gi, '')
+  return value.replace(/<user_query>/gi, '').replace(/<\/user_query>/gi, '')
 }
 
 export const prettyPrintJson = (value: string): string => {
@@ -59,8 +57,10 @@ export const parseTranscriptEntries = (jsonl: string): TranscriptMessage[] => {
     try {
       const parsed = JSON.parse(line) as Record<string, unknown>
       const type = typeof parsed.type === 'string' ? parsed.type : ''
-      const timestamp = typeof parsed.timestamp === 'string' ? parsed.timestamp : ''
-      const uuid = typeof parsed.uuid === 'string' ? parsed.uuid : genId(lineIndex)
+      const timestamp =
+        typeof parsed.timestamp === 'string' ? parsed.timestamp : ''
+      const uuid =
+        typeof parsed.uuid === 'string' ? parsed.uuid : genId(lineIndex)
       const message = parsed.message as Record<string, unknown> | undefined
       const messageContent = message?.content
 
@@ -77,7 +77,8 @@ export const parseTranscriptEntries = (jsonl: string): TranscriptMessage[] => {
         }
         if (Array.isArray(messageContent)) {
           const allToolResult = messageContent.every(
-            (b: unknown) => (b as Record<string, unknown>)?.type === 'tool_result'
+            (b: unknown) =>
+              (b as Record<string, unknown>)?.type === 'tool_result',
           )
           if (allToolResult) {
             messageContent.forEach((block: unknown, i: number) => {
@@ -125,7 +126,8 @@ export const parseTranscriptEntries = (jsonl: string): TranscriptMessage[] => {
             return
           }
           if (blockType === 'tool_use' && typeof b.name === 'string') {
-            const input = b.input != null ? JSON.stringify(b.input, null, 2) : ''
+            const input =
+              b.input != null ? JSON.stringify(b.input, null, 2) : ''
             collected.push({
               id: blockId,
               timestamp,

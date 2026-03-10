@@ -12,7 +12,9 @@ describe('CopyButton', () => {
 
   it('renders with copy aria-label', () => {
     render(<CopyButton value='text to copy' />)
-    expect(screen.getByRole('button', { name: 'Copy to clipboard' })).toBeInTheDocument()
+    expect(
+      screen.getByRole('button', { name: 'Copy to clipboard' }),
+    ).toBeInTheDocument()
   })
 
   it('calls clipboard.writeText on click', async () => {

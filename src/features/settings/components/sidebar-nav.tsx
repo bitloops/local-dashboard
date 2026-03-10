@@ -58,7 +58,7 @@ export function SidebarNav({ className, items, ...props }: SidebarNavProps) {
         <nav
           className={cn(
             'flex space-x-2 py-1 lg:flex-col lg:space-y-1 lg:space-x-0',
-            className
+            className,
           )}
           {...props}
         >
@@ -71,7 +71,7 @@ export function SidebarNav({ className, items, ...props }: SidebarNavProps) {
                 pathname === item.href
                   ? 'bg-muted hover:bg-accent'
                   : 'hover:bg-accent hover:underline',
-                'justify-start'
+                'justify-start',
               )}
             >
               <span className='me-2'>{item.icon}</span>

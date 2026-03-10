@@ -7,8 +7,7 @@ const primaryUrl =
   process.env.OPENAPI_PRIMARY_URL ??
   'https://bitloops.local:5667/api/openapi.json'
 const fallbackUrl =
-  process.env.OPENAPI_FALLBACK_URL ??
-  'http://127.0.0.1:5667/api/openapi.json'
+  process.env.OPENAPI_FALLBACK_URL ?? 'http://127.0.0.1:5667/api/openapi.json'
 const outputPath =
   process.env.OPENAPI_TYPES_OUTPUT ?? 'src/types/openapi.generated.d.ts'
 const parsedTimeout = Number(process.env.OPENAPI_FETCH_TIMEOUT_MS ?? 8000)
@@ -17,13 +16,15 @@ const fetchTimeoutMs =
 const isVerbose = process.env.OPENAPI_TYPES_VERBOSE === '1'
 
 const schemaUrls = [primaryUrl, fallbackUrl].filter(
-  (value, index, list) => Boolean(value) && list.indexOf(value) === index
+  (value, index, list) => Boolean(value) && list.indexOf(value) === index,
 )
 
 const generatorBin = path.resolve(
   'node_modules',
   '.bin',
-  process.platform === 'win32' ? 'openapi-typescript.cmd' : 'openapi-typescript'
+  process.platform === 'win32'
+    ? 'openapi-typescript.cmd'
+    : 'openapi-typescript',
 )
 
 const fileExists = async (filePath) => {
@@ -100,15 +101,15 @@ const runGenerator = async (schemaUrl) =>
           (line) =>
             line.includes('connect ') ||
             line.includes('fetch failed') ||
-            line.includes('Request failed')
+            line.includes('Request failed'),
         )
 
       reject(
         new Error(
           `openapi-typescript exited with code ${code ?? 'unknown'}${
             summaryLine ? ` (${summaryLine})` : ''
-          }`
-        )
+          }`,
+        ),
       )
     })
   })
@@ -132,7 +133,7 @@ for (const schemaUrl of schemaUrls) {
 
 if (await fileExists(outputPath)) {
   console.warn(
-    `OpenAPI is unreachable. Keeping existing generated types at ${outputPath}.`
+    `OpenAPI is unreachable. Keeping existing generated types at ${outputPath}.`,
   )
   process.exit(0)
 }

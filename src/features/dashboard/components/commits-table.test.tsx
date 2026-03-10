@@ -27,7 +27,9 @@ describe('CommitTable', () => {
   it('renders empty state when data is empty', () => {
     render(<CommitTable data={[]} />)
     expect(screen.getByRole('table')).toBeInTheDocument()
-    expect(screen.queryByRole('row', { name: /Mar 4/i })).not.toBeInTheDocument()
+    expect(
+      screen.queryByRole('row', { name: /Mar 4/i }),
+    ).not.toBeInTheDocument()
   })
 
   it('renders commit row with date, commit, message, author, and agent', () => {
