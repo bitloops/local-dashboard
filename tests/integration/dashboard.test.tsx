@@ -22,6 +22,7 @@ function defaultProps(overrides: Partial<{
   selectedCheckpoint: Checkpoint | null
   checkpointDetail: ApiCheckpointDetailResponse | null
   checkpointDetailSource: 'idle' | 'loading' | 'api' | 'error'
+  onCheckpointSelect: (checkpoint: Checkpoint) => void
   onCheckpointClose: () => void
 }> = {}) {
   const rows = overrides.rows ?? commitData.slice(0, 3)
@@ -86,23 +87,42 @@ describe('Dashboard integration', () => {
     expect(screen.getByText(`Checkpoint ${cp.id}`)).toBeInTheDocument()
   })
 
-  it('calls onCheckpointClose when sheet close is clicked', async () => {
+  it('calls onCheckpointSelect with checkpoint when user clicks checkpoint in commit list', async () => {
     const rows = commitData.slice(0, 1)
     const cp = rows[0].checkpointList[0]
-    const onClose = vi.fn()
+    const onCheckpointSelect = vi.fn()
+    renderDashboard(
+      <DashboardView
+        {...defaultProps({
+          rows,
+          onCheckpointSelect,
+        })}
+      />
+    )
+    const expandButton = screen.getByRole('button', { name: /expand row/i })
+    await userEvent.click(expandButton)
+    const checkpointButton = screen.getByRole('button', { name: new RegExp(cp.id, 'i') })
+    await userEvent.click(checkpointButton)
+    expect(onCheckpointSelect).toHaveBeenCalledTimes(1)
+    expect(onCheckpointSelect).toHaveBeenCalledWith(cp)
+  })
+
+  it('shows loading message in right sidebar when checkpoint is selected and detail is loading', () => {
+    const rows = commitData.slice(0, 1)
+    const cp = rows[0].checkpointList[0]
     renderDashboard(
       <DashboardView
         {...defaultProps({
           rows,
           selectedCheckpoint: cp,
-          checkpointDetailSource: 'api',
-          onCheckpointClose: onClose,
+          checkpointDetailSource: 'loading',
         })}
       />
     )
-    const closeButton = screen.getByRole('button', { name: /close/i })
-    await userEvent.click(closeButton)
-    expect(onClose).toHaveBeenCalled()
+    expect(screen.getByText(`Checkpoint ${cp.id}`)).toBeInTheDocument()
+    expect(
+      screen.getByText(/Loading chat data for this checkpoint/)
+    ).toBeInTheDocument()
   })
 
   it('shows transcript entries when checkpoint detail has sessions with transcript', () => {

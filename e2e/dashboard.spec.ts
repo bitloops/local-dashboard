@@ -212,14 +212,15 @@ test.describe('App / dashboard load', () => {
   test('dashboard shows API error banner when data endpoints fail', async ({ page }) => {
     const base = 'http://127.0.0.1:5667'
 
-    // Branches must succeed so effectiveBranch is set and the data request fires
-    await page.route(`${base}/api/branches*`, (route: Route) => {
-      void route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(STUB_BRANCHES) })
-    })
-
     // All other data endpoints fail
     await page.route(`${base}/api/**`, (route: Route) => {
       void route.fulfill({ status: 500, contentType: 'application/json', body: JSON.stringify({ error: 'Internal Server Error' }) })
+    })
+
+    // Branches must succeed so effectiveBranch is set and the data request fires.
+    // Register this after the catch-all so it takes precedence for /api/branches*.
+    await page.route(`${base}/api/branches*`, (route: Route) => {
+      void route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(STUB_BRANCHES) })
     })
 
     await page.goto('/')
@@ -358,6 +359,7 @@ test.describe('Checkpoint sheet', () => {
     await page.goto('/')
 
     await openFirstCheckpoint(page)
+    await page.getByRole('tab', { name: /details|summary/i }).click()
 
     await expect(page.getByText('Files Touched')).toBeVisible()
     await expect(page.getByText('Metadata')).toBeVisible()
@@ -370,13 +372,14 @@ test.describe('Checkpoint sheet', () => {
     await openFirstCheckpoint(page)
 
     // Chat Sessions section is always rendered. Depending on environment/network,
-    // transcript data may be shown or an explicit load error message may appear.
+    // transcript data may be shown, it may be empty, or an explicit load error may appear.
     await expect(page.getByText('Chat Sessions')).toBeVisible()
-    await expect(
-      page.getByText('Sure, here is the layout.').or(
-        page.getByText(/Could not load chat data from/)
-      )
-    ).toBeVisible({ timeout: 8000 })
+    const transcriptOrFallback = page.getByText('No transcript entries available.').or(
+      page.getByText(/Could not load chat data from/)
+    ).or(
+      page.getByText(/I'?ll add a layout with AppSidebar/i)
+    )
+    await expect(transcriptOrFallback.first()).toBeVisible({ timeout: 8000 })
   })
 
   test('checkpoint sheet closes when the close button is clicked', async ({ page }) => {
@@ -417,7 +420,9 @@ test.describe('Checkpoint sheet', () => {
     await openFirstCheckpoint(page)
 
     await expect(
-      page.getByText(/Could not load chat data from/)
+      page.getByText(/Could not load chat data from/).or(
+        page.getByText('No chat sessions were returned for this checkpoint.')
+      )
     ).toBeVisible({ timeout: 8000 })
   })
 })

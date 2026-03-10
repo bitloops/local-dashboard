@@ -10,6 +10,7 @@ export type CommitRow = {
   commit: string
   checkpoints: number
   message: string
+  author: string
   agent: string
   checkpointList: Checkpoint[]
 }
@@ -86,6 +87,16 @@ export const commitColumns: ColumnDef<CommitRow>[] = [
       </span>
     ),
     enableSorting: false,
+  },
+  {
+    accessorKey: 'author',
+    header: ({ column }) => (
+      <DataTableColumnHeader column={column} title='Author' />
+    ),
+    cell: ({ row }) => (
+      <span className='truncate text-sm'>{row.getValue('author') || '—'}</span>
+    ),
+    meta: { tdClassName: 'max-w-[140px]' },
   },
   {
     accessorKey: 'agent',

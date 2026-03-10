@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import type { ApiCommitRowDto } from '@/api/types/schema'
 import {
   endOfDayIso,
+  endOfDayUnixSeconds,
   formatAgentLabel,
   formatCheckpointTime,
   formatCommitDate,
@@ -9,6 +10,7 @@ import {
   mapCommitRows,
   mapUserOptions,
   startOfDayIso,
+  startOfDayUnixSeconds,
 } from './utils'
 
 describe('formatCheckpointTime', () => {
@@ -60,6 +62,37 @@ describe('endOfDayIso', () => {
   it('returns ISO string with end-of-day time (59:59.999)', () => {
     const result = endOfDayIso(new Date('2025-03-04T14:30:00.000Z'))
     expect(result).toMatch(/T\d{2}:59:59\.999/)
+  })
+})
+
+describe('startOfDayUnixSeconds', () => {
+  it('returns Unix seconds for start of day (00:00:00 local)', () => {
+    const result = startOfDayUnixSeconds(new Date('2025-03-04T14:30:00.000Z'))
+    expect(Number.isInteger(result)).toBe(true)
+    expect(result).toBeGreaterThan(1_700_000_000)
+    expect(result).toBeLessThan(2_000_000_000)
+    expect(new Date(result * 1000).getUTCHours()).toBeDefined()
+  })
+
+  it('is consistent with startOfDayIso when converted back', () => {
+    const d = new Date('2025-03-04T14:30:00.000Z')
+    const iso = startOfDayIso(d)
+    const unix = startOfDayUnixSeconds(d)
+    expect(Math.floor(new Date(iso).getTime() / 1000)).toBe(unix)
+  })
+})
+
+describe('endOfDayUnixSeconds', () => {
+  it('returns Unix seconds for end of day (23:59:59 local)', () => {
+    const result = endOfDayUnixSeconds(new Date('2025-03-04T14:30:00.000Z'))
+    expect(Number.isInteger(result)).toBe(true)
+    expect(result).toBeGreaterThan(1_700_000_000)
+    expect(result).toBeLessThan(2_000_000_000)
+  })
+
+  it('is after startOfDayUnixSeconds for the same date', () => {
+    const d = new Date('2025-03-04T14:30:00.000Z')
+    expect(endOfDayUnixSeconds(d)).toBeGreaterThan(startOfDayUnixSeconds(d))
   })
 })
 
@@ -189,6 +222,13 @@ describe('mapCommitRows', () => {
     expect(result[0].checkpoints).toBe(1)
     expect(result[0].checkpointList).toHaveLength(1)
     expect(result[0].checkpointList[0].id).toBe('cp1')
+  })
+
+  it('maps author_name to author', () => {
+    const row = makeCommitRow({ sha: 'x123', message: 'msg' })
+    const rows = [{ ...row, commit: { ...row.commit, author_name: 'Jane Doe' } }]
+    const result = mapCommitRows(rows)
+    expect(result[0].author).toBe('Jane Doe')
   })
 
   it('dedupes by commit SHA and aggregates checkpoints', () => {

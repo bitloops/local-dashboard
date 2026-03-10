@@ -14,6 +14,20 @@ export const endOfDayIso = (date: Date): string => {
   return normalized.toISOString()
 }
 
+/** Start of day in Unix seconds (for API from/to params). */
+export const startOfDayUnixSeconds = (date: Date): number => {
+  const normalized = new Date(date)
+  normalized.setHours(0, 0, 0, 0)
+  return Math.floor(normalized.getTime() / 1000)
+}
+
+/** End of day in Unix seconds (for API from/to params). */
+export const endOfDayUnixSeconds = (date: Date): number => {
+  const normalized = new Date(date)
+  normalized.setHours(23, 59, 59, 999)
+  return Math.floor(normalized.getTime() / 1000)
+}
+
 export const formatCommitDate = (timestamp: number): { label: string; ms: number } => {
   const ts = timestamp > 1_000_000_000_000 ? timestamp : timestamp * 1000
   const date = new Date(ts)
@@ -121,6 +135,7 @@ export const mapCommitRows = (rows: ApiCommitRowDto[]): CommitData[] => {
       commit: sha.slice(0, 7),
       checkpoints: 1,
       message: row.commit.message,
+      author: row.commit.author_name?.trim() ?? '',
       agent: row.checkpoint.agent,
       checkpointList: [checkpoint],
       timestamp: commitDate.ms,
@@ -134,6 +149,7 @@ export const mapCommitRows = (rows: ApiCommitRowDto[]): CommitData[] => {
       commit: commit.commit,
       checkpoints: commit.checkpoints,
       message: commit.message,
+      author: commit.author,
       agent: commit.agent,
       checkpointList: commit.checkpointList,
     }))

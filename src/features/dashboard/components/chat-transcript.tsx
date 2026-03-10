@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Terminal, User } from 'lucide-react'
+import { Terminal, UserCircle } from 'lucide-react'
 import { PrismLight as SyntaxHighlighter } from 'react-syntax-highlighter'
 import json from 'react-syntax-highlighter/dist/esm/languages/prism/json'
 import javascript from 'react-syntax-highlighter/dist/esm/languages/prism/javascript'
@@ -206,7 +206,7 @@ function ChatBubble({ message, agentName, userName }: ChatBubbleProps) {
     <div className={`flex items-start gap-2 ${isUser ? 'flex-row-reverse' : 'flex-row'}`}>
       <div className='flex size-6 shrink-0 items-center justify-center rounded-full bg-muted'>
         {isUser ? (
-          <User className='h-3.5 w-3.5 text-muted-foreground' />
+          <UserCircle className='h-3.5 w-3.5 text-muted-foreground' />
         ) : (
           <AgentIcon agent={agentName} />
         )}
@@ -219,7 +219,7 @@ function ChatBubble({ message, agentName, userName }: ChatBubbleProps) {
         <div
           className={`overflow-hidden rounded-xl px-3 py-2 text-xs leading-relaxed ${
             isUser
-              ? 'rounded-tr-sm bg-muted/60 text-foreground'
+              ? 'rounded-tr-sm bg-zinc-400 dark:bg-zinc-600 text-foreground'
               : 'rounded-tl-sm bg-primary text-primary-foreground'
           }`}
         >

@@ -91,6 +91,7 @@ export function DashboardView({
   onToDateChange,
   onClearFilters,
   onCheckpointSelect,
+  onCheckpointClose,
 }: DashboardViewProps) {
   const [selectedCommit, setSelectedCommit] = useState<string | null>(null)
   const { setOpen, setRightOpen } = useSidebar()
@@ -328,7 +329,10 @@ export function DashboardView({
           checkpointDetail={checkpointDetail}
           checkpointDetailSource={checkpointDetailSource}
           userName={userName}
-          onClose={() => setRightOpen(false)}
+          onClose={() => {
+            setRightOpen(false)
+            onCheckpointClose()
+          }}
         />
       </Sidebar>
     </>

@@ -16,6 +16,7 @@ function makeCommitRow(overrides: Partial<CommitRow> = {}): CommitRow {
     commit: 'a1b2c3d',
     checkpoints: 1,
     message: 'feat: add feature',
+    author: 'Test Author',
     agent: 'claude-code',
     checkpointList: [checkpoint],
     ...overrides,
@@ -29,12 +30,13 @@ describe('CommitTable', () => {
     expect(screen.queryByRole('row', { name: /Mar 4/i })).not.toBeInTheDocument()
   })
 
-  it('renders commit row with date, commit, message, and agent', () => {
+  it('renders commit row with date, commit, message, author, and agent', () => {
     const data: CommitRow[] = [makeCommitRow()]
     render(<CommitTable data={data} />)
     expect(screen.getByText('Mar 4')).toBeInTheDocument()
     expect(screen.getByText('a1b2c3d')).toBeInTheDocument()
     expect(screen.getByText('feat: add feature')).toBeInTheDocument()
+    expect(screen.getByText('Test Author')).toBeInTheDocument()
     expect(screen.getByText('Claude Code')).toBeInTheDocument()
   })
 

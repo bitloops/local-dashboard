@@ -194,6 +194,24 @@ describe('CheckpointSheet (component)', () => {
     expect(screen.getByText('Checkpoint cp-99')).toBeInTheDocument()
   })
 
+  it('shows loading message when checkpointDetailSource is loading', () => {
+    const checkpoint: Checkpoint = {
+      id: 'cp-loading',
+      prompt: 'Test',
+      timestamp: '10:00 AM',
+    }
+    render(
+      <CheckpointSheet
+        {...defaultProps}
+        selectedCheckpoint={checkpoint}
+        checkpointDetailSource='loading'
+      />
+    )
+    expect(
+      screen.getByText(/Loading chat data for this checkpoint/)
+    ).toBeInTheDocument()
+  })
+
   it('calls onClose when sheet is closed', async () => {
     const checkpoint: Checkpoint = {
       id: 'cp-1',

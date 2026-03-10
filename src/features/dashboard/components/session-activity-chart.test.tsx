@@ -9,6 +9,7 @@ function makeCommitData(overrides: Partial<CommitData> = {}): CommitData {
     commit: 'a1b2c3d',
     checkpoints: 3,
     message: 'feat: add feature',
+    author: '',
     agent: 'claude-code',
     checkpointList: [],
     ...overrides,
