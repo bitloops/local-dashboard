@@ -7,7 +7,8 @@ export type FilesTouchedEntry = {
 
 export type Checkpoint = {
   id: string
-  prompt: string
+  prompt?: string
+  firstPromptPreview?: string
   timestamp: string
   createdAt?: string
   branch?: string

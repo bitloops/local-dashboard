@@ -174,32 +174,37 @@ function CheckpointTree({
       </svg>
 
       <ul role='tree' style={{ paddingTop: topParentY + curveR }}>
-        {checkpoints.map((cp) => (
-          <li key={cp.id} role='treeitem'>
-            <button
-              type='button'
-              onClick={(e) => {
-                e.stopPropagation()
-                onCheckpointClick?.(cp)
-              }}
-              className={cn(
-                'group flex w-full items-center gap-2.5 rounded-sm px-3',
-                'text-left text-sm',
-                'hover:bg-accent/50 focus-visible:bg-accent/50 focus-visible:outline-none',
-                'transition-colors',
-              )}
-              style={{ height: rowH }}
-            >
-              <span className='min-w-0 flex-1 truncate text-muted-foreground group-hover:text-foreground'>
-                {cp.id}
-              </span>
-              <span className='flex shrink-0 items-center gap-1 text-[11px] text-muted-foreground'>
-                <Clock className='size-3' />
-                {cp.timestamp}
-              </span>
-            </button>
-          </li>
-        ))}
+        {checkpoints.map((cp) => {
+          const preview = cp.firstPromptPreview?.trim()
+          const label = preview ? `${preview}...` : `Checkpoint ${cp.id}`
+
+          return (
+            <li key={cp.id} role='treeitem'>
+              <button
+                type='button'
+                onClick={(e) => {
+                  e.stopPropagation()
+                  onCheckpointClick?.(cp)
+                }}
+                className={cn(
+                  'group flex w-full items-center gap-2.5 rounded-sm px-3',
+                  'text-left text-sm',
+                  'hover:bg-accent/50 focus-visible:bg-accent/50 focus-visible:outline-none',
+                  'transition-colors',
+                )}
+                style={{ height: rowH }}
+              >
+                <span className='min-w-0 flex-1 truncate text-muted-foreground group-hover:text-foreground'>
+                  {label}
+                </span>
+                <span className='flex shrink-0 items-center gap-1 text-[11px] text-muted-foreground'>
+                  <Clock className='size-3' />
+                  {cp.timestamp}
+                </span>
+              </button>
+            </li>
+          )
+        })}
         <li aria-hidden style={{ height: margin + parentDotR }} />
       </ul>
     </div>

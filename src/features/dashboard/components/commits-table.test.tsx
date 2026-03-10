@@ -8,7 +8,7 @@ import type { Checkpoint } from '../data/mock-commit-data'
 function makeCommitRow(overrides: Partial<CommitRow> = {}): CommitRow {
   const checkpoint: Checkpoint = {
     id: 'cp-1',
-    prompt: 'Do something',
+    firstPromptPreview: 'Do something',
     timestamp: '10:00 AM',
   }
   return {
@@ -45,7 +45,7 @@ describe('CommitTable', () => {
   it('calls onCheckpointClick when a checkpoint is clicked', async () => {
     const checkpoint: Checkpoint = {
       id: 'cp-42',
-      prompt: 'Open me',
+      firstPromptPreview: 'Open me',
       timestamp: '11:00 AM',
     }
     const data: CommitRow[] = [
@@ -60,8 +60,27 @@ describe('CommitTable', () => {
       name: /expand row/i,
     })
     await userEvent.click(expandButton)
-    const checkpointButton = screen.getByRole('button', { name: /cp-42/i })
+    const checkpointButton = screen.getByRole('button', { name: /Open me/i })
     await userEvent.click(checkpointButton)
     expect(onCheckpointClick).toHaveBeenCalledWith(checkpoint)
+  })
+
+  it('falls back to checkpoint id when no prompt preview exists', async () => {
+    const checkpoint: Checkpoint = {
+      id: 'cp-no-preview',
+      timestamp: '11:00 AM',
+    }
+    const data: CommitRow[] = [
+      makeCommitRow({
+        checkpointList: [checkpoint],
+        checkpoints: 1,
+      }),
+    ]
+
+    render(<CommitTable data={data} />)
+    await userEvent.click(screen.getByRole('button', { name: /expand row/i }))
+    expect(
+      screen.getByRole('button', { name: /Checkpoint cp-no-preview/i }),
+    ).toBeInTheDocument()
   })
 })

@@ -114,7 +114,7 @@ export const mapCommitRows = (rows: ApiCommitRowDto[]): CommitData[] => {
 
     const checkpoint = {
       id: row.checkpoint.checkpoint_id,
-      prompt: row.checkpoint.tool_use_id || row.checkpoint.checkpoint_id,
+      firstPromptPreview: row.checkpoint.first_prompt_preview ?? '',
       timestamp: formatCheckpointTime(row.checkpoint.created_at),
       createdAt: row.checkpoint.created_at,
       branch: row.checkpoint.branch,
@@ -122,7 +122,10 @@ export const mapCommitRows = (rows: ApiCommitRowDto[]): CommitData[] => {
       strategy: row.checkpoint.strategy,
       sessionId: row.checkpoint.session_id,
       toolUseId: row.checkpoint.tool_use_id,
-      filesTouched: row.checkpoint.files_touched,
+      filesTouched:
+        row.checkpoint.files_touched.length > 0
+          ? row.checkpoint.files_touched
+          : (row.commit.files_touched ?? []),
       sessionCount: row.checkpoint.session_count,
       checkpointsCount: row.checkpoint.checkpoints_count,
       isTask: row.checkpoint.is_task,

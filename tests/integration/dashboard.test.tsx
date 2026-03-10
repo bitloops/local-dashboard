@@ -105,8 +105,9 @@ describe('Dashboard integration', () => {
     )
     const expandButton = screen.getByRole('button', { name: /expand row/i })
     await userEvent.click(expandButton)
+    const promptPreview = cp.firstPromptPreview?.trim() || `Checkpoint ${cp.id}`
     const checkpointButton = screen.getByRole('button', {
-      name: new RegExp(cp.id, 'i'),
+      name: new RegExp(promptPreview.slice(0, 20).replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i'),
     })
     await userEvent.click(checkpointButton)
     expect(onCheckpointSelect).toHaveBeenCalledTimes(1)
@@ -148,7 +149,7 @@ describe('Dashboard integration', () => {
           created_at: '2025-03-04T12:00:00Z',
           is_task: false,
           metadata_json: '{}',
-          prompts_text: cp.prompt,
+          prompts_text: cp.firstPromptPreview ?? cp.prompt ?? '',
           session_id: 's1',
           session_index: 0,
           tool_use_id: '',
