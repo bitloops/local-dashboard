@@ -9,10 +9,9 @@ export type ApiCheckpointDetailResponse = {
     branch: string;
     checkpoint_id: string;
     checkpoints_count: number;
-    files_touched: Record<string, ApiFileChangeStatsDto>;
+    files_touched: Array<ApiFileChangeStatsDto>;
     session_count: number;
     sessions: Array<ApiCheckpointSessionDetailDto>;
     strategy: string;
     token_usage?: (null | ApiTokenUsageDto);
 };
-

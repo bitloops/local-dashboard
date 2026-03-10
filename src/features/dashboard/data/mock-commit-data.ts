@@ -1,5 +1,9 @@
 export type FileChangeStats = { additionsCount: number; deletionsCount: number }
-export type FilesTouchedMap = Record<string, FileChangeStats>
+export type FilesTouchedEntry = {
+  filepath: string
+  additionsCount: number
+  deletionsCount: number
+}
 
 export type Checkpoint = {
   id: string
@@ -11,7 +15,7 @@ export type Checkpoint = {
   strategy?: string
   sessionId?: string
   toolUseId?: string
-  filesTouched?: FilesTouchedMap
+  filesTouched?: FilesTouchedEntry[]
   sessionCount?: number
   checkpointsCount?: number
   isTask?: boolean
@@ -24,6 +28,7 @@ export type CommitData = {
   commit: string
   checkpoints: number
   message: string
+  author?: string
   agent: string
   checkpointList: Checkpoint[]
 }

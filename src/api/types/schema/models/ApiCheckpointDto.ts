@@ -10,7 +10,7 @@ export type ApiCheckpointDto = {
     checkpoint_id: string;
     checkpoints_count: number;
     created_at: string;
-    files_touched: Record<string, ApiFileChangeStatsDto>;
+    files_touched: Array<ApiFileChangeStatsDto>;
     is_task: boolean;
     session_count: number;
     session_id: string;
@@ -18,4 +18,3 @@ export type ApiCheckpointDto = {
     token_usage?: (null | ApiTokenUsageDto);
     tool_use_id: string;
 };
-

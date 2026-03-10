@@ -28,18 +28,24 @@ const STUB_COMMITS = [
       strategy: 'task',
       session_id: 'sess-01',
       tool_use_id: '',
-      files_touched: {
-        'src/App.tsx': { additionsCount: 42, deletionsCount: 8 },
-        'src/components/layout/app-sidebar.tsx': {
+      files_touched: [
+        { filepath: 'src/App.tsx', additionsCount: 42, deletionsCount: 8 },
+        {
+          filepath: 'src/components/layout/app-sidebar.tsx',
           additionsCount: 120,
           deletionsCount: 15,
         },
-        'src/components/ui/sidebar.tsx': {
+        {
+          filepath: 'src/components/ui/sidebar.tsx',
           additionsCount: 0,
           deletionsCount: 3,
         },
-        'src/styles/globals.css': { additionsCount: 12, deletionsCount: 0 },
-      },
+        {
+          filepath: 'src/styles/globals.css',
+          additionsCount: 12,
+          deletionsCount: 0,
+        },
+      ],
       session_count: 2,
       checkpoints_count: 4,
       is_task: true,
@@ -59,9 +65,13 @@ const STUB_COMMITS = [
       strategy: 'task',
       session_id: 'sess-01',
       tool_use_id: '',
-      files_touched: {
-        'src/styles/globals.css': { additionsCount: 3, deletionsCount: 1 },
-      },
+      files_touched: [
+        {
+          filepath: 'src/styles/globals.css',
+          additionsCount: 3,
+          deletionsCount: 1,
+        },
+      ],
       session_count: 1,
       checkpoints_count: 4,
       is_task: true,
@@ -81,9 +91,9 @@ const STUB_COMMITS = [
       strategy: 'prompt',
       session_id: 'sess-02',
       tool_use_id: '',
-      files_touched: {
-        'src/lib/auth.ts': { additionsCount: 20, deletionsCount: 5 },
-      },
+      files_touched: [
+        { filepath: 'src/lib/auth.ts', additionsCount: 20, deletionsCount: 5 },
+      ],
       session_count: 1,
       checkpoints_count: 7,
       is_task: false,
@@ -95,15 +105,24 @@ const STUB_CHECKPOINT_DETAIL = {
   branch: 'main',
   checkpoint_id: 'cp-01',
   checkpoints_count: 4,
-  files_touched: {
-    'src/App.tsx': { additionsCount: 42, deletionsCount: 8 },
-    'src/components/layout/app-sidebar.tsx': {
+  files_touched: [
+    { filepath: 'src/App.tsx', additionsCount: 42, deletionsCount: 8 },
+    {
+      filepath: 'src/components/layout/app-sidebar.tsx',
       additionsCount: 120,
       deletionsCount: 15,
     },
-    'src/components/ui/sidebar.tsx': { additionsCount: 0, deletionsCount: 3 },
-    'src/styles/globals.css': { additionsCount: 12, deletionsCount: 0 },
-  },
+    {
+      filepath: 'src/components/ui/sidebar.tsx',
+      additionsCount: 0,
+      deletionsCount: 3,
+    },
+    {
+      filepath: 'src/styles/globals.css',
+      additionsCount: 12,
+      deletionsCount: 0,
+    },
+  ],
   session_count: 2,
   strategy: 'task',
   token_usage: {

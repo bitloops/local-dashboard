@@ -67,11 +67,9 @@ function CheckpointDetailContentInner({
     ? formatDateTime(selectedCheckpoint.createdAt)
     : null
 
-  const detailFilesTouched: Record<
-    string,
-    { additionsCount: number; deletionsCount: number }
-  > = checkpointDetail?.files_touched ?? selectedCheckpoint?.filesTouched ?? {}
-  const detailFilesPaths = Object.keys(detailFilesTouched)
+  const detailFilesTouched =
+    checkpointDetail?.files_touched ?? selectedCheckpoint?.filesTouched ?? []
+  const detailFilesPaths = detailFilesTouched.map((file) => file.filepath)
   const detailSessionCount =
     checkpointDetail?.session_count ?? selectedCheckpoint?.sessionCount ?? 0
   const detailCheckpointsCount =

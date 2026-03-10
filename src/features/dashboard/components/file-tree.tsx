@@ -1,6 +1,7 @@
 import { File, Folder } from 'lucide-react'
 
 export type FileChangeStats = { additionsCount: number; deletionsCount: number }
+export type FileChangeStatsEntry = FileChangeStats & { filepath: string }
 
 type FileTreeNode = {
   name: string
@@ -40,11 +41,11 @@ function buildFileTreeFromPaths(paths: string[]): FileTreeNode {
 }
 
 function buildFileTreeFromStats(
-  fileStats: Record<string, FileChangeStats>,
+  fileStats: FileChangeStatsEntry[],
 ): FileTreeNode {
   const root: FileTreeNode = { name: '', children: new Map(), isFile: false }
 
-  for (const [filePath, stats] of Object.entries(fileStats)) {
+  for (const { filepath: filePath, additionsCount, deletionsCount } of fileStats) {
     const parts = filePath.split('/')
     let current = root
 
@@ -60,8 +61,8 @@ function buildFileTreeFromStats(
           ...(isFile
             ? {
                 fullPath: filePath,
-                additionsCount: stats.additionsCount,
-                deletionsCount: stats.deletionsCount,
+                additionsCount,
+                deletionsCount,
               }
             : {}),
         })
@@ -161,7 +162,7 @@ function FileTreeBranch({
 
 type FileTreeProps =
   | { paths: string[]; fileStats?: never }
-  | { paths?: never; fileStats: Record<string, FileChangeStats> }
+  | { paths?: never; fileStats: FileChangeStatsEntry[] }
 
 export function FileTree(props: FileTreeProps) {
   const node =

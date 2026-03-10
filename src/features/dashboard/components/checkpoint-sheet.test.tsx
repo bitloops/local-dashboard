@@ -241,10 +241,10 @@ describe('CheckpointSheet (component)', () => {
       id: 'cp-1',
       prompt: 'Fix bug',
       timestamp: '10:00 AM',
-      filesTouched: {
-        'src/App.tsx': { additionsCount: 5, deletionsCount: 2 },
-        'src/lib/utils.ts': { additionsCount: 0, deletionsCount: 3 },
-      },
+      filesTouched: [
+        { filepath: 'src/App.tsx', additionsCount: 5, deletionsCount: 2 },
+        { filepath: 'src/lib/utils.ts', additionsCount: 0, deletionsCount: 3 },
+      ],
     }
     render(
       <CheckpointSheet

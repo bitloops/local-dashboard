@@ -10,7 +10,7 @@ export type CommitRow = {
   commit: string
   checkpoints: number
   message: string
-  author: string
+  author?: string
   agent: string
   checkpointList: Checkpoint[]
 }
