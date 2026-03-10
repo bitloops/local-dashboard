@@ -18,10 +18,11 @@ export function CommitCheckpointChart({
   data,
   onCommitClick,
 }: CommitCheckpointChartProps) {
+  const chronologicalData = [...data].reverse()
   return (
     <ResponsiveContainer width='100%' height={300}>
       <AreaChart
-        data={data}
+        data={chronologicalData}
         onClick={(state) => {
           const payload = (
             state as { activePayload?: { payload: CommitData }[] }

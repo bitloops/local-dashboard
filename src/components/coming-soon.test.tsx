@@ -5,12 +5,16 @@ import { ComingSoon } from './coming-soon'
 describe('ComingSoon', () => {
   it('renders "Coming Soon!" heading', () => {
     render(<ComingSoon />)
-    expect(screen.getByRole('heading', { level: 1, name: 'Coming Soon!' })).toBeInTheDocument()
+    expect(
+      screen.getByRole('heading', { level: 1, name: 'Coming Soon!' }),
+    ).toBeInTheDocument()
   })
 
   it('renders placeholder message', () => {
     render(<ComingSoon />)
-    expect(screen.getByText(/This page has not been created yet/)).toBeInTheDocument()
+    expect(
+      screen.getByText(/This page has not been created yet/),
+    ).toBeInTheDocument()
     expect(screen.getByText(/Stay tuned though/)).toBeInTheDocument()
   })
 })

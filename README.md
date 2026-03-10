@@ -71,6 +71,7 @@ export default defineConfig([
   },
 ])
 ```
+
 # local-dashboard
 
 ## OpenAPI type generation

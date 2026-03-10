@@ -20,8 +20,16 @@ const PLACEHOLDER = [{ name: 'No data', value: 1, color: EMPTY_COLOR }]
 const ALL_SEGMENTS = [
   { name: 'Input', key: 'input_tokens' as const, color: COLORS.input },
   { name: 'Output', key: 'output_tokens' as const, color: COLORS.output },
-  { name: 'Cache Read', key: 'cache_read_tokens' as const, color: COLORS.cacheRead },
-  { name: 'Cache Create', key: 'cache_creation_tokens' as const, color: COLORS.cacheCreate },
+  {
+    name: 'Cache Read',
+    key: 'cache_read_tokens' as const,
+    color: COLORS.cacheRead,
+  },
+  {
+    name: 'Cache Create',
+    key: 'cache_creation_tokens' as const,
+    color: COLORS.cacheCreate,
+  },
 ]
 
 type TokenUsageChartProps = {
@@ -32,7 +40,11 @@ export function TokenUsageChart({ usage }: TokenUsageChartProps) {
   const hasData = Boolean(usage)
 
   const segmentsRaw = hasData
-    ? ALL_SEGMENTS.map((s) => ({ name: s.name, value: usage![s.key], color: s.color }))
+    ? ALL_SEGMENTS.map((s) => ({
+        name: s.name,
+        value: usage![s.key],
+        color: s.color,
+      }))
     : []
   const segments =
     segmentsRaw.length > 0 && segmentsRaw.some((s) => s.value > 0)
@@ -40,7 +52,10 @@ export function TokenUsageChart({ usage }: TokenUsageChartProps) {
       : PLACEHOLDER
 
   const total = usage
-    ? usage.input_tokens + usage.output_tokens + usage.cache_read_tokens + usage.cache_creation_tokens
+    ? usage.input_tokens +
+      usage.output_tokens +
+      usage.cache_read_tokens +
+      usage.cache_creation_tokens
     : 0
 
   return (
@@ -71,14 +86,19 @@ export function TokenUsageChart({ usage }: TokenUsageChartProps) {
               }}
               labelStyle={{ color: 'hsl(var(--popover-foreground))' }}
               itemStyle={{ color: 'hsl(var(--popover-foreground))' }}
-              formatter={(value: number | undefined) => [formatNumber(value ?? 0), '']}
+              formatter={(value: number | undefined) => [
+                formatNumber(value ?? 0),
+                '',
+              ]}
             />
           )}
         </PieChart>
       </ResponsiveContainer>
 
       <div className='space-y-1.5'>
-        <p className='text-lg font-bold text-primary'>{hasData ? formatNumber(total) : '-'}</p>
+        <p className='text-lg font-bold text-primary'>
+          {hasData ? formatNumber(total) : '-'}
+        </p>
         <p className='text-[11px] text-muted-foreground'>total tokens</p>
         <div className='mt-2 space-y-1'>
           {ALL_SEGMENTS.map((s) => (
@@ -95,7 +115,9 @@ export function TokenUsageChart({ usage }: TokenUsageChartProps) {
           ))}
           <div className='flex items-center gap-2 border-t pt-1 text-xs'>
             <span className='text-muted-foreground'>API Calls</span>
-            <span className='ml-auto font-mono'>{usage ? usage.api_call_count : '-'}</span>
+            <span className='ml-auto font-mono'>
+              {usage ? usage.api_call_count : '-'}
+            </span>
           </div>
         </div>
       </div>

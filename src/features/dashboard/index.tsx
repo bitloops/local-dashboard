@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   BitloopsCli,
   type ApiAgentDto,
@@ -14,11 +14,11 @@ import {
 } from './dashboard-view'
 import { type Checkpoint, type CommitData } from './data/mock-commit-data'
 import {
-  endOfDayIso,
+  endOfDayUnixSeconds,
   mapAgentOptions,
   mapCommitRows,
   mapUserOptions,
-  startOfDayIso,
+  startOfDayUnixSeconds,
 } from './utils'
 
 export function Dashboard() {
@@ -27,7 +27,7 @@ export function Dashboard() {
       new BitloopsCli({
         BASE: import.meta.env.VITE_BITLOOPS_CLI_BASE ?? 'http://127.0.0.1:5667',
       }),
-    []
+    [],
   )
 
   const [selectedBranch, setSelectedBranch] = useState<string | null>(null)
@@ -40,23 +40,27 @@ export function Dashboard() {
   const [userOptions, setUserOptions] = useState<UserOption[]>([])
   const [agentOptions, setAgentOptions] = useState<string[]>([])
   const [rows, setRows] = useState<CommitData[]>([])
-  const [selectedCheckpoint, setSelectedCheckpoint] = useState<Checkpoint | null>(
-    null
-  )
+  const [selectedCheckpoint, setSelectedCheckpoint] =
+    useState<Checkpoint | null>(null)
+  const selectedCheckpointRef = useRef<Checkpoint | null>(null)
   const [checkpointDetail, setCheckpointDetail] =
     useState<ApiCheckpointDetailResponse | null>(null)
   const [checkpointDetailSource, setCheckpointDetailSource] =
     useState<CheckpointDetailLoadState>('idle')
   const [dataSource, setDataSource] = useState<'loading' | 'api' | 'error'>(
-    'loading'
+    'loading',
   )
   const [optionsSource, setOptionsSource] = useState<
     'loading' | 'api' | 'error'
   >('loading')
 
-  const from = fromDate ? startOfDayIso(fromDate) : null
-  const to = toDate ? endOfDayIso(toDate) : null
+  const from = fromDate != null ? String(startOfDayUnixSeconds(fromDate)) : null
+  const to = toDate != null ? String(endOfDayUnixSeconds(toDate)) : null
   const effectiveBranch = selectedBranch ?? branchOptions[0] ?? null
+
+  useEffect(() => {
+    selectedCheckpointRef.current = selectedCheckpoint
+  }, [selectedCheckpoint])
 
   useEffect(() => {
     let cancelled = false
@@ -87,14 +91,9 @@ export function Dashboard() {
         setOptionsSource('api')
       })
       .catch((error: unknown) => {
-        if (cancelled) {
-          return
-        }
-
-        console.error('Failed to load branches — falling back to mock data', error)
-        setBranchOptions(['main'])
-        setSelectedBranch(null)
-        setOptionsSource('api')
+        if (cancelled) return
+        console.error('Failed to load branches', error)
+        setOptionsSource('error')
       })
 
     return () => {
@@ -172,19 +171,22 @@ export function Dashboard() {
           return nextAgentOptions.includes(current) ? current : null
         })
 
-        setRows(mapCommitRows(commitRows))
+        const mappedRows = mapCommitRows(commitRows)
+        setRows(mappedRows)
+        const firstCheckpoint = mappedRows[0]?.checkpointList?.[0]
+        if (firstCheckpoint) {
+          setSelectedCheckpoint((current) => current ?? firstCheckpoint)
+          if (!selectedCheckpointRef.current) {
+            setCheckpointDetail(null)
+            setCheckpointDetailSource('loading')
+          }
+        }
         setDataSource('api')
         setOptionsSource('api')
       })
       .catch((error: unknown) => {
-        if (cancelled) {
-          return
-        }
-
+        if (cancelled) return
         console.error('Failed to load dashboard data', error)
-        setRows([])
-        setUserOptions([])
-        setAgentOptions([])
         setDataSource('error')
         setOptionsSource('error')
       })
@@ -197,7 +199,7 @@ export function Dashboard() {
   useEffect(() => {
     let cancelled = false
 
-    if (!selectedCheckpoint) {
+    if (!selectedCheckpoint || checkpointDetailSource !== 'loading') {
       return () => {
         cancelled = true
       }
@@ -216,15 +218,11 @@ export function Dashboard() {
         setCheckpointDetailSource('api')
       })
       .catch((error: unknown) => {
-        if (cancelled) {
-          return
-        }
-
+        if (cancelled) return
         console.error(
           `Failed to load checkpoint details for ${selectedCheckpoint.id}`,
-          error
+          error,
         )
-
         setCheckpointDetail(null)
         setCheckpointDetailSource('error')
       })
@@ -232,7 +230,7 @@ export function Dashboard() {
     return () => {
       cancelled = true
     }
-  }, [cli, selectedCheckpoint])
+  }, [cli, selectedCheckpoint, checkpointDetailSource])
 
   const onFromDateSelect = (date: Date | undefined) => {
     setFromDate(date)
@@ -265,9 +263,7 @@ export function Dashboard() {
   }
 
   const onCheckpointClose = () => {
-    setSelectedCheckpoint(null)
-    setCheckpointDetail(null)
-    setCheckpointDetailSource('idle')
+    // Preserve last viewed checkpoint/detail so reopening the sidebar restores it.
   }
 
   const visibleRows = effectiveBranch ? rows : []
@@ -275,7 +271,8 @@ export function Dashboard() {
   const visibleAgentOptions = effectiveBranch ? agentOptions : []
   const visibleSelectedUser = effectiveBranch ? selectedUser : null
   const visibleSelectedAgent = effectiveBranch ? selectedAgent : null
-  const visibleDataSource = effectiveBranch ? dataSource : 'api'
+  const visibleDataSource =
+    dataSource === 'error' ? 'error' : effectiveBranch ? dataSource : 'api'
 
   return (
     <DashboardView

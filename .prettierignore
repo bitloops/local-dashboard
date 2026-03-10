@@ -1,0 +1,9 @@
+dist
+coverage
+test-results
+playwright-report
+.pnpm-store
+src/api/types/schema
+swagger.json
+pnpm-lock.yaml
+public/fonts/README.md

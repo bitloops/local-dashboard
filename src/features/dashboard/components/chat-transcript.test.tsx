@@ -54,6 +54,26 @@ describe('isToolRole', () => {
   })
 })
 
+function msg(
+  overrides: Partial<{
+    id: string
+    timestamp: string
+    actor: 'user' | 'assistant'
+    variant: 'chat' | 'thinking' | 'tool_use' | 'tool_result'
+    text: string
+    isError?: boolean
+  }> = {},
+) {
+  return {
+    id: 'm1',
+    timestamp: '',
+    actor: 'user' as const,
+    variant: 'chat' as const,
+    text: '',
+    ...overrides,
+  }
+}
+
 describe('ChatTranscript', () => {
   const defaultProps = {
     sessionId: 'session-1',
@@ -63,14 +83,26 @@ describe('ChatTranscript', () => {
 
   it('shows empty state message when no entries', () => {
     render(<ChatTranscript entries={[]} {...defaultProps} />)
-    expect(screen.getByText('No transcript entries available.')).toBeInTheDocument()
+    expect(
+      screen.getByText('No transcript entries available.'),
+    ).toBeInTheDocument()
   })
 
   it('renders one bubble per transcript entry', () => {
     const entries = [
-      { role: 'user', content: 'User message' },
-      { role: 'assistant', content: 'Agent reply' },
-      { role: 'tool', content: 'Tool output' },
+      msg({ id: '1', actor: 'user', variant: 'chat', text: 'User message' }),
+      msg({
+        id: '2',
+        actor: 'assistant',
+        variant: 'chat',
+        text: 'Agent reply',
+      }),
+      msg({
+        id: '3',
+        actor: 'assistant',
+        variant: 'tool_result',
+        text: 'Tool output',
+      }),
     ]
     render(<ChatTranscript entries={entries} {...defaultProps} />)
     expect(screen.getByText('User message')).toBeInTheDocument()
@@ -79,43 +111,100 @@ describe('ChatTranscript', () => {
   })
 
   it('shows user label without email and user bubble styling', () => {
-    const entries = [{ role: 'user', content: 'Hi' }]
+    const entries = [
+      msg({ id: '1', actor: 'user', variant: 'chat', text: 'Hi' }),
+    ]
     render(<ChatTranscript entries={entries} {...defaultProps} />)
     expect(screen.getByText(/Wayne Omoga/)).toBeInTheDocument()
     const bubble = screen.getByText('Hi').closest('div')
-    expect(bubble).toHaveClass('rounded-tr-sm', 'bg-primary/15')
+    expect(bubble).toHaveClass('rounded-tr-sm', 'bg-[#15173D]')
   })
 
   it('shows agent label and agent bubble styling', () => {
-    const entries = [{ role: 'assistant', content: 'Hello' }]
+    const entries = [
+      msg({ id: '1', actor: 'assistant', variant: 'chat', text: 'Hello' }),
+    ]
     render(<ChatTranscript entries={entries} {...defaultProps} />)
     expect(screen.getByText('Agent')).toBeInTheDocument()
     const bubble = screen.getByText('Hello').closest('div')
-    expect(bubble).toHaveClass('rounded-tl-sm', 'bg-muted/60')
+    expect(bubble).toHaveClass('rounded-tl-sm', 'bg-primary')
   })
 
-  it('shows tool entries with dashed style', () => {
-    const entries = [{ role: 'tool', content: 'Tool result' }]
+  it('shows tool_result entries in a code block', () => {
+    const entries = [
+      msg({
+        id: '1',
+        actor: 'assistant',
+        variant: 'tool_result',
+        text: 'Tool result',
+      }),
+    ]
     render(<ChatTranscript entries={entries} {...defaultProps} />)
-    const toolBlock = screen.getByText('Tool result').closest('div')
-    expect(toolBlock).toHaveClass('border-dashed')
+    expect(screen.getByText('Tool result')).toBeInTheDocument()
+    const codeBlock = screen.getByText('Tool result').closest('.rounded-md')
+    expect(codeBlock).toBeInTheDocument()
+  })
+
+  it('shows tool_use and tool_result as Call and Response in one code block', () => {
+    const entries = [
+      msg({
+        id: '1',
+        actor: 'assistant',
+        variant: 'tool_use',
+        text: 'Tool: Glob\n{"pattern": "**/*.js"}',
+      }),
+      msg({
+        id: '2',
+        actor: 'assistant',
+        variant: 'tool_result',
+        text: 'src/a.js\nsrc/b.js',
+      }),
+    ]
+    render(<ChatTranscript entries={entries} {...defaultProps} />)
+    expect(screen.getByText('Call')).toBeInTheDocument()
+    expect(screen.getByText('Response')).toBeInTheDocument()
+    expect(screen.getByText(/Glob/)).toBeInTheDocument()
+    expect(screen.getByText(/src\/a\.js/)).toBeInTheDocument()
+  })
+
+  it('shows thinking with icon and content on one line', () => {
+    const entries = [
+      msg({
+        id: '1',
+        actor: 'assistant',
+        variant: 'thinking',
+        text: 'Thinking: The user is asking about the feature.',
+      }),
+    ]
+    render(<ChatTranscript entries={entries} {...defaultProps} />)
+    expect(
+      screen.getByText('The user is asking about the feature.'),
+    ).toBeInTheDocument()
   })
 
   it('truncates long content with Show more / Show less', async () => {
     const longContent = 'x'.repeat(301)
-    const entries = [{ role: 'user', content: longContent }]
+    const entries = [
+      msg({ id: '1', actor: 'user', variant: 'chat', text: longContent }),
+    ]
     render(<ChatTranscript entries={entries} {...defaultProps} />)
 
     const truncated = 'x'.repeat(300) + '\u2026'
     expect(screen.getByText(truncated)).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /show more/i })).toBeInTheDocument()
+    expect(
+      screen.getByRole('button', { name: /show more/i }),
+    ).toBeInTheDocument()
 
     await userEvent.click(screen.getByRole('button', { name: /show more/i }))
     expect(screen.getByText(longContent)).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /show less/i })).toBeInTheDocument()
+    expect(
+      screen.getByRole('button', { name: /show less/i }),
+    ).toBeInTheDocument()
 
     await userEvent.click(screen.getByRole('button', { name: /show less/i }))
     expect(screen.getByText(truncated)).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /show more/i })).toBeInTheDocument()
+    expect(
+      screen.getByRole('button', { name: /show more/i }),
+    ).toBeInTheDocument()
   })
 })

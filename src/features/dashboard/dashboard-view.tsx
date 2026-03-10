@@ -20,12 +20,17 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { CheckpointSheet } from './components/checkpoint-sheet'
+import { Sidebar, SidebarRail } from '@/components/ui/sidebar'
+import { useSidebar } from '@/components/ui/use-sidebar'
+import { CheckpointDetailContent } from './components/checkpoint-sheet'
 import { CommitTable } from './components/commits-table'
 import { type Checkpoint, type CommitData } from './data/mock-commit-data'
+import { formatAgentLabel } from './utils'
 
 const CommitCheckpointChart = lazy(() =>
-  import('./components/session-activity-chart').then((m) => ({ default: m.CommitCheckpointChart }))
+  import('./components/session-activity-chart').then((m) => ({
+    default: m.CommitCheckpointChart,
+  })),
 )
 
 const branchAutoValue = '__auto_branch__'
@@ -91,6 +96,13 @@ export function DashboardView({
   onCheckpointClose,
 }: DashboardViewProps) {
   const [selectedCommit, setSelectedCommit] = useState<string | null>(null)
+  const { setOpen, setRightOpen } = useSidebar()
+
+  const handleCheckpointSelect = (checkpoint: Checkpoint) => {
+    onCheckpointSelect(checkpoint)
+    setOpen(false)
+    setRightOpen(true)
+  }
 
   const hasActiveFilters =
     Boolean(selectedBranch) ||
@@ -100,8 +112,8 @@ export function DashboardView({
     Boolean(toDate)
 
   const userName = selectedUser
-    ? userOptions.find((u) => u.value === selectedUser)?.label ?? 'You'
-    : userOptions[0]?.label ?? 'You'
+    ? (userOptions.find((u) => u.value === selectedUser)?.label ?? 'You')
+    : (userOptions[0]?.label ?? 'You')
 
   const totalCommits = rows.length
   const totalCheckpoints = rows.reduce((sum, row) => sum + row.checkpoints, 0)
@@ -110,7 +122,7 @@ export function DashboardView({
 
   return (
     <>
-      <Header>
+      <Header className='pe-8'>
         <div className='ms-auto flex items-center space-x-4'>
           <ThemeSwitch />
         </div>
@@ -211,7 +223,7 @@ export function DashboardView({
                     <SelectItem value={allFilterValue}>All agents</SelectItem>
                     {agentOptions.map((agent) => (
                       <SelectItem key={agent} value={agent}>
-                        {agent}
+                        {formatAgentLabel(agent)}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -264,19 +276,43 @@ export function DashboardView({
 
         <div className='grid gap-4 sm:grid-cols-2 lg:grid-cols-4'>
           {[
-            { title: 'Throughput', icon: Gauge, value: `${totalCommits} commits`, description: 'For current filters' },
-            { title: 'Checkpoints', icon: Bookmark, value: String(totalCheckpoints), description: 'Across visible commits' },
-            { title: 'Agents', icon: Bot, value: String(totalAgents), description: 'In visible commits' },
-            { title: 'Active Branches', icon: GitBranch, value: String(activeBranches), description: 'Matching current range' },
+            {
+              title: 'Throughput',
+              icon: Gauge,
+              value: `${totalCommits} commits`,
+              description: 'For current filters',
+            },
+            {
+              title: 'Checkpoints',
+              icon: Bookmark,
+              value: String(totalCheckpoints),
+              description: 'Across visible commits',
+            },
+            {
+              title: 'Agents',
+              icon: Bot,
+              value: String(totalAgents),
+              description: 'In visible commits',
+            },
+            {
+              title: 'Active Branches',
+              icon: GitBranch,
+              value: String(activeBranches),
+              description: 'Matching current range',
+            },
           ].map((stat) => (
             <Card key={stat.title}>
               <CardHeader className='flex items-center justify-between space-y-0 pb-2'>
-                <CardTitle className='text-sm font-medium'>{stat.title}</CardTitle>
+                <CardTitle className='text-sm font-medium'>
+                  {stat.title}
+                </CardTitle>
                 <stat.icon className='h-4 w-4 text-muted-foreground' />
               </CardHeader>
               <CardContent>
                 <div className='text-2xl font-bold'>{stat.value}</div>
-                <p className='text-xs text-muted-foreground'>{stat.description}</p>
+                <p className='text-xs text-muted-foreground'>
+                  {stat.description}
+                </p>
               </CardContent>
             </Card>
           ))}
@@ -295,7 +331,11 @@ export function DashboardView({
             </CardDescription>
           </CardHeader>
           <CardContent className='px-6'>
-            <Suspense fallback={<div className='h-[350px] animate-pulse rounded-md bg-muted/30' />}>
+            <Suspense
+              fallback={
+                <div className='h-[350px] animate-pulse rounded-md bg-muted/30' />
+              }
+            >
               <CommitCheckpointChart
                 data={rows}
                 onCommitClick={setSelectedCommit}
@@ -308,17 +348,30 @@ export function DashboardView({
           <h2 className='mb-4 text-lg font-semibold tracking-tight'>
             Recent Commits
           </h2>
-          <CommitTable data={rows} onCheckpointClick={onCheckpointSelect} />
+          <CommitTable data={rows} onCheckpointClick={handleCheckpointSelect} />
         </div>
       </Main>
 
-      <CheckpointSheet
-        selectedCheckpoint={selectedCheckpoint}
-        checkpointDetail={checkpointDetail}
-        checkpointDetailSource={checkpointDetailSource}
-        userName={userName}
-        onClose={onCheckpointClose}
-      />
+      <Sidebar
+        side='right'
+        collapsible='offcanvas'
+        resizable
+        defaultWidth={600}
+        minWidth={480}
+        maxWidth={700}
+      >
+        <SidebarRail side='right' />
+        <CheckpointDetailContent
+          selectedCheckpoint={selectedCheckpoint}
+          checkpointDetail={checkpointDetail}
+          checkpointDetailSource={checkpointDetailSource}
+          userName={userName}
+          onClose={() => {
+            setRightOpen(false)
+            onCheckpointClose()
+          }}
+        />
+      </Sidebar>
     </>
   )
 }

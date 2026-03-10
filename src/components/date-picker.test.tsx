@@ -7,7 +7,11 @@ describe('DatePicker', () => {
   it('shows placeholder when no date selected', () => {
     const onSelect = () => {}
     render(
-      <DatePicker selected={undefined} onSelect={onSelect} placeholder='From date' />
+      <DatePicker
+        selected={undefined}
+        onSelect={onSelect}
+        placeholder='From date'
+      />,
     )
     expect(screen.getByText('From date')).toBeInTheDocument()
   })
@@ -20,7 +24,11 @@ describe('DatePicker', () => {
 
   it('opens calendar when trigger is clicked', async () => {
     render(
-      <DatePicker selected={undefined} onSelect={() => {}} placeholder='Pick a date' />
+      <DatePicker
+        selected={undefined}
+        onSelect={() => {}}
+        placeholder='Pick a date'
+      />,
     )
     await userEvent.click(screen.getByRole('button', { name: /pick a date/i }))
     const calendar = document.querySelector('[role="grid"]')

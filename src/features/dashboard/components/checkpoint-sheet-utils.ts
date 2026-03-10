@@ -6,6 +6,12 @@ export const formatDateTime = (value: string): string => {
   return date.toLocaleString()
 }
 
+/** Removes only <user_query> and </user_query> tag markup; leaves spacing unchanged. */
+export const stripUserQueryTags = (value: string): string => {
+  if (!value.trim()) return value
+  return value.replace(/<user_query>/gi, '').replace(/<\/user_query>/gi, '')
+}
+
 export const prettyPrintJson = (value: string): string => {
   const trimmed = value.trim()
   if (!trimmed) {
@@ -20,43 +26,128 @@ export const prettyPrintJson = (value: string): string => {
   }
 }
 
-export type ChatEntry = {
-  role: string
-  content: string
+/** Normalized transcript message: two actors (user | assistant), variant drives styling. */
+export type TranscriptMessage = {
+  id: string
+  timestamp: string
+  actor: 'user' | 'assistant'
+  variant: 'chat' | 'thinking' | 'tool_use' | 'tool_result'
+  text: string
+  isError?: boolean
 }
 
-export const parseTranscriptEntries = (jsonl: string): ChatEntry[] => {
+function genId(index: number): string {
+  return `msg-${index}`
+}
+
+function toText(content: unknown): string {
+  if (typeof content === 'string') return content
+  return JSON.stringify(content ?? '', null, 2)
+}
+
+export const parseTranscriptEntries = (jsonl: string): TranscriptMessage[] => {
   const lines = jsonl
     .split('\n')
     .map((line) => line.trim())
     .filter((line) => line.length > 0)
 
-  return lines.map((line, index) => {
+  const collected: TranscriptMessage[] = []
+
+  lines.forEach((line, lineIndex) => {
     try {
       const parsed = JSON.parse(line) as Record<string, unknown>
-      const role =
-        typeof parsed.role === 'string'
-          ? parsed.role
-          : typeof parsed.type === 'string'
-            ? parsed.type
-            : `entry-${index + 1}`
+      const type = typeof parsed.type === 'string' ? parsed.type : ''
+      const timestamp =
+        typeof parsed.timestamp === 'string' ? parsed.timestamp : ''
+      const uuid =
+        typeof parsed.uuid === 'string' ? parsed.uuid : genId(lineIndex)
+      const message = parsed.message as Record<string, unknown> | undefined
+      const messageContent = message?.content
 
-      const contentCandidate =
-        parsed.content ?? parsed.text ?? parsed.message ?? parsed.delta ?? parsed
-      const content =
-        typeof contentCandidate === 'string'
-          ? contentCandidate
-          : JSON.stringify(contentCandidate, null, 2)
+      if (type === 'user') {
+        if (typeof messageContent === 'string') {
+          collected.push({
+            id: uuid,
+            timestamp,
+            actor: 'user',
+            variant: 'chat',
+            text: stripUserQueryTags(messageContent),
+          })
+          return
+        }
+        if (Array.isArray(messageContent)) {
+          const allToolResult = messageContent.every(
+            (b: unknown) =>
+              (b as Record<string, unknown>)?.type === 'tool_result',
+          )
+          if (allToolResult) {
+            messageContent.forEach((block: unknown, i: number) => {
+              const b = block as Record<string, unknown>
+              const content = b.content
+              const isError = b.is_error === true
+              collected.push({
+                id: `${uuid}-${i}`,
+                timestamp,
+                actor: 'assistant',
+                variant: 'tool_result',
+                text: toText(content),
+                isError,
+              })
+            })
+          }
+        }
+        return
+      }
 
-      return {
-        role,
-        content,
+      if (type === 'assistant' && Array.isArray(messageContent)) {
+        messageContent.forEach((block: unknown, i: number) => {
+          const b = block as Record<string, unknown>
+          const blockType = b.type as string | undefined
+          const blockId = `${uuid}-${i}`
+
+          if (blockType === 'thinking' && typeof b.thinking === 'string') {
+            collected.push({
+              id: blockId,
+              timestamp,
+              actor: 'assistant',
+              variant: 'thinking',
+              text: `Thinking: ${b.thinking}`,
+            })
+            return
+          }
+          if (blockType === 'text' && typeof b.text === 'string') {
+            collected.push({
+              id: blockId,
+              timestamp,
+              actor: 'assistant',
+              variant: 'chat',
+              text: b.text,
+            })
+            return
+          }
+          if (blockType === 'tool_use' && typeof b.name === 'string') {
+            const input =
+              b.input != null ? JSON.stringify(b.input, null, 2) : ''
+            collected.push({
+              id: blockId,
+              timestamp,
+              actor: 'assistant',
+              variant: 'tool_use',
+              text: `Tool: ${b.name}\n${input}`,
+            })
+          }
+        })
       }
     } catch {
-      return {
-        role: `line-${index + 1}`,
-        content: line,
-      }
+      // Skip malformed lines; new format only per plan.
     }
   })
+
+  collected.sort((a, b) => {
+    const t = (a.timestamp || '').localeCompare(b.timestamp || '')
+    if (t !== 0) return t
+    return a.id.localeCompare(b.id)
+  })
+
+  return collected
 }

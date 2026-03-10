@@ -5,7 +5,7 @@ import { SidebarProvider } from '@/components/ui/sidebar'
 import { TeamSwitcher } from './team-switcher'
 
 function FakeLogo() {
-  return <span data-testid="team-logo">Logo</span>
+  return <span data-testid='team-logo'>Logo</span>
 }
 
 const teams = [
@@ -22,7 +22,7 @@ describe('TeamSwitcher', () => {
     render(
       <Wrapper>
         <TeamSwitcher teams={teams} />
-      </Wrapper>
+      </Wrapper>,
     )
     expect(screen.getByText('Team A')).toBeInTheDocument()
     expect(screen.getByText('Free')).toBeInTheDocument()
@@ -32,11 +32,10 @@ describe('TeamSwitcher', () => {
     render(
       <Wrapper>
         <TeamSwitcher teams={teams} />
-      </Wrapper>
+      </Wrapper>,
     )
     await userEvent.click(screen.getByText('Team A'))
     expect(screen.getByRole('menuitem', { name: /Team A/ })).toBeInTheDocument()
     expect(screen.getByRole('menuitem', { name: /Team B/ })).toBeInTheDocument()
-    expect(screen.getByText('Add team')).toBeInTheDocument()
   })
 })

@@ -9,7 +9,9 @@ describe('cn', () => {
   it('handles conditional classes', () => {
     const showHidden = false
     const showBlock = true
-    expect(cn('base', showHidden && 'hidden', showBlock && 'block')).toBe('base block')
+    expect(cn('base', showHidden && 'hidden', showBlock && 'block')).toBe(
+      'base block',
+    )
   })
 
   it('deduplicates tailwind classes with twMerge', () => {

@@ -12,7 +12,7 @@ permissions:
   contents: read
 
 env:
-  NODE_VERSION: "22"
+  NODE_VERSION: '22'
 
 jobs:
   validate:
@@ -36,8 +36,20 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Lint
+      - name: Install Playwright browser
+        run: pnpm exec playwright install --with-deps chromium
+
+      - name: Run format checker
+        run: pnpm run format:check
+
+      - name: Run linter
         run: pnpm run lint
+
+      - name: Run unit and integration tests
+        run: pnpm run test
+
+      - name: Run e2e tests
+        run: pnpm run test:e2e
 
       - name: Build
         run: pnpm run build

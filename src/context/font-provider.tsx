@@ -1,4 +1,11 @@
-import { createContext, use, useCallback, useEffect, useMemo, useState } from 'react'
+import {
+  createContext,
+  use,
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+} from 'react'
 import { fonts } from '@/config/fonts'
 import { getCookie, setCookie, removeCookie } from '@/lib/cookies'
 
@@ -41,13 +48,11 @@ export function FontProvider({ children }: { children: React.ReactNode }) {
 
   const contextValue = useMemo(
     () => ({ font, setFont, resetFont }),
-    [font, setFont, resetFont]
+    [font, setFont, resetFont],
   )
 
   return (
-    <FontContext.Provider value={contextValue}>
-      {children}
-    </FontContext.Provider>
+    <FontContext.Provider value={contextValue}>{children}</FontContext.Provider>
   )
 }
 

@@ -6,11 +6,13 @@ import type { ApiFileChangeStatsDto } from './ApiFileChangeStatsDto';
 import type { ApiTokenUsageDto } from './ApiTokenUsageDto';
 export type ApiCheckpointDto = {
     agent: string;
+    agents?: Array<string>;
     branch: string;
     checkpoint_id: string;
     checkpoints_count: number;
     created_at: string;
-    files_touched: Record<string, ApiFileChangeStatsDto>;
+    files_touched: Array<ApiFileChangeStatsDto>;
+    first_prompt_preview?: string;
     is_task: boolean;
     session_count: number;
     session_id: string;
@@ -18,4 +20,3 @@ export type ApiCheckpointDto = {
     token_usage?: (null | ApiTokenUsageDto);
     tool_use_id: string;
 };
-

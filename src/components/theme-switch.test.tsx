@@ -13,20 +13,24 @@ describe('ThemeSwitch', () => {
     render(
       <Wrapper>
         <ThemeSwitch />
-      </Wrapper>
+      </Wrapper>,
     )
-    expect(screen.getByRole('button', { name: /toggle theme/i })).toBeInTheDocument()
+    expect(
+      screen.getByRole('button', { name: /toggle theme/i }),
+    ).toBeInTheDocument()
   })
 
   it('opens menu with Light, Dark, System when clicked', async () => {
     render(
       <Wrapper>
         <ThemeSwitch />
-      </Wrapper>
+      </Wrapper>,
     )
     await userEvent.click(screen.getByRole('button', { name: /toggle theme/i }))
     expect(screen.getByRole('menuitem', { name: /light/i })).toBeInTheDocument()
     expect(screen.getByRole('menuitem', { name: /dark/i })).toBeInTheDocument()
-    expect(screen.getByRole('menuitem', { name: /system/i })).toBeInTheDocument()
+    expect(
+      screen.getByRole('menuitem', { name: /system/i }),
+    ).toBeInTheDocument()
   })
 })

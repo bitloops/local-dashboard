@@ -14,14 +14,16 @@ function renderApp() {
           <App />
         </NavigationProvider>
       </FontProvider>
-    </ThemeProvider>
+    </ThemeProvider>,
   )
 }
 
 describe('App routing integration', () => {
   it('renders Dashboard at root path', () => {
     renderApp()
-    expect(screen.getByRole('heading', { name: 'Dashboard' })).toBeInTheDocument()
+    expect(
+      screen.getByRole('heading', { name: 'Dashboard' }),
+    ).toBeInTheDocument()
   })
 
   it('navigates to Settings when Settings link is clicked', async () => {
@@ -29,10 +31,10 @@ describe('App routing integration', () => {
     const settingsLink = screen.getByRole('link', { name: /Settings/i })
     await userEvent.click(settingsLink)
     expect(
-      screen.getByRole('heading', { name: 'Settings' })
+      screen.getByRole('heading', { name: 'Settings' }),
     ).toBeInTheDocument()
     expect(
-      screen.getByText('Customize theme and display options.')
+      screen.getByText('Customize theme and display options.'),
     ).toBeInTheDocument()
   })
 
@@ -41,15 +43,19 @@ describe('App routing integration', () => {
     const helpLink = screen.getByRole('link', { name: /Help/i })
     await userEvent.click(helpLink)
     expect(
-      screen.getByRole('heading', { name: 'Coming Soon!' })
+      screen.getByRole('heading', { name: 'Coming Soon!' }),
     ).toBeInTheDocument()
   })
 
   it('navigates back to Dashboard when Dashboard link is clicked', async () => {
     renderApp()
     await userEvent.click(screen.getByRole('link', { name: /Settings/i }))
-    expect(screen.getByRole('heading', { name: 'Settings' })).toBeInTheDocument()
+    expect(
+      screen.getByRole('heading', { name: 'Settings' }),
+    ).toBeInTheDocument()
     await userEvent.click(screen.getByRole('link', { name: /Dashboard/i }))
-    expect(screen.getByRole('heading', { name: 'Dashboard' })).toBeInTheDocument()
+    expect(
+      screen.getByRole('heading', { name: 'Dashboard' }),
+    ).toBeInTheDocument()
   })
 })

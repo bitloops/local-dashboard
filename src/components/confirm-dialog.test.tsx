@@ -29,7 +29,7 @@ describe('ConfirmDialog', () => {
         {...defaultProps}
         cancelBtnText='Abort'
         confirmText='Delete'
-      />
+      />,
     )
     expect(screen.getByRole('button', { name: 'Abort' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Delete' })).toBeInTheDocument()

@@ -18,33 +18,35 @@ function renderSettings(ui: React.ReactElement) {
           </NavigationProvider>
         </LayoutProvider>
       </FontProvider>
-    </ThemeProvider>
+    </ThemeProvider>,
   )
 }
 
 describe('Settings integration', () => {
   it('renders Settings shell with title and description', () => {
     renderSettings(<SettingsPage />)
-    expect(screen.getByRole('heading', { name: 'Settings' })).toBeInTheDocument()
     expect(
-      screen.getByText('Customize theme and display options.')
+      screen.getByRole('heading', { name: 'Settings' }),
+    ).toBeInTheDocument()
+    expect(
+      screen.getByText('Customize theme and display options.'),
     ).toBeInTheDocument()
   })
 
   it('renders Appearance section with form', () => {
     renderSettings(<SettingsPage />)
     expect(
-      screen.getByRole('heading', { name: 'Appearance' })
+      screen.getByRole('heading', { name: 'Appearance' }),
     ).toBeInTheDocument()
     expect(
-      screen.getByRole('button', { name: 'Update preferences' })
+      screen.getByRole('button', { name: 'Update preferences' }),
     ).toBeInTheDocument()
   })
 
   it('renders sidebar nav with Appearance link', () => {
     renderSettings(<SettingsPage />)
     expect(
-      screen.getByRole('link', { name: /Appearance/i })
+      screen.getByRole('link', { name: /Appearance/i }),
     ).toBeInTheDocument()
   })
 })

@@ -10,14 +10,10 @@ export type CommitRow = {
   commit: string
   checkpoints: number
   message: string
+  author?: string
   agent: string
+  agents?: string[]
   checkpointList: Checkpoint[]
-}
-
-const agentLabels: Record<string, string> = {
-  'claude-code': 'Claude Code',
-  'gemini-cli': 'Gemini CLI',
-  'open-code': 'OpenCode',
 }
 
 export const commitColumns: ColumnDef<CommitRow>[] = [
@@ -58,7 +54,9 @@ export const commitColumns: ColumnDef<CommitRow>[] = [
     header: ({ column }) => (
       <DataTableColumnHeader column={column} title='Date' />
     ),
-    cell: ({ row }) => <span className='tabular-nums'>{row.getValue('date')}</span>,
+    cell: ({ row }) => (
+      <span className='tabular-nums'>{row.getValue('date')}</span>
+    ),
   },
   {
     accessorKey: 'commit',
@@ -79,11 +77,19 @@ export const commitColumns: ColumnDef<CommitRow>[] = [
     ),
     meta: { className: 'max-w-0 w-1/2', tdClassName: 'ps-4' },
     cell: ({ row }) => (
-      <span className='block truncate text-sm'>
-        {row.getValue('message')}
-      </span>
+      <span className='block truncate text-sm'>{row.getValue('message')}</span>
     ),
     enableSorting: false,
+  },
+  {
+    accessorKey: 'author',
+    header: ({ column }) => (
+      <DataTableColumnHeader column={column} title='Author' />
+    ),
+    cell: ({ row }) => (
+      <span className='truncate text-sm'>{row.getValue('author') || '—'}</span>
+    ),
+    meta: { tdClassName: 'max-w-[140px]' },
   },
   {
     accessorKey: 'agent',
@@ -91,16 +97,23 @@ export const commitColumns: ColumnDef<CommitRow>[] = [
       <DataTableColumnHeader column={column} title='Agent' />
     ),
     cell: ({ row }) => {
-      const agent = row.getValue('agent') as string
-      const label = agentLabels[agent] ?? agent
+      const agents = row.original.agents ?? []
+
       return (
-        <div className='flex items-center gap-2'>
-          <AgentIcon agent={agent} className='size-4' />
-          <span>{label}</span>
+        <div className='flex w-full items-center justify-center gap-1'>
+          {agents.map((agent) => (
+            <span key={agent} title={agent} aria-label={agent}>
+              <AgentIcon agent={agent} className='size-4' />
+            </span>
+          ))}
         </div>
       )
     },
-    filterFn: (row, id, value) => value.includes(row.getValue(id)),
+    filterFn: (row, _id, value: string[]) => {
+      const rowAgents = row.original.agents ?? []
+
+      return value.some((agent) => rowAgents.includes(agent))
+    },
   },
   {
     accessorKey: 'checkpoints',

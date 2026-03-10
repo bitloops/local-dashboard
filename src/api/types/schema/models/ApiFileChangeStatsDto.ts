@@ -3,6 +3,7 @@
 /* tslint:disable */
  
 export type ApiFileChangeStatsDto = {
+    filepath: string;
     additionsCount: number;
     deletionsCount: number;
 };

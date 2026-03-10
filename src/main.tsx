@@ -20,6 +20,6 @@ if (!rootElement.innerHTML) {
           </NavigationProvider>
         </FontProvider>
       </ThemeProvider>
-    </StrictMode>
+    </StrictMode>,
   )
 }

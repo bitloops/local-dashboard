@@ -1,6 +1,7 @@
 import { File, Folder } from 'lucide-react'
 
 export type FileChangeStats = { additionsCount: number; deletionsCount: number }
+export type FileChangeStatsEntry = FileChangeStats & { filepath: string }
 
 type FileTreeNode = {
   name: string
@@ -40,11 +41,15 @@ function buildFileTreeFromPaths(paths: string[]): FileTreeNode {
 }
 
 function buildFileTreeFromStats(
-  fileStats: Record<string, FileChangeStats>
+  fileStats: FileChangeStatsEntry[],
 ): FileTreeNode {
   const root: FileTreeNode = { name: '', children: new Map(), isFile: false }
 
-  for (const [filePath, stats] of Object.entries(fileStats)) {
+  for (const {
+    filepath: filePath,
+    additionsCount,
+    deletionsCount,
+  } of fileStats) {
     const parts = filePath.split('/')
     let current = root
 
@@ -57,7 +62,13 @@ function buildFileTreeFromStats(
           name: part,
           children: new Map(),
           isFile,
-          ...(isFile ? { fullPath: filePath, additionsCount: stats.additionsCount, deletionsCount: stats.deletionsCount } : {}),
+          ...(isFile
+            ? {
+                fullPath: filePath,
+                additionsCount,
+                deletionsCount,
+              }
+            : {}),
         })
       }
 
@@ -68,7 +79,13 @@ function buildFileTreeFromStats(
   return root
 }
 
-function FileTreeBranch({ node, depth = 0 }: { node: FileTreeNode; depth?: number }) {
+function FileTreeBranch({
+  node,
+  depth = 0,
+}: {
+  node: FileTreeNode
+  depth?: number
+}) {
   const sorted = Array.from(node.children.values()).sort((a, b) => {
     if (a.isFile === b.isFile) return a.name.localeCompare(b.name)
     return a.isFile ? 1 : -1
@@ -109,19 +126,33 @@ function FileTreeBranch({ node, depth = 0 }: { node: FileTreeNode; depth?: numbe
               ) : (
                 <Folder className='size-4 shrink-0 text-muted-foreground' />
               )}
-              <span className={child.isFile ? 'text-foreground' : 'font-medium text-foreground'}>
+              <span
+                className={
+                  child.isFile
+                    ? 'text-foreground'
+                    : 'font-medium text-foreground'
+                }
+              >
                 {child.name}
               </span>
-              {child.isFile && (child.additionsCount !== undefined || child.deletionsCount !== undefined) && (
-                <span className='ml-1 flex items-center gap-1 font-mono text-xs'>
-                  {child.additionsCount !== undefined && child.additionsCount > 0 && (
-                    <span className='text-emerald-600 dark:text-emerald-400'>+{child.additionsCount}</span>
-                  )}
-                  {child.deletionsCount !== undefined && child.deletionsCount > 0 && (
-                    <span className='text-red-600 dark:text-red-400'>−{child.deletionsCount}</span>
-                  )}
-                </span>
-              )}
+              {child.isFile &&
+                (child.additionsCount !== undefined ||
+                  child.deletionsCount !== undefined) && (
+                  <span className='ml-1 flex items-center gap-1 font-mono text-xs'>
+                    {child.additionsCount !== undefined &&
+                      child.additionsCount > 0 && (
+                        <span className='text-emerald-600 dark:text-emerald-400'>
+                          +{child.additionsCount}
+                        </span>
+                      )}
+                    {child.deletionsCount !== undefined &&
+                      child.deletionsCount > 0 && (
+                        <span className='text-red-600 dark:text-red-400'>
+                          −{child.deletionsCount}
+                        </span>
+                      )}
+                  </span>
+                )}
             </div>
             {!child.isFile && child.children.size > 0 && (
               <FileTreeBranch node={child} depth={depth + 1} />
@@ -135,7 +166,7 @@ function FileTreeBranch({ node, depth = 0 }: { node: FileTreeNode; depth?: numbe
 
 type FileTreeProps =
   | { paths: string[]; fileStats?: never }
-  | { paths?: never; fileStats: Record<string, FileChangeStats> }
+  | { paths?: never; fileStats: FileChangeStatsEntry[] }
 
 export function FileTree(props: FileTreeProps) {
   const node =

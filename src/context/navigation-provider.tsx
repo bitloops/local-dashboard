@@ -8,10 +8,7 @@ export function NavigationProvider({ children }: { children: ReactNode }) {
     setPathname(to)
   }, [])
 
-  const value = useMemo(
-    () => ({ pathname, navigate }),
-    [pathname, navigate]
-  )
+  const value = useMemo(() => ({ pathname, navigate }), [pathname, navigate])
 
   return (
     <NavigationContext.Provider value={value}>

@@ -7,9 +7,11 @@ describe('ContentSection', () => {
     render(
       <ContentSection title='Appearance' desc='Customize theme and display.'>
         <div>Form content</div>
-      </ContentSection>
+      </ContentSection>,
     )
-    expect(screen.getByRole('heading', { name: 'Appearance' })).toBeInTheDocument()
+    expect(
+      screen.getByRole('heading', { name: 'Appearance' }),
+    ).toBeInTheDocument()
     expect(screen.getByText('Customize theme and display.')).toBeInTheDocument()
   })
 
@@ -17,7 +19,7 @@ describe('ContentSection', () => {
     render(
       <ContentSection title='Section' desc='Description'>
         <div>Form content</div>
-      </ContentSection>
+      </ContentSection>,
     )
     expect(screen.getByText('Form content')).toBeInTheDocument()
   })

@@ -25,16 +25,15 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { DataTablePagination, DataTableToolbar } from '@/components/data-table'
-import {
-  type CommitRow,
-  commitColumns as columns,
-} from './commits-columns'
+import { type CommitRow, commitColumns as columns } from './commits-columns'
 import { type Checkpoint } from '../data/mock-commit-data'
 
 const agentOptions = [
   { label: 'Claude Code', value: 'claude-code' },
   { label: 'Gemini CLI', value: 'gemini-cli' },
   { label: 'OpenCode', value: 'open-code' },
+  { label: 'Cursor', value: 'cursor' },
+  { label: 'OpenAI', value: 'openai' },
 ]
 
 type CommitTableProps = {
@@ -64,7 +63,10 @@ function CheckpointTree({
   const totalH = bottomParentY + margin
 
   return (
-    <div className='relative overflow-hidden pe-4' style={{ paddingLeft: childX + 22, margin: '4px 0' }}>
+    <div
+      className='relative overflow-hidden pe-4'
+      style={{ paddingLeft: childX + 22, margin: '4px 0' }}
+    >
       <svg
         className='pointer-events-none absolute'
         style={{ left: 14, top: 0 }}
@@ -73,8 +75,10 @@ function CheckpointTree({
       >
         {/* Parent rail — between the two parent dots (background color) */}
         <line
-          x1={parentX} y1={topParentY}
-          x2={parentX} y2={bottomParentY}
+          x1={parentX}
+          y1={topParentY}
+          x2={parentX}
+          y2={bottomParentY}
           stroke='var(--background)'
           strokeWidth={3}
           strokeLinecap='round'
@@ -82,8 +86,10 @@ function CheckpointTree({
 
         {/* Top connector: horizontal from parent → smooth arc down into child rail */}
         <line
-          x1={parentX} y1={topParentY}
-          x2={childX - curveR} y2={topParentY}
+          x1={parentX}
+          y1={topParentY}
+          x2={childX - curveR}
+          y2={topParentY}
           stroke='#7404E4'
           strokeWidth={2}
           strokeLinecap='round'
@@ -98,8 +104,10 @@ function CheckpointTree({
 
         {/* Child vertical rail */}
         <line
-          x1={childX} y1={topParentY + curveR}
-          x2={childX} y2={lastDotY}
+          x1={childX}
+          y1={topParentY + curveR}
+          x2={childX}
+          y2={lastDotY}
           stroke='#7404E4'
           strokeWidth={2}
           strokeLinecap='round'
@@ -114,8 +122,10 @@ function CheckpointTree({
           strokeLinecap='round'
         />
         <line
-          x1={childX - curveR} y1={bottomParentY}
-          x2={parentX} y2={bottomParentY}
+          x1={childX - curveR}
+          y1={bottomParentY}
+          x2={parentX}
+          y2={bottomParentY}
           stroke='#7404E4'
           strokeWidth={2}
           strokeLinecap='round'
@@ -133,43 +143,68 @@ function CheckpointTree({
         ))}
 
         {/* Parent dot at top — bg mask, grey ring, bg center */}
-        <circle cx={parentX} cy={topParentY} r={parentDotR + 2} fill='hsl(var(--background))' />
+        <circle
+          cx={parentX}
+          cy={topParentY}
+          r={parentDotR + 2}
+          fill='hsl(var(--background))'
+        />
         <circle cx={parentX} cy={topParentY} r={parentDotR} fill='#555' />
-        <circle cx={parentX} cy={topParentY} r={3.5} fill='hsl(var(--background))' />
+        <circle
+          cx={parentX}
+          cy={topParentY}
+          r={3.5}
+          fill='hsl(var(--background))'
+        />
 
         {/* Parent dot at bottom — bg mask, grey ring, bg center */}
-        <circle cx={parentX} cy={bottomParentY} r={parentDotR + 2} fill='hsl(var(--background))' />
+        <circle
+          cx={parentX}
+          cy={bottomParentY}
+          r={parentDotR + 2}
+          fill='hsl(var(--background))'
+        />
         <circle cx={parentX} cy={bottomParentY} r={parentDotR} fill='#555' />
-        <circle cx={parentX} cy={bottomParentY} r={3.5} fill='hsl(var(--background))' />
+        <circle
+          cx={parentX}
+          cy={bottomParentY}
+          r={3.5}
+          fill='hsl(var(--background))'
+        />
       </svg>
 
       <ul role='tree' style={{ paddingTop: topParentY + curveR }}>
-        {checkpoints.map((cp) => (
-          <li key={cp.id} role='treeitem'>
-            <button
-              type='button'
-              onClick={(e) => {
-                e.stopPropagation()
-                onCheckpointClick?.(cp)
-              }}
-              className={cn(
-                'group flex w-full items-center gap-2.5 rounded-sm px-3',
-                'text-left text-sm',
-                'hover:bg-accent/50 focus-visible:bg-accent/50 focus-visible:outline-none',
-                'transition-colors'
-              )}
-              style={{ height: rowH }}
-            >
-              <span className='min-w-0 flex-1 truncate text-muted-foreground group-hover:text-foreground'>
-                {cp.id}
-              </span>
-              <span className='flex shrink-0 items-center gap-1 text-[11px] text-muted-foreground'>
-                <Clock className='size-3' />
-                {cp.timestamp}
-              </span>
-            </button>
-          </li>
-        ))}
+        {checkpoints.map((cp) => {
+          const preview = cp.firstPromptPreview?.trim()
+          const label = preview ? `${preview}...` : `Checkpoint ${cp.id}`
+
+          return (
+            <li key={cp.id} role='treeitem'>
+              <button
+                type='button'
+                onClick={(e) => {
+                  e.stopPropagation()
+                  onCheckpointClick?.(cp)
+                }}
+                className={cn(
+                  'group flex w-full items-center gap-2.5 rounded-sm px-3',
+                  'text-left text-sm',
+                  'hover:bg-accent/50 focus-visible:bg-accent/50 focus-visible:outline-none',
+                  'transition-colors',
+                )}
+                style={{ height: rowH }}
+              >
+                <span className='min-w-0 flex-1 truncate text-muted-foreground group-hover:text-foreground'>
+                  {label}
+                </span>
+                <span className='flex shrink-0 items-center gap-1 text-[11px] text-muted-foreground'>
+                  <Clock className='size-3' />
+                  {cp.timestamp}
+                </span>
+              </button>
+            </li>
+          )
+        })}
         <li aria-hidden style={{ height: margin + parentDotR }} />
       </ul>
     </div>
@@ -214,7 +249,7 @@ export function CommitTable({ data, onCheckpointClick }: CommitTableProps) {
         if (typeof next === 'boolean') return next
         const prevObj = typeof prev === 'object' ? prev : {}
         const newlyExpanded = Object.keys(next).find(
-          (key) => next[key] && !prevObj[key]
+          (key) => next[key] && !prevObj[key],
         )
         if (newlyExpanded) {
           setSelectedRows((old) => ({ ...old, [newlyExpanded]: true }))
@@ -242,6 +277,19 @@ export function CommitTable({ data, onCheckpointClick }: CommitTableProps) {
     getFacetedRowModel: getFacetedRowModel(),
     getFacetedUniqueValues: getFacetedUniqueValues(),
   })
+  const agentFacetCounts = new Map<string, number>()
+  const agentFacetRows =
+    table.getColumn('agent')?.getFacetedRowModel().rows ?? []
+  for (const row of agentFacetRows) {
+    const agents = row.original.agents ?? []
+    for (const agent of new Set(agents)) {
+      agentFacetCounts.set(agent, (agentFacetCounts.get(agent) ?? 0) + 1)
+    }
+  }
+  const agentFilterOptions = agentOptions.map((option) => ({
+    ...option,
+    count: agentFacetCounts.get(option.value) ?? 0,
+  }))
 
   return (
     <div className={cn('flex flex-1 flex-col gap-4')}>
@@ -252,7 +300,7 @@ export function CommitTable({ data, onCheckpointClick }: CommitTableProps) {
           {
             columnId: 'agent',
             title: 'Agent',
-            options: agentOptions,
+            options: agentFilterOptions,
           },
         ]}
       />
@@ -267,14 +315,14 @@ export function CommitTable({ data, onCheckpointClick }: CommitTableProps) {
                     colSpan={header.colSpan}
                     className={cn(
                       header.column.columnDef.meta?.className,
-                      header.column.columnDef.meta?.thClassName
+                      header.column.columnDef.meta?.thClassName,
                     )}
                   >
                     {header.isPlaceholder
                       ? null
                       : flexRender(
                           header.column.columnDef.header,
-                          header.getContext()
+                          header.getContext(),
                         )}
                   </TableHead>
                 ))}
@@ -304,12 +352,12 @@ export function CommitTable({ data, onCheckpointClick }: CommitTableProps) {
                         key={cell.id}
                         className={cn(
                           cell.column.columnDef.meta?.className,
-                          cell.column.columnDef.meta?.tdClassName
+                          cell.column.columnDef.meta?.tdClassName,
                         )}
                       >
                         {flexRender(
                           cell.column.columnDef.cell,
-                          cell.getContext()
+                          cell.getContext(),
                         )}
                       </TableCell>
                     ))}
@@ -321,9 +369,14 @@ export function CommitTable({ data, onCheckpointClick }: CommitTableProps) {
                     >
                       <div
                         className='grid transition-[grid-template-rows] duration-300 ease-out'
-                        style={{ gridTemplateRows: row.getIsExpanded() ? '1fr' : '0fr' }}
+                        style={{
+                          gridTemplateRows: row.getIsExpanded() ? '1fr' : '0fr',
+                        }}
                       >
-                        <div className='overflow-hidden' inert={!row.getIsExpanded() || undefined}>
+                        <div
+                          className='overflow-hidden'
+                          inert={!row.getIsExpanded() || undefined}
+                        >
                           {selectedRows[row.id] && (
                             <div className='border-b border-muted bg-muted/30'>
                               <CheckpointTree

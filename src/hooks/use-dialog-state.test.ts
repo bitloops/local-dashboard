@@ -46,7 +46,9 @@ describe('useDialogState', () => {
   })
 
   it('setOpen(null) closes', () => {
-    const { result } = renderHook(() => useDialogState<string | null>('approve'))
+    const { result } = renderHook(() =>
+      useDialogState<string | null>('approve'),
+    )
     act(() => {
       result.current[1](null)
     })

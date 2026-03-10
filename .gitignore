@@ -27,3 +27,6 @@ dist-ssr
 test-results
 playwright-report
 playwright/.cache
+
+# Local mock API data (optional; app falls back to empty when missing)
+public/mock-data

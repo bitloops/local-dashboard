@@ -1,9 +1,12 @@
-import { useMemo } from 'react';
+import { useMemo } from 'react'
 
 const TOKEN_RE =
   /("(?:\\.|[^"\\])*"\s*:)|("(?:\\.|[^"\\])*")|(true|false)|(null)|(-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?)/g
 
-type Match = { type: 'key' | 'string' | 'boolean' | 'null' | 'number'; text: string }
+type Match = {
+  type: 'key' | 'string' | 'boolean' | 'null' | 'number'
+  text: string
+}
 
 function tokenize(json: string): (string | Match)[] {
   const result: (string | Match)[] = []
@@ -52,13 +55,19 @@ export function JsonHighlight({ value, className = '' }: JsonHighlightProps) {
   const tokens = useMemo(() => tokenize(value), [value])
 
   return (
-    <pre className={`whitespace-pre-wrap break-words font-mono text-xs ${className}`}>
+    <pre
+      className={`whitespace-pre-wrap break-words font-mono text-xs ${className}`}
+    >
       {tokens.map((token, i) =>
         typeof token === 'string' ? (
-          <span key={i} className='text-muted-foreground'>{token}</span>
+          <span key={i} className='text-muted-foreground'>
+            {token}
+          </span>
         ) : (
-          <span key={i} className={COLOR_MAP[token.type]}>{token.text}</span>
-        )
+          <span key={i} className={COLOR_MAP[token.type]}>
+            {token.text}
+          </span>
+        ),
       )}
     </pre>
   )

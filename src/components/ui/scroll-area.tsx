@@ -24,7 +24,7 @@ function ScrollArea({
         data-slot='scroll-area-viewport'
         className={cn(
           'size-full rounded-[inherit] transition-[color,box-shadow] outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-1',
-          orientation === 'horizontal' && 'overflow-x-auto!'
+          orientation === 'horizontal' && 'overflow-x-auto!',
         )}
       >
         {children}
@@ -50,7 +50,7 @@ function ScrollBar({
           'h-full w-2.5 border-l border-l-transparent',
         orientation === 'horizontal' &&
           'h-2.5 flex-col border-t border-t-transparent',
-        className
+        className,
       )}
       {...props}
     >
