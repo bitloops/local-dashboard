@@ -45,7 +45,11 @@ function buildFileTreeFromStats(
 ): FileTreeNode {
   const root: FileTreeNode = { name: '', children: new Map(), isFile: false }
 
-  for (const { filepath: filePath, additionsCount, deletionsCount } of fileStats) {
+  for (const {
+    filepath: filePath,
+    additionsCount,
+    deletionsCount,
+  } of fileStats) {
     const parts = filePath.split('/')
     let current = root
 

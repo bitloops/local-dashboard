@@ -34,7 +34,11 @@ describe('FileTree', () => {
         <FileTree
           fileStats={[
             { filepath: 'src/App.tsx', additionsCount: 10, deletionsCount: 2 },
-            { filepath: 'src/lib/auth.ts', additionsCount: 0, deletionsCount: 5 },
+            {
+              filepath: 'src/lib/auth.ts',
+              additionsCount: 0,
+              deletionsCount: 5,
+            },
           ]}
         />,
       )
@@ -61,7 +65,9 @@ describe('FileTree', () => {
     it('shows only deletions when additionsCount is 0', () => {
       render(
         <FileTree
-          fileStats={[{ filepath: 'old.ts', additionsCount: 0, deletionsCount: 7 }]}
+          fileStats={[
+            { filepath: 'old.ts', additionsCount: 0, deletionsCount: 7 },
+          ]}
         />,
       )
       expect(screen.getByText('old.ts')).toBeInTheDocument()

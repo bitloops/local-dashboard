@@ -107,7 +107,10 @@ describe('Dashboard integration', () => {
     await userEvent.click(expandButton)
     const promptPreview = cp.firstPromptPreview?.trim() || `Checkpoint ${cp.id}`
     const checkpointButton = screen.getByRole('button', {
-      name: new RegExp(promptPreview.slice(0, 20).replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i'),
+      name: new RegExp(
+        promptPreview.slice(0, 20).replace(/[.*+?^${}()|[\]\\]/g, '\\$&'),
+        'i',
+      ),
     })
     await userEvent.click(checkpointButton)
     expect(onCheckpointSelect).toHaveBeenCalledTimes(1)

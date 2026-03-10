@@ -277,6 +277,19 @@ export function CommitTable({ data, onCheckpointClick }: CommitTableProps) {
     getFacetedRowModel: getFacetedRowModel(),
     getFacetedUniqueValues: getFacetedUniqueValues(),
   })
+  const agentFacetCounts = new Map<string, number>()
+  const agentFacetRows =
+    table.getColumn('agent')?.getFacetedRowModel().rows ?? []
+  for (const row of agentFacetRows) {
+    const agents = row.original.agents ?? []
+    for (const agent of new Set(agents)) {
+      agentFacetCounts.set(agent, (agentFacetCounts.get(agent) ?? 0) + 1)
+    }
+  }
+  const agentFilterOptions = agentOptions.map((option) => ({
+    ...option,
+    count: agentFacetCounts.get(option.value) ?? 0,
+  }))
 
   return (
     <div className={cn('flex flex-1 flex-col gap-4')}>
@@ -287,7 +300,7 @@ export function CommitTable({ data, onCheckpointClick }: CommitTableProps) {
           {
             columnId: 'agent',
             title: 'Agent',
-            options: agentOptions,
+            options: agentFilterOptions,
           },
         ]}
       />

@@ -31,6 +31,7 @@ export type CommitData = {
   message: string
   author?: string
   agent: string
+  agents?: string[]
   checkpointList: Checkpoint[]
 }
 

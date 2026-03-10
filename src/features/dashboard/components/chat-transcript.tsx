@@ -152,7 +152,7 @@ function ToolPairBlock({
 }) {
   return (
     <div className='ms-8 max-w-[85%]'>
-      <div className='min-w-0 overflow-hidden rounded-md border border-border bg-muted/30 pt-1 text-[11px]'>
+      <div className='min-w-0 overflow-hidden rounded-md border border-border bg-muted/20 pt-1 text-[11px]'>
         <div className='flex w-full items-center gap-1.5 border-b border-border py-1 px-2'>
           <Terminal
             className='size-3 shrink-0 text-muted-foreground'
@@ -210,7 +210,7 @@ function ChatBubble({ message, agentName, userName }: ChatBubbleProps) {
     return (
       <div className='ms-8 max-w-[85%]'>
         <div
-          className={`min-w-0 overflow-hidden rounded-md border border-border bg-muted/30 py-1 text-[11px] ${
+          className={`min-w-0 overflow-hidden rounded-md border border-border bg-muted/20 py-1 text-[11px] ${
             message.isError ? 'border-destructive/50 bg-destructive/10' : ''
           }`}
         >
@@ -273,7 +273,7 @@ function ChatBubble({ message, agentName, userName }: ChatBubbleProps) {
         <div
           className={`overflow-hidden rounded-xl px-3 py-2 text-xs leading-relaxed ${
             isUser
-              ? 'rounded-tr-sm bg-zinc-400 dark:bg-zinc-600 text-foreground'
+              ? 'rounded-tr-sm bg-[#15173D] text-foreground'
               : 'rounded-tl-sm bg-primary text-primary-foreground'
           }`}
         >

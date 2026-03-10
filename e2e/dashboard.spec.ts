@@ -438,17 +438,13 @@ test.describe('Filters', () => {
 
     // Match the small <p> label elements inside the Filters card
     await expect(
-      page.locator('p.text-muted-foreground', { hasText: 'User' }).first(),
+      page.locator('p.text-muted-foreground', { hasText: /^User$/ }).first(),
     ).toBeVisible()
     await expect(
-      page.locator('p.text-muted-foreground', { hasText: 'Agent' }).first(),
+      page.locator('p.text-muted-foreground', { hasText: /^Agent$/ }).first(),
     ).toBeVisible()
-    await expect(
-      page.locator('p.text-muted-foreground', { hasText: 'From' }),
-    ).toBeVisible()
-    await expect(
-      page.locator('p.text-muted-foreground', { hasText: 'To' }),
-    ).toBeVisible()
+    await expect(page.getByText('From', { exact: true })).toBeVisible()
+    await expect(page.getByText('To', { exact: true })).toBeVisible()
   })
 })
 
@@ -533,11 +529,16 @@ test.describe('Checkpoint sheet', () => {
       page.getByRole('heading', { name: /Checkpoint cp-/i }),
     ).toBeVisible()
 
-    await page.getByRole('button', { name: /close/i }).click()
+    const heading = page.getByRole('heading', { name: /Checkpoint cp-/i })
+    const headingText = await heading.textContent()
 
+    await page.getByRole('button', { name: /Close checkpoint panel/i }).click()
     await expect(
-      page.getByRole('heading', { name: /Checkpoint cp-/i }),
-    ).not.toBeVisible()
+      page.getByRole('button', { name: /Open checkpoint panel/i }),
+    ).toBeVisible()
+
+    await page.getByRole('button', { name: /Open checkpoint panel/i }).click()
+    await expect(heading).toHaveText(headingText ?? '')
   })
 
   test('checkpoint sheet shows error state when detail API fails', async ({

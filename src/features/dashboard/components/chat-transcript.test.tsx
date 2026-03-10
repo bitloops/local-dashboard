@@ -117,7 +117,7 @@ describe('ChatTranscript', () => {
     render(<ChatTranscript entries={entries} {...defaultProps} />)
     expect(screen.getByText(/Wayne Omoga/)).toBeInTheDocument()
     const bubble = screen.getByText('Hi').closest('div')
-    expect(bubble).toHaveClass('rounded-tr-sm', 'bg-zinc-400')
+    expect(bubble).toHaveClass('rounded-tr-sm', 'bg-[#15173D]')
   })
 
   it('shows agent label and agent bubble styling', () => {

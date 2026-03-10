@@ -111,6 +111,13 @@ export const mapCommitRows = (rows: ApiCommitRowDto[]): CommitData[] => {
   for (const row of rows) {
     const sha = row.commit.sha
     const commitDate = formatCommitDate(row.commit.timestamp)
+    const checkpointAgents = Array.from(
+      new Set(
+        (row.checkpoint.agents ?? [])
+          .map((agent) => agent.trim())
+          .filter((agent): agent is string => agent.length > 0),
+      ),
+    )
 
     const checkpoint = {
       id: row.checkpoint.checkpoint_id,
@@ -118,7 +125,6 @@ export const mapCommitRows = (rows: ApiCommitRowDto[]): CommitData[] => {
       timestamp: formatCheckpointTime(row.checkpoint.created_at),
       createdAt: row.checkpoint.created_at,
       branch: row.checkpoint.branch,
-      agent: row.checkpoint.agent,
       strategy: row.checkpoint.strategy,
       sessionId: row.checkpoint.session_id,
       toolUseId: row.checkpoint.tool_use_id,
@@ -137,6 +143,9 @@ export const mapCommitRows = (rows: ApiCommitRowDto[]): CommitData[] => {
     if (existing) {
       existing.checkpointList.push(checkpoint)
       existing.checkpoints = existing.checkpointList.length
+      existing.agents = Array.from(
+        new Set([...(existing.agents ?? []), ...checkpointAgents]),
+      )
       continue
     }
 
@@ -146,7 +155,8 @@ export const mapCommitRows = (rows: ApiCommitRowDto[]): CommitData[] => {
       checkpoints: 1,
       message: row.commit.message,
       author: row.commit.author_name?.trim() ?? '',
-      agent: row.checkpoint.agent,
+      agent: checkpointAgents[0] ?? '',
+      agents: checkpointAgents,
       checkpointList: [checkpoint],
       timestamp: commitDate.ms,
     })
@@ -161,6 +171,7 @@ export const mapCommitRows = (rows: ApiCommitRowDto[]): CommitData[] => {
       message: commit.message,
       author: commit.author,
       agent: commit.agent,
+      agents: commit.agents,
       checkpointList: commit.checkpointList,
     }))
 }

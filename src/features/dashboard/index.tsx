@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   BitloopsCli,
   type ApiAgentDto,
@@ -42,6 +42,7 @@ export function Dashboard() {
   const [rows, setRows] = useState<CommitData[]>([])
   const [selectedCheckpoint, setSelectedCheckpoint] =
     useState<Checkpoint | null>(null)
+  const selectedCheckpointRef = useRef<Checkpoint | null>(null)
   const [checkpointDetail, setCheckpointDetail] =
     useState<ApiCheckpointDetailResponse | null>(null)
   const [checkpointDetailSource, setCheckpointDetailSource] =
@@ -56,6 +57,10 @@ export function Dashboard() {
   const from = fromDate != null ? String(startOfDayUnixSeconds(fromDate)) : null
   const to = toDate != null ? String(endOfDayUnixSeconds(toDate)) : null
   const effectiveBranch = selectedBranch ?? branchOptions[0] ?? null
+
+  useEffect(() => {
+    selectedCheckpointRef.current = selectedCheckpoint
+  }, [selectedCheckpoint])
 
   useEffect(() => {
     let cancelled = false
@@ -170,13 +175,8 @@ export function Dashboard() {
         setRows(mappedRows)
         const firstCheckpoint = mappedRows[0]?.checkpointList?.[0]
         if (firstCheckpoint) {
-          let shouldInitializeDetail = false
-          setSelectedCheckpoint((current) => {
-            if (current) return current
-            shouldInitializeDetail = true
-            return firstCheckpoint
-          })
-          if (shouldInitializeDetail) {
+          setSelectedCheckpoint((current) => current ?? firstCheckpoint)
+          if (!selectedCheckpointRef.current) {
             setCheckpointDetail(null)
             setCheckpointDetailSource('loading')
           }
@@ -263,9 +263,7 @@ export function Dashboard() {
   }
 
   const onCheckpointClose = () => {
-    setSelectedCheckpoint(null)
-    setCheckpointDetail(null)
-    setCheckpointDetailSource('idle')
+    // Preserve last viewed checkpoint/detail so reopening the sidebar restores it.
   }
 
   const visibleRows = effectiveBranch ? rows : []
