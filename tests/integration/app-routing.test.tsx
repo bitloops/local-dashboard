@@ -58,4 +58,34 @@ describe('App routing integration', () => {
       screen.getByRole('heading', { name: 'Dashboard' }),
     ).toBeInTheDocument()
   })
+
+  it('renders Query Explorer link in sidebar', () => {
+    renderApp()
+    expect(
+      screen.getByRole('link', { name: /Query Explorer/i }),
+    ).toBeInTheDocument()
+  })
+
+  it('navigates to Query Explorer when Query Explorer link is clicked', async () => {
+    renderApp()
+    await userEvent.click(screen.getByRole('link', { name: /Query Explorer/i }))
+    expect(
+      screen.getByRole('heading', { name: 'Query Explorer' }),
+    ).toBeInTheDocument()
+    expect(
+      screen.getByText('Query and explore your code intelligence data.'),
+    ).toBeInTheDocument()
+  })
+
+  it('navigates back to Dashboard from Query Explorer when Dashboard link is clicked', async () => {
+    renderApp()
+    await userEvent.click(screen.getByRole('link', { name: /Query Explorer/i }))
+    expect(
+      screen.getByRole('heading', { name: 'Query Explorer' }),
+    ).toBeInTheDocument()
+    await userEvent.click(screen.getByRole('link', { name: /Dashboard/i }))
+    expect(
+      screen.getByRole('heading', { name: 'Dashboard' }),
+    ).toBeInTheDocument()
+  })
 })

@@ -1,4 +1,10 @@
-import { LayoutDashboard, Settings, HelpCircle, Command } from 'lucide-react'
+import {
+  LayoutDashboard,
+  Search,
+  Settings,
+  HelpCircle,
+  Command,
+} from 'lucide-react'
 import { type SidebarData } from '../types'
 
 export const sidebarData: SidebarData = {
@@ -17,6 +23,11 @@ export const sidebarData: SidebarData = {
           title: 'Dashboard',
           url: '/',
           icon: LayoutDashboard,
+        },
+        {
+          title: 'Query Explorer',
+          url: '/explorer',
+          icon: Search,
         },
       ],
     },
