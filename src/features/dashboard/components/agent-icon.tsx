@@ -4,6 +4,7 @@ import { Bot } from 'lucide-react'
 const AGENT_SLUGS = new Set([
   'claude-code',
   'codex',
+  'copilot',
   'cursor',
   'gemini-cli',
   'open-code',
