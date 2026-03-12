@@ -1,6 +1,13 @@
 {
   "versions": [
     {
+      "version": "0.0.3",
+      "min_required_cli_version": "0.0.9",
+      "max_required_cli_version": "latest",
+      "download_url": "https://github.com/bitloops/local-dashboard/releases/download/v0.0.1/bundle.tar.zst",
+      "checksum_url": "https://github.com/bitloops/local-dashboard/releases/download/v0.0.1/bundle.tar.zst.sha256"
+    },
+    {
       "version": "0.0.1",
       "min_required_cli_version": "0.0.1",
       "max_required_cli_version": "latest",

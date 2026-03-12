@@ -19,7 +19,7 @@ export function QueryExplorer() {
   const [result, setResult] = useState<ResultViewerState>({ status: 'idle' })
   // TODO: use setResult when implementing Run query
   void setResult
-  
+
   const [editorPanelWidth, onResizeStart] = useResizeWidth({
     defaultWidth: EDITOR_PANEL_DEFAULT,
     minWidth: EDITOR_PANEL_MIN,
