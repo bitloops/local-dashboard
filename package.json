@@ -1,7 +1,7 @@
 {
   "name": "local-dashboard",
   "private": true,
-  "version": "0.0.2",
+  "version": "0.0.3",
   "type": "module",
   "scripts": {
     "open-api-codegen": "curl -o ./swagger.json http://127.0.0.1:5667/api/openapi.json && npx openapi-typescript-codegen --input ./swagger.json --output ./src/api/types/schema --name BitloopsCli --useOptions",

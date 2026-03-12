@@ -16,6 +16,18 @@ describe('AgentIcon', () => {
     expect(img).toHaveAttribute('src', '/images/claude-code.svg')
   })
 
+  it('renders Codex icon for codex agent', () => {
+    render(<AgentIcon agent='codex' />)
+    const img = screen.getByRole('img', { name: 'codex' })
+    expect(img).toHaveAttribute('src', '/images/codex.svg')
+  })
+
+  it('renders Copilot icon for copilot agent', () => {
+    render(<AgentIcon agent='copilot' />)
+    const img = screen.getByRole('img', { name: 'copilot' })
+    expect(img).toHaveAttribute('src', '/images/copilot.svg')
+  })
+
   it('renders fallback icon for unknown agent', () => {
     render(<AgentIcon agent='unknown-agent' />)
     expect(screen.queryByRole('img')).not.toBeInTheDocument()

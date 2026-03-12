@@ -30,10 +30,11 @@ import { type Checkpoint } from '../data/mock-commit-data'
 
 const agentOptions = [
   { label: 'Claude Code', value: 'claude-code' },
+  { label: 'Codex', value: 'codex' },
+  { label: 'Copilot', value: 'copilot' },
+  { label: 'Cursor', value: 'cursor' },
   { label: 'Gemini CLI', value: 'gemini-cli' },
   { label: 'OpenCode', value: 'open-code' },
-  { label: 'Cursor', value: 'cursor' },
-  { label: 'OpenAI', value: 'openai' },
 ]
 
 type CommitTableProps = {

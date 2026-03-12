@@ -3,10 +3,11 @@ import { Bot } from 'lucide-react'
 /** Hyphenated slugs the API sends; used for icon path /images/{slug}.svg */
 const AGENT_SLUGS = new Set([
   'claude-code',
+  'codex',
+  'copilot',
+  'cursor',
   'gemini-cli',
   'open-code',
-  'cursor',
-  'openai',
 ])
 
 function agentToSlug(agent: string): string | null {
