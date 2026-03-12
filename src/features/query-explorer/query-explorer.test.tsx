@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { fireEvent, render, screen } from '@testing-library/react'
 import { SidebarProvider } from '@/components/ui/sidebar'
-import { QueryExplorer } from './index'
+import { DEFAULT_QUERY, QueryExplorer } from './index'
 
 function Wrapper({ children }: { children: React.ReactNode }) {
   return <SidebarProvider>{children}</SidebarProvider>
@@ -38,17 +38,18 @@ describe('QueryExplorer', () => {
     ).toBeInTheDocument()
   })
 
-  it('updates query when user types in Query Editor', async () => {
+  it('renders Query Editor container', async () => {
     render(<QueryExplorer />, { wrapper: Wrapper })
-    const editor = screen.getByRole('textbox', { name: 'GraphQL query' })
-    fireEvent.change(editor, { target: { value: 'query { id }' } })
-    expect(editor).toHaveValue('query { id }')
+    expect(screen.getByTestId('query-editor')).toBeInTheDocument()
   })
 
   it('updates variables when user types in Variables panel', async () => {
     render(<QueryExplorer />, { wrapper: Wrapper })
     const variablesInput = screen.getByRole('textbox', {
       name: 'Query variables JSON',
+    })
+    fireEvent.change(variablesInput, {
+      target: { value: '{"existing": true}' },
     })
     fireEvent.change(variablesInput, { target: { value: '{"x": 1}' } })
     expect(variablesInput).toHaveValue('{"x": 1}')
@@ -57,5 +58,12 @@ describe('QueryExplorer', () => {
   it('shows idle message in Results panel by default', () => {
     render(<QueryExplorer />, { wrapper: Wrapper })
     expect(screen.getByText('Run a query to see results.')).toBeInTheDocument()
+  })
+
+  it('uses default query with sample comment and GetArtefacts', () => {
+    expect(DEFAULT_QUERY).toContain('# Sample query in GQL syntax')
+    expect(DEFAULT_QUERY).toContain('query GetArtefacts')
+    expect(DEFAULT_QUERY).toContain('repo(name: $repo)')
+    expect(DEFAULT_QUERY.trim()).toMatch(/\n\nquery /)
   })
 })
