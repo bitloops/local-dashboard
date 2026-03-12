@@ -1,8 +1,31 @@
+import { useState } from 'react'
 import { Header } from '@/components/layout/header'
 import { Main } from '@/components/layout/main'
 import { ThemeSwitch } from '@/components/theme-switch'
+import { QueryExplorerLayout } from './components/query-explorer'
+import { QueryEditorPanel } from './components/query-editor-panel'
+import { ResultViewerPanel } from './components/result-viewer-panel'
+import type { ResultViewerState } from './components/result-viewer-panel'
+import { VariablesPanel } from './components/variables-panel'
+import { useResizeWidth } from './hooks/use-resize-width'
+
+const EDITOR_PANEL_MIN = 280
+const EDITOR_PANEL_MAX = 1200
+const EDITOR_PANEL_DEFAULT = 780
 
 export function QueryExplorer() {
+  const [query, setQuery] = useState('')
+  const [variables, setVariables] = useState('{}')
+  const [result, setResult] = useState<ResultViewerState>({ status: 'idle' })
+  // TODO: use setResult when implementing Run query
+  void setResult
+  
+  const [editorPanelWidth, onResizeStart] = useResizeWidth({
+    defaultWidth: EDITOR_PANEL_DEFAULT,
+    minWidth: EDITOR_PANEL_MIN,
+    maxWidth: EDITOR_PANEL_MAX,
+  })
+
   return (
     <>
       <Header className='pe-8'>
@@ -10,15 +33,26 @@ export function QueryExplorer() {
           <ThemeSwitch />
         </div>
       </Header>
-      <Main>
-        <div className='mb-4'>
-          <h1 className='text-2xl font-bold tracking-tight'>Query Explorer</h1>
-          <p className='mt-1 text-sm text-muted-foreground'>
-            Query and explore your code intelligence data.
-          </p>
-        </div>
-        <div className='rounded-lg border border-dashed bg-muted/20 px-4 py-8 text-center text-sm text-muted-foreground'>
-          Query Explorer UI.
+      <Main fixed>
+        <div className='mb-4 flex min-h-0 flex-1 flex-col'>
+          <div className='shrink-0'>
+            <h1 className='text-2xl font-bold tracking-tight'>
+              Query Explorer
+            </h1>
+            <p className='mt-1 text-sm text-muted-foreground'>
+              Query and explore your code intelligence data.
+            </p>
+          </div>
+          <QueryExplorerLayout
+            className='mt-4'
+            editorPanelWidth={editorPanelWidth}
+            onResizeStart={onResizeStart}
+            leftPanel={<QueryEditorPanel value={query} onChange={setQuery} />}
+            rightPanel={<ResultViewerPanel result={result} />}
+            bottomPanel={
+              <VariablesPanel value={variables} onChange={setVariables} />
+            }
+          />
         </div>
       </Main>
     </>
