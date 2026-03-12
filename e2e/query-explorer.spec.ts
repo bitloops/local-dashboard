@@ -46,13 +46,23 @@ test.describe('Query Explorer', () => {
     await expect(page.getByText('Run a query to see results.')).toBeVisible()
   })
 
-  test('user can type in Query Editor textarea', async ({ page }) => {
+  test('user can type in Query Editor', async ({ page }) => {
     await page.goto('/explorer')
 
-    const editor = page.getByRole('textbox', { name: 'GraphQL query' })
-    await editor.fill('query { id }')
+    const editorContainer = page.getByTestId('query-editor')
+    const editorViewLines = editorContainer
+      .locator('.monaco-editor .view-lines')
+      .first()
+    const monacoEditor = editorContainer.locator('.monaco-editor').first()
 
-    await expect(editor).toHaveValue('query { id }')
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      await monacoEditor.click({ force: true })
+      await page.keyboard.type(' TestTypedValue')
+      const text = await editorViewLines.innerText()
+      if (text.includes('TestTypedValue')) break
+    }
+
+    await expect(editorViewLines).toContainText('TestTypedValue')
   })
 
   test('user can type in Variables textarea', async ({ page }) => {

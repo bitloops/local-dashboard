@@ -13,8 +13,27 @@ const EDITOR_PANEL_MIN = 280
 const EDITOR_PANEL_MAX = 1200
 const EDITOR_PANEL_DEFAULT = 780
 
+export const DEFAULT_QUERY = `# Sample query in GQL syntax
+
+query GetArtefacts($repo: String!, $ref: String!, $path: String!) {
+  repo(name: $repo) {
+    ref(name: $ref) {
+      file(path: $path) {
+        artefacts {
+          symbolFqn
+          canonicalKind
+          semantics {
+            summary
+          }
+        }
+      }
+    }
+  }
+}
+`
+
 export function QueryExplorer() {
-  const [query, setQuery] = useState('')
+  const [query, setQuery] = useState(DEFAULT_QUERY)
   const [variables, setVariables] = useState('{}')
   const [result, setResult] = useState<ResultViewerState>({ status: 'idle' })
   // TODO: use setResult when implementing Run query
