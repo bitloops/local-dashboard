@@ -1,23 +1,48 @@
 import { describe, expect, it, vi } from 'vitest'
-import { render, screen } from '@testing-library/react'
-import userEvent from '@testing-library/user-event'
+import { fireEvent, render, screen } from '@testing-library/react'
+import { ThemeProvider } from '@/context/theme-provider'
 import { QueryEditorPanel } from './query-editor-panel'
+
+function renderWithTheme(ui: React.ReactElement) {
+  return render(<ThemeProvider>{ui}</ThemeProvider>)
+}
+
+vi.mock('@monaco-editor/react', () => ({
+  default: function MockEditor({
+    value,
+    onChange,
+  }: {
+    value: string
+    onChange: (v: string | undefined) => void
+  }) {
+    return (
+      <input
+        aria-label='GraphQL query'
+        data-testid='query-editor-input'
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+      />
+    )
+  },
+}))
 
 describe('QueryEditorPanel', () => {
   it('renders Query Editor heading', () => {
-    render(<QueryEditorPanel value='' onChange={() => {}} />)
+    renderWithTheme(<QueryEditorPanel value='' onChange={() => {}} />)
     expect(screen.getByText('Query Editor')).toBeInTheDocument()
   })
 
-  it('renders textarea with placeholder', () => {
-    render(<QueryEditorPanel value='' onChange={() => {}} />)
+  it('renders editor with GraphQL query label', () => {
+    renderWithTheme(<QueryEditorPanel value='' onChange={() => {}} />)
     expect(
       screen.getByRole('textbox', { name: 'GraphQL query' }),
-    ).toHaveAttribute('placeholder', 'Enter your query...')
+    ).toBeInTheDocument()
   })
 
   it('displays controlled value', () => {
-    render(<QueryEditorPanel value='query { id }' onChange={() => {}} />)
+    renderWithTheme(
+      <QueryEditorPanel value='query { id }' onChange={() => {}} />,
+    )
     expect(screen.getByRole('textbox', { name: 'GraphQL query' })).toHaveValue(
       'query { id }',
     )
@@ -25,11 +50,42 @@ describe('QueryEditorPanel', () => {
 
   it('calls onChange when user types', async () => {
     const onChange = vi.fn()
-    render(<QueryEditorPanel value='' onChange={onChange} />)
-    await userEvent.type(
-      screen.getByRole('textbox', { name: 'GraphQL query' }),
-      'x',
+    renderWithTheme(
+      <QueryEditorPanel value='query { id }' onChange={onChange} />,
     )
+    const input = screen.getByRole('textbox', { name: 'GraphQL query' })
+    fireEvent.change(input, { target: { value: '' } })
+    fireEvent.change(input, { target: { value: 'query { name }' } })
     expect(onChange).toHaveBeenCalled()
+  })
+
+  it('shows Run button when onRun is provided', () => {
+    renderWithTheme(
+      <QueryEditorPanel value='' onChange={() => {}} onRun={() => {}} />,
+    )
+    expect(
+      screen.getByRole('button', { name: 'Run query' }),
+    ).toBeInTheDocument()
+  })
+
+  it('disables Run button when isRunDisabled is true', () => {
+    renderWithTheme(
+      <QueryEditorPanel
+        value=''
+        onChange={() => {}}
+        onRun={() => {}}
+        isRunDisabled
+      />,
+    )
+    expect(screen.getByRole('button', { name: 'Run query' })).toBeDisabled()
+  })
+
+  it('calls onRun when Run button is clicked', () => {
+    const onRun = vi.fn()
+    renderWithTheme(
+      <QueryEditorPanel value='' onChange={() => {}} onRun={onRun} />,
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'Run query' }))
+    expect(onRun).toHaveBeenCalledTimes(1)
   })
 })

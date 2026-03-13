@@ -46,24 +46,40 @@ test.describe('Query Explorer', () => {
     await expect(page.getByText('Run a query to see results.')).toBeVisible()
   })
 
-  test('user can type in Query Editor textarea', async ({ page }) => {
+  test('user can type in Query Editor', async ({ page }) => {
     await page.goto('/explorer')
 
-    const editor = page.getByRole('textbox', { name: 'GraphQL query' })
-    await editor.fill('query { id }')
+    const editorContainer = page.getByTestId('query-editor')
+    const editorViewLines = editorContainer
+      .locator('.monaco-editor .view-lines')
+      .first()
+    const monacoEditor = editorContainer.locator('.monaco-editor').first()
+    const before = await editorViewLines.innerText()
 
-    await expect(editor).toHaveValue('query { id }')
+    await monacoEditor.click({ force: true })
+    await page.keyboard.type('typed')
+
+    await expect
+      .poll(async () => (await editorViewLines.innerText()).length)
+      .toBeGreaterThan(before.length)
   })
 
-  test('user can type in Variables textarea', async ({ page }) => {
+  test('user can type in Variables editor', async ({ page }) => {
     await page.goto('/explorer')
 
-    const variablesInput = page.getByRole('textbox', {
-      name: 'Query variables JSON',
-    })
-    await variablesInput.fill('{"key": "value"}')
+    const variablesContainer = page.getByTestId('variables-editor')
+    const monacoEditor = variablesContainer.locator('.monaco-editor').first()
+    const editorViewLines = variablesContainer
+      .locator('.monaco-editor .view-lines')
+      .first()
+    const before = await editorViewLines.innerText()
 
-    await expect(variablesInput).toHaveValue('{"key": "value"}')
+    await monacoEditor.click({ force: true })
+    await page.keyboard.type('typed')
+
+    await expect
+      .poll(async () => (await editorViewLines.innerText()).length)
+      .toBeGreaterThan(before.length)
   })
 
   test('navigating from sidebar Query Explorer link loads the explorer', async ({
