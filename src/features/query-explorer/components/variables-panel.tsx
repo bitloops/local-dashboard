@@ -6,7 +6,7 @@ import {
   defineDashboardThemes,
   DASHBOARD_DARK_VARIABLES_THEME,
   DASHBOARD_LIGHT_VARIABLES_THEME,
-} from '../lib/monaco-theme'
+} from '../../../styles/monaco-theme'
 import type * as Monaco from 'monaco-editor'
 
 type VariablesPanelProps = {

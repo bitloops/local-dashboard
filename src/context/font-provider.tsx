@@ -20,7 +20,12 @@ type FontContextType = {
   resetFont: () => void
 }
 
-const FontContext = createContext<FontContextType | null>(null)
+const defaultFontContext: FontContextType = {
+  font: fonts[0],
+  setFont: () => {},
+  resetFont: () => {},
+}
+const FontContext = createContext<FontContextType>(defaultFontContext)
 
 export function FontProvider({ children }: { children: React.ReactNode }) {
   const [font, _setFont] = useState<Font>(() => {
@@ -57,10 +62,4 @@ export function FontProvider({ children }: { children: React.ReactNode }) {
 }
 
 // eslint-disable-next-line react-refresh/only-export-components
-export const useFont = () => {
-  const context = use(FontContext)
-  if (!context) {
-    throw new Error('useFont must be used within a FontProvider')
-  }
-  return context
-}
+export const useFont = () => use(FontContext)

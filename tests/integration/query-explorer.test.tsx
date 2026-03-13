@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import { SidebarProvider } from '@/components/ui/sidebar'
-import { DEFAULT_QUERY, QueryExplorer } from './index'
+import { DEFAULT_QUERY, QueryExplorer } from '@/features/query-explorer'
 
 function Wrapper({ children }: { children: React.ReactNode }) {
   return <SidebarProvider>{children}</SidebarProvider>
@@ -22,9 +22,9 @@ describe('QueryExplorer', () => {
     ).toBeInTheDocument()
   })
 
-  it('renders three-panel layout with Query Editor, Results, and Variables', () => {
+  it('renders three-panel layout with Editor, Results, and Variables', () => {
     render(<QueryExplorer />, { wrapper: Wrapper })
-    expect(screen.getByText('Query Editor')).toBeInTheDocument()
+    expect(screen.getByText('Editor')).toBeInTheDocument()
     expect(screen.getByText('Results')).toBeInTheDocument()
     expect(screen.getByText('Variables')).toBeInTheDocument()
   })

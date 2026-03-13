@@ -8,6 +8,9 @@ importers:
 
   .:
     dependencies:
+      '@andypf/json-viewer':
+        specifier: ^2.2.4
+        version: 2.2.4
       '@hookform/resolvers':
         specifier: ^5.2.2
         version: 5.2.2(react-hook-form@7.71.2(react@19.2.4))
@@ -188,6 +191,9 @@ packages:
 
   '@adobe/css-tools@4.4.4':
     resolution: {integrity: sha512-Elp+iwUx5rN5+Y8xLt5/GRoG20WGoDCQ/1Fb+1LiGtvwbDavuSk0jhD/eZdckHAuzcDzccnkv+rEjyWfRx18gg==}
+
+  '@andypf/json-viewer@2.2.4':
+    resolution: {integrity: sha512-IJoPAeU+O4sF144quisDDpRrDTd1W40ENNpJuT5XncwErQaZtVhU7AwqZSuH5y1tZN1Eu95TSzf4XbIZ2es9CA==}
 
   '@asamuzakjp/css-color@3.2.0':
     resolution: {integrity: sha512-K1A6z8tS3XsmCMM86xoWdn7Fkdn9m6RSVtocUrJYIwZnFVkng/PvkEoWtOWmP+Scc6saYWHWZYbndEEXxl24jw==}
@@ -3085,6 +3091,8 @@ packages:
 snapshots:
 
   '@adobe/css-tools@4.4.4': {}
+
+  '@andypf/json-viewer@2.2.4': {}
 
   '@asamuzakjp/css-color@3.2.0':
     dependencies:

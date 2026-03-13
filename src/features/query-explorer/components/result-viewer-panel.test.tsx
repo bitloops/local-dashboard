@@ -1,6 +1,20 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import { ResultViewerPanel } from './result-viewer-panel'
+
+vi.mock('@andypf/json-viewer/dist/esm/react/JsonViewer', () => ({
+  default: ({ data }: { data: unknown }) => {
+    const obj = data as { errors?: string[] }
+    if (obj?.errors?.length) {
+      return (
+        <pre data-testid='mock-json-viewer-error'>{obj.errors.join(', ')}</pre>
+      )
+    }
+    return (
+      <pre data-testid='mock-json-viewer'>{JSON.stringify(data, null, 2)}</pre>
+    )
+  },
+}))
 
 describe('ResultViewerPanel', () => {
   it('renders Results heading', () => {
@@ -18,13 +32,34 @@ describe('ResultViewerPanel', () => {
     expect(screen.getByText('Loading...')).toBeInTheDocument()
   })
 
-  it('shows formatted JSON when status is success', () => {
+  it('shows JSON tree when status is success', () => {
     render(
       <ResultViewerPanel
         result={{ status: 'success', data: { foo: 'bar' } }}
       />,
     )
-    expect(screen.getByText(/"foo":\s*"bar"/)).toBeInTheDocument()
+    expect(screen.getByTestId('result-viewer-json-tree')).toBeInTheDocument()
+    expect(screen.getByTestId('mock-json-viewer')).toHaveTextContent('"foo"')
+    expect(screen.getByTestId('mock-json-viewer')).toHaveTextContent('"bar"')
+  })
+
+  it('shows errors in same tree with success when errors are present', () => {
+    render(
+      <ResultViewerPanel
+        result={{
+          status: 'success',
+          data: { message: 'ok' },
+          errors: ['First error', 'Second error'],
+        }}
+      />,
+    )
+    expect(screen.getByTestId('result-viewer-json-tree')).toBeInTheDocument()
+    expect(screen.getByTestId('mock-json-viewer-error')).toHaveTextContent(
+      'First error',
+    )
+    expect(screen.getByTestId('mock-json-viewer-error')).toHaveTextContent(
+      'Second error',
+    )
   })
 
   it('shows error message when status is error', () => {

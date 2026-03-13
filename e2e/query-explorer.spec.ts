@@ -14,14 +14,12 @@ test.describe('Query Explorer', () => {
     ).toBeVisible()
   })
 
-  test('Query Explorer shows three panels: Query Editor, Results, Variables', async ({
+  test('Query Explorer shows three panels: Editor, Results, Variables', async ({
     page,
   }) => {
     await page.goto('/explorer')
 
-    await expect(
-      page.getByRole('heading', { name: 'Query Editor' }),
-    ).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'Editor' })).toBeVisible()
     await expect(page.getByRole('heading', { name: 'Results' })).toBeVisible()
     await expect(page.getByRole('heading', { name: 'Variables' })).toBeVisible()
   })
@@ -57,11 +55,11 @@ test.describe('Query Explorer', () => {
     const before = await editorViewLines.innerText()
 
     await monacoEditor.click({ force: true })
-    await page.keyboard.type('typed')
+    await page.keyboard.insertText('TestTypedValue')
 
     await expect
-      .poll(async () => (await editorViewLines.innerText()).length)
-      .toBeGreaterThan(before.length)
+      .poll(async () => await editorViewLines.innerText())
+      .not.toBe(before)
   })
 
   test('user can type in Variables editor', async ({ page }) => {
@@ -75,11 +73,11 @@ test.describe('Query Explorer', () => {
     const before = await editorViewLines.innerText()
 
     await monacoEditor.click({ force: true })
-    await page.keyboard.type('typed')
+    await page.keyboard.insertText('{"typed":true}')
 
     await expect
-      .poll(async () => (await editorViewLines.innerText()).length)
-      .toBeGreaterThan(before.length)
+      .poll(async () => await editorViewLines.innerText())
+      .not.toBe(before)
   })
 
   test('navigating from sidebar Query Explorer link loads the explorer', async ({
@@ -92,6 +90,6 @@ test.describe('Query Explorer', () => {
     await expect(
       page.getByRole('heading', { name: 'Query Explorer' }),
     ).toBeVisible()
-    await expect(page.getByText('Query Editor')).toBeVisible()
+    await expect(page.getByText('Editor')).toBeVisible()
   })
 })
