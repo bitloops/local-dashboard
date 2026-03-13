@@ -12,10 +12,12 @@ import type * as Monaco from 'monaco-editor'
 type QueryEditorPanelProps = {
   value: string
   onChange: (value: string) => void
+  onRun?: () => void
+  isRunDisabled?: boolean
   className?: string
 }
 
-/** Editor is GraphQL-only; no other languages. */
+/** Editor is GraphQL-only*/
 const EDITOR_LANGUAGE = 'graphql'
 
 const EDITOR_OPTIONS: Monaco.editor.IStandaloneEditorConstructionOptions = {
@@ -33,6 +35,8 @@ const EDITOR_OPTIONS: Monaco.editor.IStandaloneEditorConstructionOptions = {
 export function QueryEditorPanel({
   value,
   onChange,
+  onRun,
+  isRunDisabled = false,
   className,
 }: QueryEditorPanelProps) {
   const containerRef = useRef<HTMLDivElement>(null)
@@ -71,8 +75,19 @@ export function QueryEditorPanel({
       className={cn('flex min-h-0 flex-1 flex-col overflow-hidden', className)}
       data-panel='query-editor'
     >
-      <div className='border-b border-border px-3 py-2'>
+      <div className='flex h-12 items-center justify-between border-b border-border px-3 py-2'>
         <h2 className='text-sm font-medium'>Query Editor</h2>
+        {onRun && (
+          <button
+            type='button'
+            onClick={onRun}
+            disabled={isRunDisabled}
+            className='rounded bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:pointer-events-none disabled:opacity-50'
+            aria-label='Run query'
+          >
+            Run
+          </button>
+        )}
       </div>
       <div
         className='flex min-h-0 flex-1 flex-col p-3'
@@ -81,7 +96,7 @@ export function QueryEditorPanel({
       >
         <div
           ref={containerRef}
-          className='relative min-h-0 flex-1 overflow-hidden'
+          className='relative min-h-0 flex-1 overflow-hidden bg-[var(--editor-bg)]'
         >
           <Editor
             height={editorHeight}
