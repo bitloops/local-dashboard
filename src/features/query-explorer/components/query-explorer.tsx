@@ -20,14 +20,14 @@ export function QueryExplorerLayout({
   return (
     <div
       className={cn(
-        'flex min-h-0 flex-1 flex-col overflow-hidden border border-border bg-card text-card-foreground',
+        'flex min-h-0 flex-1 flex-col overflow-hidden border border-foreground/20 bg-card text-card-foreground',
         className,
       )}
       data-layout='query-explorer'
     >
       <div className='flex min-h-0 flex-1'>
         <div
-          className='flex min-w-0 shrink-0 flex-col'
+          className='flex min-h-0 min-w-0 shrink-0 flex-col overflow-hidden'
           style={{ width: editorPanelWidth }}
         >
           {leftPanel}
@@ -37,11 +37,13 @@ export function QueryExplorerLayout({
           aria-orientation='vertical'
           aria-label='Resize editor and results panels'
           onPointerDown={onResizeStart}
-          className='w-1 shrink-0 cursor-col-resize border-e border-border/40 bg-muted/50 transition-colors hover:bg-muted active:bg-muted/80'
+          className='w-px shrink-0 cursor-col-resize border-e border-foreground/20 bg-transparent transition-colors hover:bg-foreground/10'
         />
-        <div className='min-w-0 flex-1 flex flex-col'>{rightPanel}</div>
+        <div className='flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden'>
+          {rightPanel}
+        </div>
       </div>
-      <div className='h-[180px] min-h-[140px] shrink-0 border-t border-border'>
+      <div className='h-[180px] min-h-[140px] shrink-0 border-t border-foreground/20'>
         {bottomPanel}
       </div>
     </div>

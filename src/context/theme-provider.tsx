@@ -3,6 +3,7 @@ import {
   use,
   useCallback,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useState,
 } from 'react'
@@ -63,7 +64,7 @@ export function ThemeProvider({
   const resolvedTheme: ResolvedTheme =
     theme === 'system' ? (systemDark ? 'dark' : 'light') : theme
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const root = window.document.documentElement
     root.classList.remove('light', 'dark')
     root.classList.add(resolvedTheme)

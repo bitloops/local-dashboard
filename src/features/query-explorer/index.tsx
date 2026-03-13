@@ -1,7 +1,8 @@
-import { useState } from 'react'
+import { useCallback, useState } from 'react'
 import { Header } from '@/components/layout/header'
 import { Main } from '@/components/layout/main'
 import { ThemeSwitch } from '@/components/theme-switch'
+import { useTheme } from '@/context/theme-provider'
 import { QueryExplorerLayout } from './components/query-explorer'
 import { QueryEditorPanel } from './components/query-editor-panel'
 import { ResultViewerPanel } from './components/result-viewer-panel'
@@ -13,18 +14,65 @@ const EDITOR_PANEL_MIN = 280
 const EDITOR_PANEL_MAX = 1200
 const EDITOR_PANEL_DEFAULT = 780
 
+export const DEFAULT_QUERY = `# Sample query in GQL syntax
+
+query GetArtefacts($repo: String!, $ref: String!, $path: String!) {
+  repo(name: $repo) {
+    ref(name: $ref) {
+      file(path: $path) {
+        artefacts {
+          symbolFqn
+          canonicalKind
+          semantics {
+            summary
+          }
+        }
+      }
+    }
+  }
+}
+`
+
 export function QueryExplorer() {
-  const [query, setQuery] = useState('')
+  const { resolvedTheme } = useTheme()
+  const [query, setQuery] = useState(DEFAULT_QUERY)
   const [variables, setVariables] = useState('{}')
   const [result, setResult] = useState<ResultViewerState>({ status: 'idle' })
-  // TODO: use setResult when implementing Run query
-  void setResult
-
+  const [variablesHaveErrors, setVariablesHaveErrors] = useState(false)
   const [editorPanelWidth, onResizeStart] = useResizeWidth({
     defaultWidth: EDITOR_PANEL_DEFAULT,
     minWidth: EDITOR_PANEL_MIN,
     maxWidth: EDITOR_PANEL_MAX,
   })
+
+  const handleRunQuery = useCallback(() => {
+    let parsed: unknown
+    try {
+      parsed = JSON.parse(variables)
+    } catch {
+      setResult({
+        status: 'error',
+        error: 'Invalid JSON in variables.',
+      })
+      return
+    }
+    if (
+      typeof parsed !== 'object' ||
+      parsed === null ||
+      Array.isArray(parsed)
+    ) {
+      setResult({
+        status: 'error',
+        error: 'Variables must be a JSON object.',
+      })
+      return
+    }
+    // TODO: call query API and set result from response
+    setResult({
+      status: 'error',
+      error: 'Error running query.',
+    })
+  }, [variables])
 
   return (
     <>
@@ -47,10 +95,23 @@ export function QueryExplorer() {
             className='mt-4'
             editorPanelWidth={editorPanelWidth}
             onResizeStart={onResizeStart}
-            leftPanel={<QueryEditorPanel value={query} onChange={setQuery} />}
-            rightPanel={<ResultViewerPanel result={result} />}
+            leftPanel={
+              <QueryEditorPanel
+                value={query}
+                onChange={setQuery}
+                onRun={handleRunQuery}
+                isRunDisabled={variablesHaveErrors}
+              />
+            }
+            rightPanel={
+              <ResultViewerPanel result={result} theme={resolvedTheme} />
+            }
             bottomPanel={
-              <VariablesPanel value={variables} onChange={setVariables} />
+              <VariablesPanel
+                value={variables}
+                onChange={setVariables}
+                onValidationChange={setVariablesHaveErrors}
+              />
             }
           />
         </div>
