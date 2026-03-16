@@ -1,4 +1,13 @@
+import { useCallback, useEffect, useRef, useState } from 'react'
+import Editor from '@monaco-editor/react'
 import { cn } from '@/lib/utils'
+import { useTheme } from '@/context/theme-provider'
+import {
+  defineDashboardThemes,
+  DASHBOARD_DARK_THEME,
+  DASHBOARD_LIGHT_THEME,
+} from '../lib/monaco-theme'
+import type * as Monaco from 'monaco-editor'
 
 type QueryEditorPanelProps = {
   value: string
@@ -6,27 +15,85 @@ type QueryEditorPanelProps = {
   className?: string
 }
 
+/** Editor is GraphQL-only; no other languages. */
+const EDITOR_LANGUAGE = 'graphql'
+
+const EDITOR_OPTIONS: Monaco.editor.IStandaloneEditorConstructionOptions = {
+  automaticLayout: true,
+  tabSize: 2,
+  insertSpaces: true,
+  wordWrap: 'on',
+  minimap: { enabled: false },
+  fontSize: 14,
+  lineNumbers: 'on',
+  scrollBeyondLastLine: false,
+  padding: { top: 8, bottom: 8 },
+}
+
 export function QueryEditorPanel({
   value,
   onChange,
   className,
 }: QueryEditorPanelProps) {
+  const containerRef = useRef<HTMLDivElement>(null)
+  const [editorHeight, setEditorHeight] = useState(200)
+  const { resolvedTheme } = useTheme()
+  const theme =
+    resolvedTheme === 'dark' ? DASHBOARD_DARK_THEME : DASHBOARD_LIGHT_THEME
+
+  useEffect(() => {
+    const el = containerRef.current
+    if (!el) return
+    const ro = new ResizeObserver((entries) => {
+      const { height } = entries[0]?.contentRect ?? { height: 200 }
+      setEditorHeight(Math.max(120, Math.floor(height)))
+    })
+    ro.observe(el)
+    setEditorHeight(
+      Math.max(120, Math.floor(el.getBoundingClientRect().height)),
+    )
+    return () => ro.disconnect()
+  }, [])
+
+  const handleEditorDidMount = useCallback(
+    (_editor: Monaco.editor.IStandaloneCodeEditor, monaco: typeof Monaco) => {
+      defineDashboardThemes(monaco)
+    },
+    [],
+  )
+
+  const handleBeforeMount = useCallback((monaco: typeof Monaco) => {
+    defineDashboardThemes(monaco)
+  }, [])
+
   return (
     <div
-      className={cn('flex min-h-0 flex-col', className)}
+      className={cn('flex min-h-0 flex-1 flex-col overflow-hidden', className)}
       data-panel='query-editor'
     >
       <div className='border-b border-border px-3 py-2'>
         <h2 className='text-sm font-medium'>Query Editor</h2>
       </div>
-      <div className='flex min-h-0 flex-1 flex-col p-3'>
-        <textarea
-          aria-label='GraphQL query'
-          className='min-h-[120px] w-full flex-1 resize-none border border-input bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2'
-          placeholder='Enter your query...'
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
-        />
+      <div
+        className='flex min-h-0 flex-1 flex-col p-3'
+        aria-label='GraphQL query'
+        data-testid='query-editor'
+      >
+        <div
+          ref={containerRef}
+          className='relative min-h-0 flex-1 overflow-hidden'
+        >
+          <Editor
+            height={editorHeight}
+            language={EDITOR_LANGUAGE}
+            theme={theme}
+            value={value}
+            onChange={(v: string | undefined) => onChange(v ?? '')}
+            options={EDITOR_OPTIONS}
+            beforeMount={handleBeforeMount}
+            onMount={handleEditorDidMount}
+          />
+        </div>
       </div>
     </div>
   )
