@@ -86,11 +86,8 @@ export function QueryExplorer() {
       })
       return
     }
+    setResult({ status: 'loading' })
     // TODO: call query API and set result from response
-    setResult({
-      status: 'error',
-      error: 'Error running query.',
-    })
   }, [query, variables])
 
   return (
@@ -119,7 +116,11 @@ export function QueryExplorer() {
                 value={query}
                 onChange={setQuery}
                 onRun={handleRunQuery}
-                isRunDisabled={variablesHaveErrors || !query.trim()}
+                isRunDisabled={
+                  variablesHaveErrors ||
+                  !query.trim() ||
+                  result.status === 'loading'
+                }
               />
             }
             rightPanel={

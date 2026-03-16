@@ -1,6 +1,8 @@
 import { useFont } from '@/context/font-provider'
+import { AlertCircle, Loader2 } from 'lucide-react'
 import JsonViewer from '@andypf/json-viewer/dist/esm/react/JsonViewer'
 import { getJsonViewerTheme } from '@/styles/json-viewer-theme'
+import { cn } from '@/lib/utils'
 
 export type ResultViewerState =
   | { status: 'idle' }
@@ -17,6 +19,12 @@ type ResultViewerPanelProps = {
 const treeContainerClass =
   'flex min-h-0 flex-1 flex-col overflow-hidden border border-border text-xs text-foreground'
 
+const contentAreaClass =
+  'flex min-h-0 flex-1 flex-col overflow-hidden p-3 rounded-b-md'
+
+const errorContentAreaClass =
+  'bg-destructive/10 flex min-h-0 flex-1 flex-col overflow-hidden p-3'
+
 export function ResultViewerPanel({
   result,
   theme = 'light',
@@ -25,6 +33,9 @@ export function ResultViewerPanel({
   const { font } = useFont()
   const fontClass = `font-${font}`
   const viewerTheme = getJsonViewerTheme(theme)
+  const hasError =
+    result.status === 'error' ||
+    (result.status === 'success' && (result.errors?.length ?? 0) > 0)
 
   return (
     <div
@@ -35,7 +46,11 @@ export function ResultViewerPanel({
         <h2 className='text-sm font-medium'>Results</h2>
       </div>
       <div
-        className={`flex min-h-0 flex-1 flex-col overflow-hidden p-3 ${fontClass}`}
+        className={cn(
+          fontClass,
+          hasError ? errorContentAreaClass : contentAreaClass,
+        )}
+        data-error={hasError ? true : undefined}
       >
         {result.status === 'idle' && (
           <p className='text-sm text-muted-foreground'>
@@ -43,7 +58,12 @@ export function ResultViewerPanel({
           </p>
         )}
         {result.status === 'loading' && (
-          <p className='text-sm text-muted-foreground'>Loading...</p>
+          <div className='flex min-h-0 flex-1 items-center justify-center'>
+            <Loader2
+              className='size-6 shrink-0 animate-spin text-muted-foreground'
+              aria-hidden
+            />
+          </div>
         )}
         {result.status === 'success' && (
           <div
@@ -73,7 +93,10 @@ export function ResultViewerPanel({
           </div>
         )}
         {result.status === 'error' && (
-          <div className={fontClass}>{result.error}</div>
+          <div className='flex items-start gap-2 break-words text-sm text-destructive'>
+            <AlertCircle className='size-4 shrink-0 mt-0.5' aria-hidden />
+            <span>{result.error}</span>
+          </div>
         )}
       </div>
     </div>

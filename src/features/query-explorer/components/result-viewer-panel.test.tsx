@@ -27,9 +27,9 @@ describe('ResultViewerPanel', () => {
     expect(screen.getByText('Run a query to see results.')).toBeInTheDocument()
   })
 
-  it('shows loading message when status is loading', () => {
+  it('shows centered loading spinner when status is loading', () => {
     render(<ResultViewerPanel result={{ status: 'loading' }} />)
-    expect(screen.getByText('Loading...')).toBeInTheDocument()
+    expect(document.querySelector('.animate-spin')).toBeInTheDocument()
   })
 
   it('shows JSON tree when status is success', () => {
@@ -62,12 +62,14 @@ describe('ResultViewerPanel', () => {
     )
   })
 
-  it('shows error message when status is error', () => {
-    render(
+  it('shows error message and error-state content area when status is error', () => {
+    const { container } = render(
       <ResultViewerPanel
         result={{ status: 'error', error: 'Network failed' }}
       />,
     )
     expect(screen.getByText('Network failed')).toBeInTheDocument()
+    const contentArea = container.querySelector('[data-error="true"]')
+    expect(contentArea).toBeInTheDocument()
   })
 })
