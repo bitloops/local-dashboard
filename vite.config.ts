@@ -8,6 +8,9 @@ const apiProxyTarget =
 
 export default defineConfig({
   plugins: [react(), tailwindcss()],
+  worker: {
+    format: 'es',
+  },
   optimizeDeps: {
     include: ['@andypf/json-viewer/dist/esm/react/JsonViewer.js', 'recharts'],
   },

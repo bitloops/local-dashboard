@@ -1,4 +1,5 @@
 import '@/lib/monaco-environment'
+import 'monaco-graphql'
 import { StrictMode } from 'react'
 import ReactDOM from 'react-dom/client'
 import { Toaster } from '@/components/ui/sonner'

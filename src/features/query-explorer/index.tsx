@@ -1,3 +1,4 @@
+import { parse } from 'graphql'
 import { useCallback, useState } from 'react'
 import { Header } from '@/components/layout/header'
 import { Main } from '@/components/layout/main'
@@ -46,6 +47,24 @@ export function QueryExplorer() {
   })
 
   const handleRunQuery = useCallback(() => {
+    if (!query.trim()) {
+      setResult({
+        status: 'error',
+        error: 'Query cannot be empty.',
+      })
+      return
+    }
+    try {
+      parse(query)
+    } catch (err) {
+      const message =
+        err instanceof Error ? err.message : 'Invalid GraphQL syntax.'
+      setResult({
+        status: 'error',
+        error: message,
+      })
+      return
+    }
     let parsed: unknown
     try {
       parsed = JSON.parse(variables)
@@ -72,7 +91,7 @@ export function QueryExplorer() {
       status: 'error',
       error: 'Error running query.',
     })
-  }, [variables])
+  }, [query, variables])
 
   return (
     <>
@@ -100,7 +119,7 @@ export function QueryExplorer() {
                 value={query}
                 onChange={setQuery}
                 onRun={handleRunQuery}
-                isRunDisabled={variablesHaveErrors}
+                isRunDisabled={variablesHaveErrors || !query.trim()}
               />
             }
             rightPanel={
