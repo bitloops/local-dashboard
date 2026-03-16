@@ -35,7 +35,7 @@
 
   /* Editor surfaces: primary (query), secondary (variables) */
   --editor-bg: #ffffff;
-  --editor-bg-secondary: #f8fafc;
+  --editor-bg-secondary: transparent;
 }
 
 .dark {
@@ -65,7 +65,7 @@
 
   /* Editor surfaces: primary (query), secondary (variables) */
   --editor-bg: #0f172a;
-  --editor-bg-secondary: #080d17;
+  --editor-bg-secondary: transparent;
 }
 
 @theme inline {

@@ -27,9 +27,9 @@ vi.mock('@monaco-editor/react', () => ({
 }))
 
 describe('QueryEditorPanel', () => {
-  it('renders Query Editor heading', () => {
+  it('renders Editor heading', () => {
     renderWithTheme(<QueryEditorPanel value='' onChange={() => {}} />)
-    expect(screen.getByText('Query Editor')).toBeInTheDocument()
+    expect(screen.getByText('Editor')).toBeInTheDocument()
   })
 
   it('renders editor with GraphQL query label', () => {

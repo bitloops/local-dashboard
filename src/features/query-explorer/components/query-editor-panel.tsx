@@ -6,7 +6,7 @@ import {
   defineDashboardThemes,
   DASHBOARD_DARK_THEME,
   DASHBOARD_LIGHT_THEME,
-} from '../lib/monaco-theme'
+} from '../../../styles/monaco-theme'
 import type * as Monaco from 'monaco-editor'
 
 type QueryEditorPanelProps = {
@@ -17,7 +17,6 @@ type QueryEditorPanelProps = {
   className?: string
 }
 
-/** Editor is GraphQL-only*/
 const EDITOR_LANGUAGE = 'graphql'
 
 const EDITOR_OPTIONS: Monaco.editor.IStandaloneEditorConstructionOptions = {
@@ -59,13 +58,6 @@ export function QueryEditorPanel({
     return () => ro.disconnect()
   }, [])
 
-  const handleEditorDidMount = useCallback(
-    (_editor: Monaco.editor.IStandaloneCodeEditor, monaco: typeof Monaco) => {
-      defineDashboardThemes(monaco)
-    },
-    [],
-  )
-
   const handleBeforeMount = useCallback((monaco: typeof Monaco) => {
     defineDashboardThemes(monaco)
   }, [])
@@ -76,7 +68,7 @@ export function QueryEditorPanel({
       data-panel='query-editor'
     >
       <div className='flex h-12 items-center justify-between border-b border-border px-3 py-2'>
-        <h2 className='text-sm font-medium'>Query Editor</h2>
+        <h2 className='text-sm font-medium'>Editor</h2>
         {onRun && (
           <button
             type='button'
@@ -90,13 +82,13 @@ export function QueryEditorPanel({
         )}
       </div>
       <div
-        className='flex min-h-0 flex-1 flex-col p-3'
+        className='flex min-h-0 flex-1 flex-col overflow-hidden bg-[var(--editor-bg)] p-3'
         aria-label='GraphQL query'
         data-testid='query-editor'
       >
         <div
           ref={containerRef}
-          className='relative min-h-0 flex-1 overflow-hidden bg-[var(--editor-bg)]'
+          className='relative min-h-0 flex-1 overflow-hidden'
         >
           <Editor
             height={editorHeight}
@@ -106,7 +98,6 @@ export function QueryEditorPanel({
             onChange={(v: string | undefined) => onChange(v ?? '')}
             options={EDITOR_OPTIONS}
             beforeMount={handleBeforeMount}
-            onMount={handleEditorDidMount}
           />
         </div>
       </div>

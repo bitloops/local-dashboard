@@ -2,6 +2,7 @@ import { useCallback, useState } from 'react'
 import { Header } from '@/components/layout/header'
 import { Main } from '@/components/layout/main'
 import { ThemeSwitch } from '@/components/theme-switch'
+import { useTheme } from '@/context/theme-provider'
 import { QueryExplorerLayout } from './components/query-explorer'
 import { QueryEditorPanel } from './components/query-editor-panel'
 import { ResultViewerPanel } from './components/result-viewer-panel'
@@ -33,6 +34,7 @@ query GetArtefacts($repo: String!, $ref: String!, $path: String!) {
 `
 
 export function QueryExplorer() {
+  const { resolvedTheme } = useTheme()
   const [query, setQuery] = useState(DEFAULT_QUERY)
   const [variables, setVariables] = useState('{}')
   const [result, setResult] = useState<ResultViewerState>({ status: 'idle' })
@@ -65,11 +67,10 @@ export function QueryExplorer() {
       })
       return
     }
-    setResult({ status: 'loading' })
-    // TODO: fetch(GRAPHQL_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ query, variables: parsed }) })
+    // TODO: call query API and set result from response
     setResult({
-      status: 'success',
-      data: { message: 'Query execution not implemented.' },
+      status: 'error',
+      error: 'Error running query.',
     })
   }, [variables])
 
@@ -102,7 +103,9 @@ export function QueryExplorer() {
                 isRunDisabled={variablesHaveErrors}
               />
             }
-            rightPanel={<ResultViewerPanel result={result} />}
+            rightPanel={
+              <ResultViewerPanel result={result} theme={resolvedTheme} />
+            }
             bottomPanel={
               <VariablesPanel
                 value={variables}
