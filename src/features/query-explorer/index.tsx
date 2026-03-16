@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useCallback, useState } from 'react'
 import { Header } from '@/components/layout/header'
 import { Main } from '@/components/layout/main'
 import { ThemeSwitch } from '@/components/theme-switch'
@@ -36,14 +36,42 @@ export function QueryExplorer() {
   const [query, setQuery] = useState(DEFAULT_QUERY)
   const [variables, setVariables] = useState('{}')
   const [result, setResult] = useState<ResultViewerState>({ status: 'idle' })
-  // TODO: use setResult when implementing Run query
-  void setResult
-
+  const [variablesHaveErrors, setVariablesHaveErrors] = useState(false)
   const [editorPanelWidth, onResizeStart] = useResizeWidth({
     defaultWidth: EDITOR_PANEL_DEFAULT,
     minWidth: EDITOR_PANEL_MIN,
     maxWidth: EDITOR_PANEL_MAX,
   })
+
+  const handleRunQuery = useCallback(() => {
+    let parsed: unknown
+    try {
+      parsed = JSON.parse(variables)
+    } catch {
+      setResult({
+        status: 'error',
+        error: 'Invalid JSON in variables.',
+      })
+      return
+    }
+    if (
+      typeof parsed !== 'object' ||
+      parsed === null ||
+      Array.isArray(parsed)
+    ) {
+      setResult({
+        status: 'error',
+        error: 'Variables must be a JSON object.',
+      })
+      return
+    }
+    setResult({ status: 'loading' })
+    // TODO: fetch(GRAPHQL_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ query, variables: parsed }) })
+    setResult({
+      status: 'success',
+      data: { message: 'Query execution not implemented.' },
+    })
+  }, [variables])
 
   return (
     <>
@@ -66,10 +94,21 @@ export function QueryExplorer() {
             className='mt-4'
             editorPanelWidth={editorPanelWidth}
             onResizeStart={onResizeStart}
-            leftPanel={<QueryEditorPanel value={query} onChange={setQuery} />}
+            leftPanel={
+              <QueryEditorPanel
+                value={query}
+                onChange={setQuery}
+                onRun={handleRunQuery}
+                isRunDisabled={variablesHaveErrors}
+              />
+            }
             rightPanel={<ResultViewerPanel result={result} />}
             bottomPanel={
-              <VariablesPanel value={variables} onChange={setVariables} />
+              <VariablesPanel
+                value={variables}
+                onChange={setVariables}
+                onValidationChange={setVariablesHaveErrors}
+              />
             }
           />
         </div>

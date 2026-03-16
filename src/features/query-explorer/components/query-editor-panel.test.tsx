@@ -58,4 +58,34 @@ describe('QueryEditorPanel', () => {
     fireEvent.change(input, { target: { value: 'query { name }' } })
     expect(onChange).toHaveBeenCalled()
   })
+
+  it('shows Run button when onRun is provided', () => {
+    renderWithTheme(
+      <QueryEditorPanel value='' onChange={() => {}} onRun={() => {}} />,
+    )
+    expect(
+      screen.getByRole('button', { name: 'Run query' }),
+    ).toBeInTheDocument()
+  })
+
+  it('disables Run button when isRunDisabled is true', () => {
+    renderWithTheme(
+      <QueryEditorPanel
+        value=''
+        onChange={() => {}}
+        onRun={() => {}}
+        isRunDisabled
+      />,
+    )
+    expect(screen.getByRole('button', { name: 'Run query' })).toBeDisabled()
+  })
+
+  it('calls onRun when Run button is clicked', () => {
+    const onRun = vi.fn()
+    renderWithTheme(
+      <QueryEditorPanel value='' onChange={() => {}} onRun={onRun} />,
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'Run query' }))
+    expect(onRun).toHaveBeenCalledTimes(1)
+  })
 })
