@@ -1,3 +1,4 @@
+import { ApiError } from '@/api/types/schema'
 import { parse } from 'graphql'
 import { useCallback, useState } from 'react'
 import { Header } from '@/components/layout/header'
@@ -10,6 +11,7 @@ import { ResultViewerPanel } from './components/result-viewer-panel'
 import type { ResultViewerState } from './components/result-viewer-panel'
 import { VariablesPanel } from './components/variables-panel'
 import { useResizeWidth } from './hooks/use-resize-width'
+import { executeQuery } from './query-client'
 
 const EDITOR_PANEL_MIN = 280
 const EDITOR_PANEL_MAX = 1200
@@ -65,9 +67,9 @@ export function QueryExplorer() {
       })
       return
     }
-    let parsed: unknown
+    let parsed: Record<string, unknown>
     try {
-      parsed = JSON.parse(variables)
+      parsed = JSON.parse(variables) as Record<string, unknown>
     } catch {
       setResult({
         status: 'error',
@@ -86,8 +88,36 @@ export function QueryExplorer() {
       })
       return
     }
+
     setResult({ status: 'loading' })
-    // TODO: call query API and set result from response
+    executeQuery(query, parsed)
+      .then((body) => {
+        const errors = body.errors ?? []
+        if (body.data == null && errors.length > 0) {
+          setResult({
+            status: 'error',
+            error: errors[0].message ?? 'Query failed.',
+          })
+          return
+        }
+        setResult({
+          status: 'success',
+          data: body.data ?? null,
+          errors: errors.length > 0 ? errors.map((e) => e.message) : undefined,
+        })
+      })
+      .catch((err) => {
+        if (err instanceof ApiError) {
+          const firstMessage =
+            err.body?.errors?.[0]?.message ?? err.message ?? err.statusText
+          setResult({ status: 'error', error: firstMessage })
+          return
+        }
+        setResult({
+          status: 'error',
+          error: err instanceof Error ? err.message : 'Request failed.',
+        })
+      })
   }, [query, variables])
 
   return (
