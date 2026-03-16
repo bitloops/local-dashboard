@@ -1,9 +1,15 @@
 import { describe, expect, it, vi } from 'vitest'
 import { executeQuery, type QueryApiResponse } from './query-client'
 
-const mockRequest = vi.fn<
-  (params: { method: string; url: string; body: unknown; mediaType: string }) => Promise<QueryApiResponse>
->()
+const mockRequest =
+  vi.fn<
+    (params: {
+      method: string
+      url: string
+      body: unknown
+      mediaType: string
+    }) => Promise<QueryApiResponse>
+  >()
 
 vi.mock('@/api/types/schema', () => ({
   BitloopsCli: vi.fn().mockImplementation(() => ({
@@ -41,7 +47,10 @@ describe('query-client', () => {
       }
       mockRequest.mockResolvedValue(response)
 
-      const result = await executeQuery('query GetArtefacts { repo { ref { file { artefacts { symbolFqn } } } } }', {})
+      const result = await executeQuery(
+        'query GetArtefacts { repo { ref { file { artefacts { symbolFqn } } } } }',
+        {},
+      )
 
       expect(result).toEqual(response)
       expect(result.data).toEqual(response.data)
@@ -65,7 +74,9 @@ describe('query-client', () => {
       const error = new Error('Network error')
       mockRequest.mockRejectedValue(error)
 
-      await expect(executeQuery('query { }', {})).rejects.toThrow('Network error')
+      await expect(executeQuery('query { }', {})).rejects.toThrow(
+        'Network error',
+      )
     })
   })
 })
