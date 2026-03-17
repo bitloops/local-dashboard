@@ -164,7 +164,7 @@ function CheckpointDetailContentInner({
                       : 'text-muted-foreground hover:text-foreground',
                   )}
                 >
-                  Details 
+                  Details
                 </button>
               </div>
 

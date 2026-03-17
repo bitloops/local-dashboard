@@ -4,10 +4,7 @@ import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { SidebarProvider } from '@/components/ui/sidebar'
 import { DashboardView } from '@/features/dashboard/dashboard-view'
-import {
-  type Checkpoint,
-  type CommitData,
-} from '@/features/dashboard/types'
+import { type Checkpoint, type CommitData } from '@/features/dashboard/types'
 import type { ApiCheckpointDetailResponse } from '@/api/types/schema'
 
 const commitData: CommitData[] = [
@@ -117,7 +114,6 @@ const commitData: CommitData[] = [
     ],
   },
 ]
-
 
 function renderDashboard(ui: React.ReactElement): ReturnType<typeof render> {
   return render(<SidebarProvider>{ui}</SidebarProvider>)

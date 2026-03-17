@@ -119,8 +119,7 @@ export function createQueryExplorerSlice(
         .then((data) => set({ schema: data, schemaLoading: false }))
         .catch((err: unknown) =>
           set({
-            schemaError:
-              err instanceof Error ? err.message : String(err),
+            schemaError: err instanceof Error ? err.message : String(err),
             schemaLoading: false,
           }),
         )
