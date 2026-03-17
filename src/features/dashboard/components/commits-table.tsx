@@ -26,7 +26,7 @@ import {
 } from '@/components/ui/table'
 import { DataTablePagination, DataTableToolbar } from '@/components/data-table'
 import { type CommitRow, commitColumns as columns } from './commits-columns'
-import { type Checkpoint } from '../data/mock-commit-data'
+import { type Checkpoint } from '../types'
 
 const agentOptions = [
   { label: 'Claude Code', value: 'claude-code' },

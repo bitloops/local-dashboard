@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { render } from '@testing-library/react'
 import { CommitCheckpointChart } from './session-activity-chart'
-import type { CommitData } from '../data/mock-commit-data'
+import type { CommitData } from '../types'
 
 function makeCommitData(overrides: Partial<CommitData> = {}): CommitData {
   return {

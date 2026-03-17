@@ -3,7 +3,7 @@ import type {
   ApiCommitRowDto,
   ApiUserDto,
 } from '@/api/types/schema'
-import type { CommitData } from './data/mock-commit-data'
+import type { CommitData } from './types'
 import type { UserOption } from './dashboard-view'
 
 export const startOfDayIso = (date: Date): string => {

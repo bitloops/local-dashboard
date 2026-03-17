@@ -2,7 +2,7 @@ import { type ColumnDef } from '@tanstack/react-table'
 import { Badge } from '@/components/ui/badge'
 import { DataTableColumnHeader } from '@/components/data-table'
 import { MessageSquare, ChevronRight, Circle } from 'lucide-react'
-import { type Checkpoint } from '../data/mock-commit-data'
+import { type Checkpoint } from '../types'
 import { AgentIcon } from './agent-icon'
 
 export type CommitRow = {

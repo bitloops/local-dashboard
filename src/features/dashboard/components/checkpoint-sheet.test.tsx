@@ -8,7 +8,7 @@ import {
   stripUserQueryTags,
 } from './checkpoint-sheet-utils'
 import { CheckpointSheet } from './checkpoint-sheet'
-import type { Checkpoint } from '../data/mock-commit-data'
+import type { Checkpoint } from '../types'
 
 describe('formatDateTime', () => {
   it('formats valid ISO string to locale string', () => {

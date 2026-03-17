@@ -4,12 +4,116 @@ import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { SidebarProvider } from '@/components/ui/sidebar'
 import { DashboardView } from '@/features/dashboard/dashboard-view'
-import {
-  commitData,
-  type Checkpoint,
-  type CommitData,
-} from '@/features/dashboard/data/mock-commit-data'
+import { type Checkpoint, type CommitData } from '@/features/dashboard/types'
 import type { ApiCheckpointDetailResponse } from '@/api/types/schema'
+
+const commitData: CommitData[] = [
+  {
+    date: 'Feb 14',
+    commit: 'a3f1c2d',
+    checkpoints: 4,
+    message: 'feat: add dashboard layout scaffold',
+    agent: 'claude-code',
+    checkpointList: [
+      {
+        id: 'cp-01',
+        prompt: 'Create the basic layout with sidebar and header',
+        firstPromptPreview: 'Create the basic layout with sidebar and header',
+        timestamp: '10:12 AM',
+      },
+      {
+        id: 'cp-02',
+        prompt: 'Add responsive breakpoints for mobile',
+        firstPromptPreview: 'Add responsive breakpoints for mobile',
+        timestamp: '10:28 AM',
+      },
+      {
+        id: 'cp-03',
+        prompt: 'Wire up the theme provider',
+        firstPromptPreview: 'Wire up the theme provider',
+        timestamp: '10:45 AM',
+      },
+      {
+        id: 'cp-04',
+        prompt: 'Fix sidebar collapse animation',
+        firstPromptPreview: 'Fix sidebar collapse animation',
+        timestamp: '11:03 AM',
+      },
+    ],
+  },
+  {
+    date: 'Feb 15',
+    commit: 'b7e9a01',
+    checkpoints: 7,
+    message: 'fix: resolve auth token refresh loop',
+    agent: 'claude-code',
+    checkpointList: [
+      {
+        id: 'cp-05',
+        prompt: 'Investigate the infinite refresh issue',
+        firstPromptPreview: 'Investigate the infinite refresh issue',
+        timestamp: '09:15 AM',
+      },
+      {
+        id: 'cp-06',
+        prompt: 'Add token expiry check before refresh',
+        firstPromptPreview: 'Add token expiry check before refresh',
+        timestamp: '09:32 AM',
+      },
+      {
+        id: 'cp-07',
+        prompt: 'Handle 401 responses in query cache',
+        firstPromptPreview: 'Handle 401 responses in query cache',
+        timestamp: '09:48 AM',
+      },
+      {
+        id: 'cp-08',
+        prompt: 'Add retry backoff for failed refreshes',
+        firstPromptPreview: 'Add retry backoff for failed refreshes',
+        timestamp: '10:05 AM',
+      },
+      {
+        id: 'cp-09',
+        prompt: 'Write unit test for token refresh',
+        firstPromptPreview: 'Write unit test for token refresh',
+        timestamp: '10:22 AM',
+      },
+      {
+        id: 'cp-10',
+        prompt: 'Fix race condition in concurrent requests',
+        firstPromptPreview: 'Fix race condition in concurrent requests',
+        timestamp: '10:40 AM',
+      },
+      {
+        id: 'cp-11',
+        prompt: 'Clean up error handling',
+        firstPromptPreview: 'Clean up error handling',
+        timestamp: '10:55 AM',
+      },
+    ],
+  },
+  {
+    date: 'Feb 16',
+    commit: 'c4d2f88',
+    checkpoints: 2,
+    message: 'chore: update dependencies to latest',
+    agent: 'gemini-cli',
+    checkpointList: [
+      {
+        id: 'cp-12',
+        prompt: 'Update all packages to latest versions',
+        firstPromptPreview: 'Update all packages to latest versions',
+        timestamp: '02:10 PM',
+      },
+      {
+        id: 'cp-13',
+        prompt: 'Fix breaking changes from React 19 update',
+        firstPromptPreview: 'Fix breaking changes from React 19 update',
+        timestamp: '02:35 PM',
+      },
+    ],
+  },
+]
 
 function renderDashboard(ui: React.ReactElement): ReturnType<typeof render> {
   return render(<SidebarProvider>{ui}</SidebarProvider>)
