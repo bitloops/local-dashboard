@@ -14,6 +14,8 @@ type QueryEditorPanelProps = {
   onChange: (value: string) => void
   onRun?: () => void
   isRunDisabled?: boolean
+  /** When true, only render the editor body (no header with title and Run). */
+  hideHeader?: boolean
   className?: string
 }
 
@@ -36,6 +38,7 @@ export function QueryEditorPanel({
   onChange,
   onRun,
   isRunDisabled = false,
+  hideHeader = false,
   className,
 }: QueryEditorPanelProps) {
   const containerRef = useRef<HTMLDivElement>(null)
@@ -67,20 +70,22 @@ export function QueryEditorPanel({
       className={cn('flex min-h-0 flex-1 flex-col overflow-hidden', className)}
       data-panel='query-editor'
     >
-      <div className='flex h-12 items-center justify-between border-b border-border px-3 py-2'>
-        <h2 className='text-sm font-medium'>Editor</h2>
-        {onRun && (
-          <button
-            type='button'
-            onClick={onRun}
-            disabled={isRunDisabled}
-            className='rounded bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:pointer-events-none disabled:opacity-50'
-            aria-label='Run query'
-          >
-            Run
-          </button>
-        )}
-      </div>
+      {!hideHeader && (
+        <div className='flex h-12 items-center justify-between border-b border-border px-3 py-2'>
+          <h2 className='text-sm font-medium'>Editor</h2>
+          {onRun && (
+            <button
+              type='button'
+              onClick={onRun}
+              disabled={isRunDisabled}
+              className='rounded bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:pointer-events-none disabled:opacity-50'
+              aria-label='Run query'
+            >
+              Run
+            </button>
+          )}
+        </div>
+      )}
       <div
         className='flex min-h-0 flex-1 flex-col overflow-hidden bg-[var(--editor-bg)] p-3'
         aria-label='GraphQL query'

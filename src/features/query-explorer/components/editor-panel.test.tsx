@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import { fireEvent, render, screen } from '@testing-library/react'
 import { ThemeProvider } from '@/context/theme-provider'
-import { QueryEditorPanel } from './query-editor-panel'
+import { QueryEditorPanel } from './editor-panel'
 
 function renderWithTheme(ui: React.ReactElement) {
   return render(<ThemeProvider>{ui}</ThemeProvider>)

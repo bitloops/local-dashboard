@@ -67,7 +67,11 @@ export type QueryExplorerActions = {
 export type QueryExplorerSlice = QueryExplorerState & QueryExplorerActions
 
 type GetState = () => unknown
-type SetState = (partial: Partial<QueryExplorerState> | ((state: unknown) => Partial<QueryExplorerState>)) => void
+type SetState = (
+  partial:
+    | Partial<QueryExplorerState>
+    | ((state: unknown) => Partial<QueryExplorerState>),
+) => void
 
 export function createQueryExplorerSlice(
   set: SetState,
