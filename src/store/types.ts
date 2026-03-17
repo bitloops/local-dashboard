@@ -5,9 +5,3 @@ export type HistoryEntry = {
   variables: string
   runAt: number
 }
-
-/** Placeholder for schema introspection / metadata cache. */
-export type SchemaMetadataCache = {
-  fetchedAt: number
-  data?: unknown
-}

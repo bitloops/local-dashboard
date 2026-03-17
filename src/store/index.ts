@@ -6,7 +6,7 @@ import {
 import { createQueryExplorerSlice } from './slices/query-explorer'
 import type { QueryExplorerSlice } from './slices/query-explorer'
 
-export type { HistoryEntry, SchemaMetadataCache } from './types'
+export type { HistoryEntry } from './types'
 export type {
   QueryExplorerState,
   QueryExplorerActions,

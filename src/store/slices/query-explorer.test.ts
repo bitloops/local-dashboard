@@ -46,6 +46,47 @@ describe('query-explorer slice', () => {
     it('has empty runHistory when localStorage is empty', () => {
       expect(store.getState().runHistory).toEqual([])
     })
+
+    it('has empty runHistory when localStorage has invalid JSON', () => {
+      localStorageData[RUN_HISTORY_KEY] = 'not json'
+      const storeWithBadJson = createTestStore()
+      expect(storeWithBadJson.getState().runHistory).toEqual([])
+    })
+
+    it('has empty runHistory when localStorage value is not an array', () => {
+      localStorageData[RUN_HISTORY_KEY] = '{"id":"x","query":"q"}'
+      const storeWithObject = createTestStore()
+      expect(storeWithObject.getState().runHistory).toEqual([])
+    })
+
+    it('loads only valid HistoryEntry entries from localStorage', () => {
+      const validEntry = {
+        id: 'id-1',
+        query: 'query { x }',
+        variables: '{}',
+        runAt: 1000,
+      }
+      localStorageData[RUN_HISTORY_KEY] = JSON.stringify([
+        validEntry,
+        { id: 123, query: 'q', variables: '{}', runAt: 1 },
+        { id: 'id-2', query: null, variables: '{}', runAt: 2 },
+        { id: 'id-3', query: 'q', variables: '{}' },
+      ])
+      const storeWithMixed = createTestStore()
+      const history = storeWithMixed.getState().runHistory
+      expect(history).toHaveLength(1)
+      expect(history[0]).toEqual(validEntry)
+    })
+
+    it('has empty runHistory when localStorage array has no valid entries', () => {
+      localStorageData[RUN_HISTORY_KEY] = JSON.stringify([
+        { id: 1 },
+        { query: 'q' },
+        null,
+      ])
+      const storeWithInvalidOnly = createTestStore()
+      expect(storeWithInvalidOnly.getState().runHistory).toEqual([])
+    })
   })
 
   describe('setQuery / setVariables', () => {
