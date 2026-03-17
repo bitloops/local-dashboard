@@ -3,7 +3,7 @@ import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { CommitTable } from './commits-table'
 import type { CommitRow } from './commits-columns'
-import type { Checkpoint } from '../data/mock-commit-data'
+import type { Checkpoint } from '../types'
 
 function makeCommitRow(overrides: Partial<CommitRow> = {}): CommitRow {
   const checkpoint: Checkpoint = {

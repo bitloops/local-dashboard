@@ -12,7 +12,7 @@ import {
   type CheckpointDetailLoadState,
   type UserOption,
 } from './dashboard-view'
-import { type Checkpoint, type CommitData } from './data/mock-commit-data'
+import { type Checkpoint, type CommitData } from './types'
 import {
   endOfDayUnixSeconds,
   mapAgentOptions,

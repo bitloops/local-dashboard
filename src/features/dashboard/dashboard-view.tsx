@@ -24,7 +24,7 @@ import { Sidebar, SidebarRail } from '@/components/ui/sidebar'
 import { useSidebar } from '@/components/ui/use-sidebar'
 import { CheckpointDetailContent } from './components/checkpoint-sheet'
 import { CommitTable } from './components/commits-table'
-import { type Checkpoint, type CommitData } from './data/mock-commit-data'
+import { type Checkpoint, type CommitData } from './types'
 import { formatAgentLabel } from './utils'
 
 const CommitCheckpointChart = lazy(() =>
