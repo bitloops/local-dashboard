@@ -1,8 +1,21 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest'
 import { createStore, type StoreApi } from 'zustand'
+import { getQuerySchema } from '@/features/query-explorer/query-client'
 import { createQueryExplorerSlice } from './query-explorer'
 
+vi.mock('@/features/query-explorer/query-client', () => ({
+  getQuerySchema: vi.fn(),
+}))
+
 const RUN_HISTORY_KEY = 'query-explorer-history'
+
+const mockSchema = {
+  Query: {
+    fields: {
+      repo: { type: 'Repo', args: { name: 'String!' } },
+    },
+  },
+} as const
 
 function createTestStore() {
   return createStore<ReturnType<typeof createQueryExplorerSlice>>()(
@@ -45,6 +58,13 @@ describe('query-explorer slice', () => {
 
     it('has empty runHistory when localStorage is empty', () => {
       expect(store.getState().runHistory).toEqual([])
+    })
+
+    it('has null schema, schemaLoading false, schemaError null', () => {
+      const state = store.getState()
+      expect(state.schema).toBeNull()
+      expect(state.schemaLoading).toBe(false)
+      expect(state.schemaError).toBeNull()
     })
 
     it('has empty runHistory when localStorage has invalid JSON', () => {
@@ -178,6 +198,63 @@ describe('query-explorer slice', () => {
       store.getState().clearRunHistory()
       expect(store.getState().runHistory).toEqual([])
       expect(localStorageData[RUN_HISTORY_KEY]).toBe('[]')
+    })
+  })
+
+  describe('loadSchema', () => {
+    beforeEach(() => {
+      vi.mocked(getQuerySchema).mockClear()
+    })
+
+    it('sets schema and sets schemaLoading false on success', async () => {
+      vi.mocked(getQuerySchema).mockResolvedValue(mockSchema)
+      store.getState().loadSchema()
+      expect(store.getState().schemaLoading).toBe(true)
+      await vi.mocked(getQuerySchema).mock.results[0]?.value
+      expect(store.getState().schema).toEqual(mockSchema)
+      expect(store.getState().schemaLoading).toBe(false)
+      expect(store.getState().schemaError).toBeNull()
+    })
+
+    it('sets schemaError and sets schemaLoading false on failure', async () => {
+      vi.mocked(getQuerySchema).mockRejectedValue(new Error('Network error'))
+      store.getState().loadSchema()
+      await vi.mocked(getQuerySchema).mock.results[0]?.value?.catch(() => {})
+      expect(store.getState().schemaError).toBe('Network error')
+      expect(store.getState().schemaLoading).toBe(false)
+      expect(store.getState().schema).toBeNull()
+    })
+
+    it('does not fetch when schema is already set', async () => {
+      vi.mocked(getQuerySchema).mockResolvedValue(mockSchema)
+      store.getState().loadSchema()
+      await vi.mocked(getQuerySchema).mock.results[0]?.value
+      expect(getQuerySchema).toHaveBeenCalledTimes(1)
+      store.getState().loadSchema()
+      expect(getQuerySchema).toHaveBeenCalledTimes(1)
+    })
+
+    it('does not fetch when schemaError is set (no retry storm)', async () => {
+      vi.mocked(getQuerySchema).mockRejectedValue(new Error('fail'))
+      store.getState().loadSchema()
+      await vi.mocked(getQuerySchema).mock.results[0]?.value?.catch(() => {})
+      expect(getQuerySchema).toHaveBeenCalledTimes(1)
+      store.getState().loadSchema()
+      expect(getQuerySchema).toHaveBeenCalledTimes(1)
+    })
+
+    it('does not fetch when schemaLoading is true', async () => {
+      let resolvePromise!: (v: typeof mockSchema) => void
+      vi.mocked(getQuerySchema).mockReturnValue(
+        new Promise<typeof mockSchema>((resolve) => {
+          resolvePromise = resolve
+        }),
+      )
+      store.getState().loadSchema()
+      store.getState().loadSchema()
+      expect(getQuerySchema).toHaveBeenCalledTimes(1)
+      resolvePromise(mockSchema)
+      await vi.mocked(getQuerySchema).mock.results[0]?.value
     })
   })
 })

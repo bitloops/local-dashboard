@@ -6,7 +6,7 @@ import {
 import { createQueryExplorerSlice } from './slices/query-explorer'
 import type { QueryExplorerSlice } from './slices/query-explorer'
 
-export type { HistoryEntry } from './types'
+export type { DevQLSchema, HistoryEntry } from './types'
 export type {
   QueryExplorerState,
   QueryExplorerActions,
@@ -15,12 +15,14 @@ export type {
 export type RootState = QueryExplorerSlice
 
 export function createRootStore() {
-  return createStore<RootState>()(
+  const store = createStore<RootState>()(
     (
       set: StoreApi<RootState>['setState'],
       get: StoreApi<RootState>['getState'],
     ) => createQueryExplorerSlice(set, get),
   )
+  store.getState().loadSchema()
+  return store
 }
 
 const rootStore = createRootStore()

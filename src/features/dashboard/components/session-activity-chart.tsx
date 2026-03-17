@@ -7,7 +7,7 @@ import {
   XAxis,
   YAxis,
 } from 'recharts'
-import { type CommitData } from '../data/mock-commit-data'
+import { type CommitData } from '../types'
 
 type CommitCheckpointChartProps = {
   data: CommitData[]

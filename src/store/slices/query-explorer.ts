@@ -1,6 +1,7 @@
+import { getQuerySchema } from '@/features/query-explorer/query-client'
 import type { StoreApi } from 'zustand'
 import type { ResultViewerState } from '@/features/query-explorer/components/result-viewer-panel'
-import type { HistoryEntry } from '@/store/types'
+import type { DevQLSchema, HistoryEntry } from '@/store/types'
 
 const RUN_HISTORY_KEY = 'query-explorer-history'
 const RUN_HISTORY_MAX = 50
@@ -62,6 +63,10 @@ export type QueryExplorerState = {
   variables: string
   result: ResultViewerState
   variablesHaveErrors: boolean
+  /** RFC schema for autocomplete; fetched once per session. */
+  schema: DevQLSchema | null
+  schemaLoading: boolean
+  schemaError: string | null
   runHistory: HistoryEntry[]
 }
 
@@ -70,6 +75,7 @@ export type QueryExplorerActions = {
   setVariables: (variables: string) => void
   setVariablesHaveErrors: (value: boolean) => void
   setResult: (result: ResultViewerState) => void
+  loadSchema: () => void
   addRunToHistory: (query: string, variables: string) => void
   loadHistoryEntry: (id: string) => void
   removeHistoryEntry: (id: string) => void
@@ -90,12 +96,35 @@ export function createQueryExplorerSlice(
     variables: '{}',
     result: { status: 'idle' },
     variablesHaveErrors: false,
+    schema: null,
+    schemaLoading: false,
+    schemaError: null,
     runHistory: getInitialRunHistory(),
 
     setQuery: (query) => set({ query }),
     setVariables: (variables) => set({ variables }),
     setVariablesHaveErrors: (value) => set({ variablesHaveErrors: value }),
     setResult: (result) => set({ result }),
+
+    loadSchema: () => {
+      const state = getState()
+      if (
+        state.schema !== null ||
+        state.schemaLoading ||
+        state.schemaError !== null
+      )
+        return
+      set({ schemaLoading: true, schemaError: null })
+      getQuerySchema()
+        .then((data) => set({ schema: data, schemaLoading: false }))
+        .catch((err: unknown) =>
+          set({
+            schemaError:
+              err instanceof Error ? err.message : String(err),
+            schemaLoading: false,
+          }),
+        )
+    },
 
     addRunToHistory: (query, variables) => {
       const state = get()
