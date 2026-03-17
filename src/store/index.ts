@@ -21,11 +21,19 @@ export function createRootStore() {
       get: StoreApi<RootState>['getState'],
     ) => createQueryExplorerSlice(set, get),
   )
-  store.getState().loadSchema()
   return store
 }
 
 const rootStore = createRootStore()
+
+/**
+ * Ensure the schema is loaded. Safe to call repeatedly; the slice will only
+ * fetch once (guarded by schema / schemaLoading / schemaError).
+ * Call from code paths that need the schema (e.g. Query Explorer).
+ */
+export function ensureSchemaLoaded(): void {
+  rootStore.getState().loadSchema()
+}
 
 /**
  * Use the root store. Prefer selectors to limit re-renders.

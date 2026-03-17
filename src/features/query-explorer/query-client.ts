@@ -13,14 +13,14 @@ const getClient = (): BitloopsCli =>
   })
 
 /**
- * Fetches schema metadata from GET /query/schema for autocomplete.
+ * Fetches schema metadata from GET /query-schema for autocomplete.
  * Uses the same CLI instance as executeQuery. Replaced by codegen when backend is ready.
  */
 export function getQuerySchema(): Promise<DevQLSchema> {
   const cli = getClient()
   return cli.request.request<DevQLSchema>({
     method: 'GET',
-    url: '/query/schema',
+    url: '/api/query-schema',
   })
 }
 

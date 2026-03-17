@@ -107,7 +107,7 @@ export function createQueryExplorerSlice(
     setResult: (result) => set({ result }),
 
     loadSchema: () => {
-      const state = getState()
+      const state = get()
       if (
         state.schema !== null ||
         state.schemaLoading ||

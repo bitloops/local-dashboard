@@ -1,4 +1,5 @@
-import { useStore } from '@/store'
+import { ensureSchemaLoaded, useStore } from '@/store'
+import { useEffect } from 'react'
 import { Header } from '@/components/layout/header'
 import { Main } from '@/components/layout/main'
 import { ThemeSwitch } from '@/components/theme-switch'
@@ -33,6 +34,10 @@ query GetArtefacts($repo: String!, $ref: String!, $path: String!) {
 `
 
 export function QueryExplorer() {
+  useEffect(() => {
+    ensureSchemaLoaded()
+  }, [])
+
   const { resolvedTheme } = useTheme()
   const variables = useStore((s) => s.variables)
   const setVariables = useStore((s) => s.setVariables)
