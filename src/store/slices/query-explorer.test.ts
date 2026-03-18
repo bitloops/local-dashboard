@@ -1,7 +1,7 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest'
 import { createStore, type StoreApi } from 'zustand'
 import { getQuerySchema } from '@/features/query-explorer/query-client'
-import { createQueryExplorerSlice } from './query-explorer'
+import { createQueryExplorerSlice, MOCK_SCHEMA } from './query-explorer'
 
 vi.mock('@/features/query-explorer/query-client', () => ({
   getQuerySchema: vi.fn(),
@@ -216,13 +216,13 @@ describe('query-explorer slice', () => {
       expect(store.getState().schemaError).toBeNull()
     })
 
-    it('sets schemaError and sets schemaLoading false on failure', async () => {
+    it('uses mock schema fallback and sets schemaLoading false on failure', async () => {
       vi.mocked(getQuerySchema).mockRejectedValue(new Error('Network error'))
       store.getState().loadSchema()
       await vi.mocked(getQuerySchema).mock.results[0]?.value?.catch(() => {})
-      expect(store.getState().schemaError).toBe('Network error')
+      expect(store.getState().schema).toEqual(MOCK_SCHEMA)
       expect(store.getState().schemaLoading).toBe(false)
-      expect(store.getState().schema).toBeNull()
+      expect(store.getState().schemaError).toBeNull()
     })
 
     it('does not fetch when schema is already set', async () => {
@@ -234,7 +234,7 @@ describe('query-explorer slice', () => {
       expect(getQuerySchema).toHaveBeenCalledTimes(1)
     })
 
-    it('does not fetch when schemaError is set (no retry storm)', async () => {
+    it('does not refetch after fallback (no retry storm)', async () => {
       vi.mocked(getQuerySchema).mockRejectedValue(new Error('fail'))
       store.getState().loadSchema()
       await vi.mocked(getQuerySchema).mock.results[0]?.value?.catch(() => {})

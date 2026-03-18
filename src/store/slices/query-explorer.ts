@@ -3,10 +3,44 @@ import type { StoreApi } from 'zustand'
 import type { ResultViewerState } from '@/features/query-explorer/components/result-viewer-panel'
 import type { DevQLSchema, HistoryEntry } from '@/store/types'
 
+/** Fallback schema when GET /query-schema fails (e.g. backend down, offline). */
+export const MOCK_SCHEMA: DevQLSchema = {
+  Query: {
+    fields: {
+      repo: {
+        type: 'Repo',
+        args: { name: 'String!' },
+        description: 'Select a repository',
+      },
+      search: {
+        type: 'SearchResult',
+        args: { query: 'String!' },
+      },
+    },
+  },
+  Repo: {
+    fields: {
+      ref: { type: 'Ref', args: { name: 'String!' } },
+      commit: { type: 'Commit', args: { sha: 'String!' } },
+      files: { type: '[File]', args: { path: 'String' } },
+    },
+  },
+  Ref: {
+    fields: {
+      file: { type: 'File', args: { path: 'String!' } },
+      files: { type: '[File]', args: { path: 'String' } },
+    },
+  },
+  SearchResult: { fields: { __typename: { type: 'String' } } },
+  Commit: { fields: { __typename: { type: 'String' } } },
+  File: { fields: { __typename: { type: 'String' } } },
+}
+
 const RUN_HISTORY_KEY = 'query-explorer-history'
 const RUN_HISTORY_MAX = 50
 
-const DEFAULT_QUERY = `# Sample query in GQL syntax
+const DEFAULT_QUERY = `# Hold Ctrl/Cmd+Space to see autocomplete suggestions.
+# Sample query in GQL syntax
 
 query GetArtefacts($repo: String!, $ref: String!, $path: String!) {
   repo(name: $repo) {
@@ -117,10 +151,11 @@ export function createQueryExplorerSlice(
       set({ schemaLoading: true, schemaError: null })
       getQuerySchema()
         .then((data) => set({ schema: data, schemaLoading: false }))
-        .catch((err: unknown) =>
+        .catch(() =>
           set({
-            schemaError: err instanceof Error ? err.message : String(err),
+            schema: MOCK_SCHEMA,
             schemaLoading: false,
+            schemaError: null,
           }),
         )
     },
