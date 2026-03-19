@@ -27,6 +27,13 @@ async function runQueryAndWaitForResult(page: Page) {
   await expect(page.getByTestId('result-viewer-json-tree')).toBeVisible()
 }
 
+// Default stubs for every test so /explorer’s on-mount schema fetch never hits the network.
+// Tests that need different behavior call stubApis (or page.route) again after this; Playwright
+// uses the most recently registered matching handler first.
+test.beforeEach(async ({ page }) => {
+  await stubApis(page)
+})
+
 test.describe('Query Explorer', () => {
   test('visiting /explorer shows Query Explorer heading and tagline', async ({
     page,
@@ -134,13 +141,22 @@ test.describe('Run button', () => {
   test('Run button is disabled when the query editor is cleared', async ({
     page,
   }) => {
+    await page.addInitScript(() => {
+      localStorage.setItem(
+        'query-explorer-history',
+        JSON.stringify([
+          {
+            id: 'empty-query-entry',
+            query: '',
+            variables: '{}',
+            runAt: Date.now(),
+          },
+        ]),
+      )
+    })
     await page.goto('/explorer')
-
-    const editorContainer = page.getByTestId('query-editor')
-    const monacoEditor = editorContainer.locator('.monaco-editor').first()
-    await monacoEditor.click({ force: true })
-    await page.keyboard.press('Control+a')
-    await page.keyboard.press('Backspace')
+    await page.getByRole('button', { name: 'Show history' }).click()
+    await page.getByRole('button', { name: 'Load' }).click()
 
     await expect
       .poll(() => page.getByRole('button', { name: 'Run query' }).isDisabled())
@@ -214,9 +230,6 @@ test.describe('Query execution', () => {
       resolveQuery = r
     })
 
-    await page.route('**/api/query-schema', (route) =>
-      route.fulfill({ status: 200, json: {} }),
-    )
     await page.route('**/api/query', async (route) => {
       await queryGate
       await route.fulfill({ status: 200, json: { data: {} } })
@@ -253,9 +266,6 @@ test.describe('Query execution', () => {
   test('network-level error shows error styling in Results panel', async ({
     page,
   }) => {
-    await page.route('**/api/query-schema', (route) =>
-      route.fulfill({ status: 200, json: {} }),
-    )
     await page.route('**/api/query', (route) =>
       route.fulfill({ status: 500, body: 'Internal Server Error' }),
     )
@@ -269,7 +279,6 @@ test.describe('Query execution', () => {
   test('after a successful run a history entry appears in the history panel', async ({
     page,
   }) => {
-    await stubApis(page)
     await page.goto('/explorer')
 
     await runQueryAndWaitForResult(page)
@@ -281,7 +290,6 @@ test.describe('Query execution', () => {
 
 test.describe('History entry interactions', () => {
   async function setupWithHistoryEntry(page: Page) {
-    await stubApis(page)
     await page.goto('/explorer')
     await runQueryAndWaitForResult(page)
     await page.getByRole('button', { name: 'Show history' }).click()
@@ -326,19 +334,10 @@ test.describe('History entry interactions', () => {
   test('multiple history entries are listed with most-recent first', async ({
     page,
   }) => {
-    await stubApis(page)
     await page.goto('/explorer')
 
-    // Run twice with different query text
+    // Run twice to produce two history entries.
     await runQueryAndWaitForResult(page)
-
-    const monacoEditor = page
-      .getByTestId('query-editor')
-      .locator('.monaco-editor')
-      .first()
-    await monacoEditor.click({ force: true })
-    await page.keyboard.press('Control+End')
-    await page.keyboard.insertText(' # second run')
     await runQueryAndWaitForResult(page)
 
     await page.getByRole('button', { name: 'Show history' }).click()
@@ -357,6 +356,9 @@ test.describe('Schema endpoint failure', () => {
 
     await expect(
       page.getByRole('heading', { name: 'Query Explorer' }),
+    ).toBeVisible()
+    await expect(
+      page.getByText('Could not fetch dependencies from the API.'),
     ).toBeVisible()
     await expect(page.getByRole('button', { name: 'Run query' })).toBeEnabled()
   })

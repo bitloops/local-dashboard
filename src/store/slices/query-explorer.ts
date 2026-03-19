@@ -1,5 +1,4 @@
 import { getQuerySchema } from '@/features/query-explorer/query-client'
-import { toast } from 'sonner'
 import type { StoreApi } from 'zustand'
 import type { ResultViewerState } from '@/features/query-explorer/components/result-viewer-panel'
 import type { DevQLSchema, HistoryEntry } from '@/store/types'
@@ -129,11 +128,6 @@ export function createQueryExplorerSlice(
             schema: null,
             schemaLoading: false,
             schemaError: schemaErrorMessage,
-          })
-          toast.error('Could not fetch dependencies', {
-            description:
-              "Autocomplete won't work until dependencies are fetched.",
-            duration: 6000,
           })
         })
     },

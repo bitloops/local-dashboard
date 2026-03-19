@@ -109,8 +109,11 @@ export function getContext(
 
     if (c === '}') {
       flushIdent(i)
-      braceDepth--
-      if (typeStack.length > 1) typeStack.pop()
+      // Avoid negative depth / stray pops when the document has extra `}` (invalid GQL).
+      if (braceDepth > 0) {
+        braceDepth--
+        if (typeStack.length > 1) typeStack.pop()
+      }
       lastField = null
       continue
     }
@@ -125,7 +128,7 @@ export function getContext(
 
     if (c === ')') {
       flushIdent(i)
-      parenDepth--
+      parenDepth = Math.max(0, parenDepth - 1)
       continue
     }
 

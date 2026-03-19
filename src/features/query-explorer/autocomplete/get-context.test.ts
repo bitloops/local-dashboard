@@ -142,6 +142,22 @@ describe('getContext', () => {
     })
   })
 
+  it('recovers root context after an extra closing brace earlier in the document', () => {
+    const text = '} query { '
+    expect(getContext(text, text.length, SCHEMA, root)).toEqual({
+      kind: 'root',
+    })
+  })
+
+  it('recovers argument context after a stray closing paren earlier in the document', () => {
+    const text = ') query { repo('
+    expect(getContext(text, text.length, SCHEMA, root)).toEqual({
+      kind: 'argument',
+      typeName: 'Query',
+      fieldName: 'repo',
+    })
+  })
+
   it('ignores content inside line comment', () => {
     const text = 'query { # comment\n '
     expect(getContext(text, text.length, SCHEMA, root)).toEqual({
