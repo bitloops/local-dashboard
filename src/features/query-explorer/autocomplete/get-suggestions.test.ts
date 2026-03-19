@@ -20,7 +20,12 @@ const SCHEMA: DevQLSchema = {
     },
   },
   Ref: { fields: {} },
-  SearchResult: { fields: {} },
+  SearchResult: {
+    fields: {
+      __typename: { type: 'String' },
+      hit: { type: 'String' },
+    },
+  },
   Commit: { fields: {} },
 }
 
@@ -45,6 +50,18 @@ describe('getSuggestions', () => {
     const labels = got.map((s) => s.label)
     expect(labels).toContain('ref')
     expect(labels).toContain('commit')
+  })
+
+  it('does not suggest __typename as a field', () => {
+    const got = getSuggestions(
+      { kind: 'nested', typeName: 'SearchResult' },
+      SCHEMA,
+      ROOT,
+      '',
+    )
+    const labels = got.map((s) => s.label)
+    expect(labels).toContain('hit')
+    expect(labels).not.toContain('__typename')
   })
 
   it('returns argument suggestions for argument context', () => {

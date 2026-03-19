@@ -13,6 +13,10 @@ export function Toaster({ ...props }: ToasterProps) {
           '--normal-bg': 'var(--popover)',
           '--normal-text': 'var(--popover-foreground)',
           '--normal-border': 'var(--border)',
+          /* Let Sonner read theme tokens if supported; global CSS also targets [data-type=error] */
+          '--error-bg': 'var(--toast-error-bg)',
+          '--error-border': 'var(--toast-error-border)',
+          '--error-text': 'var(--toast-error-fg)',
         } as React.CSSProperties
       }
       {...props}

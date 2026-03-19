@@ -15,10 +15,15 @@ export type IndentEdit = {
 
 /**
  * Count how many unmatched `{` exist in `text` up to (but not including)
- * `upTo`, ignoring braces inside strings and `#`-comments.
+ * `upTo`, ignoring braces inside strings, `#`-comments, and parentheses.
+ *
+ * Braces inside parentheses (e.g. directive arguments like
+ * `@cached(options: {ttl: 300})`) are skipped because they are not
+ * GraphQL selection-set braces and should not affect indentation depth.
  */
 export function braceDepthAt(text: string, upTo: number): number {
   let depth = 0
+  let parenDepth = 0
   let inComment = false
   let inString: '"' | "'" | null = null
 
@@ -45,10 +50,22 @@ export function braceDepthAt(text: string, upTo: number): number {
       inString = c
       continue
     }
-    if (c === '{') depth++
-    if (c === '}') depth--
+    if (c === '(') {
+      parenDepth++
+      continue
+    }
+    if (c === ')') {
+      parenDepth = Math.max(0, parenDepth - 1)
+      continue
+    }
+    // Only count braces outside parentheses — braces inside parens
+    // are argument values, not selection sets.
+    if (parenDepth === 0) {
+      if (c === '{') depth++
+      if (c === '}') depth = Math.max(0, depth - 1)
+    }
   }
-  return Math.max(0, depth)
+  return depth
 }
 
 /**

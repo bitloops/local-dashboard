@@ -13,8 +13,9 @@ function fieldSuggestions(
   schema: DevQLSchema,
   typeName: string,
 ): SuggestionItem[] {
-  return Object.entries(schema[typeName]?.fields ?? {}).map(
-    ([fieldName, field]) => {
+  return Object.entries(schema[typeName]?.fields ?? {})
+    .filter(([fieldName]) => fieldName !== '__typename')
+    .map(([fieldName, field]) => {
       const hasArgs = field.args && Object.keys(field.args).length > 0
       return {
         label: fieldName,
@@ -28,8 +29,7 @@ function fieldSuggestions(
         kind: 'field',
         isSnippet: Boolean(hasArgs),
       }
-    },
-  )
+    })
 }
 
 /**

@@ -46,7 +46,7 @@ const SCHEMA: DevQLSchema = {
       search: { type: 'SearchResult', args: { query: 'String!' } },
     },
   },
-  Repo: { fields: { ref: { type: 'Ref' } } },
+  Repo: { fields: { ref: { type: 'Ref', args: { name: 'String!' } } } },
   Ref: { fields: {} },
   SearchResult: { fields: {} },
 }
@@ -274,6 +274,52 @@ describe('useGraphQLCompletionProvider', () => {
     expect(first.insertText).toMatch(/\n\}$/) // ends with newline + closing brace
   })
 
+  it('wraps snippet with relative indentation for same-line braces at depth > 1', () => {
+    const { monaco, getProviderConfig } = createMockMonaco()
+    const schemaRef = { current: SCHEMA }
+
+    renderHook(() =>
+      useGraphQLCompletionProvider(
+        monaco,
+        schemaRef as RefObject<DevQLSchema | null>,
+      ),
+    )
+
+    const config = getProviderConfig()!
+    // Simulate cursor inside `\trepo { | }` at depth 2.
+    // Line 2: `\trepo { }` — cursor sits between `{ ` and `}` at column 9.
+    //          123456789
+    const line1 = 'query {'
+    const line2 = '\trepo { }'
+    const text = `${line1}\n${line2}`
+    const cursorCol = 9 // column right before `}`
+    const cursorOffset = line1.length + 1 + (cursorCol - 1) // +1 for \n
+    const model = {
+      getValue: () => text,
+      getOffsetAt: () => cursorOffset,
+      getWordUntilPosition: () => ({
+        startColumn: cursorCol,
+        endColumn: cursorCol,
+      }),
+      getLineContent: (lineNumber: number) =>
+        lineNumber === 1 ? line1 : line2,
+      getOptions: () => DEFAULT_OPTS,
+    }
+    const position = { lineNumber: 2, column: cursorCol }
+
+    const result = config.provideCompletionItems(
+      model as never,
+      position as never,
+    )
+
+    // Snippet insertion uses relative indentation (+1, +2, +1, +0),
+    // independent of absolute document depth.
+    const first = result.suggestions[0] as { insertText: string }
+    expect(first.insertText).toMatch(/^\n\t/) // relative +1
+    expect(first.insertText).toMatch(/\n\}$/) // relative +0 parent close
+    expect(first.insertText).not.toMatch(/^\n\t\t/) // not absolute depth=2
+  })
+
   it('provideOnTypeFormattingEdits re-indents after newline', () => {
     const { monaco, getFormattingConfig } = createMockMonaco()
     const schemaRef = { current: SCHEMA }
@@ -344,7 +390,7 @@ describe('wrapItemsForSameLineBrace', () => {
     expect(result[0].insertText).toBe('\n\trepo($1) {\n\t\t$0\n\t}\n}')
   })
 
-  it('wraps a snippet item at depth 2 with correct indentation (tabs)', () => {
+  it('wraps a snippet item at depth 2 with RELATIVE indentation (tabs)', () => {
     const items = [
       {
         label: 'ref',
@@ -354,8 +400,10 @@ describe('wrapItemsForSameLineBrace', () => {
       },
     ]
     const result = wrapItemsForSameLineBrace(items, '\t', 2)
-    // Expected: \n\t\tref($1) {\n\t\t\t$0\n\t\t}\n\t}
-    expect(result[0].insertText).toBe('\n\t\tref($1) {\n\t\t\t$0\n\t\t}\n\t}')
+    // Snippet items use relative indentation because Monaco's snippet engine
+    // auto-prepends the trigger line's indent to subsequent lines.
+    // Relative offsets are always: +1 field, +2 body, +1 close, +0 parent.
+    expect(result[0].insertText).toBe('\n\tref($1) {\n\t\t$0\n\t}\n}')
   })
 
   it('wraps a snippet item with space-based indentation', () => {
@@ -371,31 +419,45 @@ describe('wrapItemsForSameLineBrace', () => {
     expect(result[0].insertText).toBe('\n  repo($1) {\n    $0\n  }\n}')
   })
 
+  it('wraps a snippet item at depth 2 with RELATIVE indentation (spaces)', () => {
+    const items = [
+      {
+        label: 'ref',
+        insertText: 'ref($1) {\n\t$0\n}',
+        kind: 'field' as const,
+        isSnippet: true,
+      },
+    ]
+    const result = wrapItemsForSameLineBrace(items, '  ', 2)
+    // Relative: same shape as depth 1 — Monaco adds the trigger line's indent.
+    expect(result[0].insertText).toBe('\n  ref($1) {\n    $0\n  }\n}')
+  })
+
   it('wraps a non-snippet (leaf) item without emitting a nested selection set', () => {
     const items = [
       {
-        label: '__typename',
-        insertText: '__typename',
+        label: 'id',
+        insertText: 'id',
         kind: 'field' as const,
         isSnippet: false,
       },
     ]
     const result = wrapItemsForSameLineBrace(items, '\t', 1)
     // Leaf fields just get newline + indent, then parent closing brace
-    expect(result[0].insertText).toBe('\n\t__typename\n}')
+    expect(result[0].insertText).toBe('\n\tid\n}')
     expect(result[0].isSnippet).toBe(false)
   })
 
   it('wraps a non-snippet item at depth 2', () => {
     const items = [
       {
-        label: '__typename',
-        insertText: '__typename',
+        label: 'id',
+        insertText: 'id',
         kind: 'field' as const,
         isSnippet: false,
       },
     ]
     const result = wrapItemsForSameLineBrace(items, '\t', 2)
-    expect(result[0].insertText).toBe('\n\t\t__typename\n\t}')
+    expect(result[0].insertText).toBe('\n\t\tid\n\t}')
   })
 })

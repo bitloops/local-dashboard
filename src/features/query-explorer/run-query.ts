@@ -9,6 +9,8 @@ export type ValidateVariablesResult =
   | { ok: true; parsed: Record<string, unknown> }
   | { ok: false; error: string }
 
+let latestQueryRequestId = 0
+
 /**
  * Validates the query string (non-empty, valid GraphQL). Pure, no I/O.
  */
@@ -71,9 +73,11 @@ export function runQueryExplorerQuery(overrides?: {
 
   state.setResult({ status: 'loading' })
   state.addRunToHistory(query, variables)
+  const requestId = ++latestQueryRequestId
 
   executeQuery(query, variablesResult.parsed)
     .then((body) => {
+      if (requestId !== latestQueryRequestId) return
       const store = rootStoreInstance.getState()
       const errors = body.errors ?? []
       if (body.data == null && errors.length > 0) {
@@ -90,6 +94,7 @@ export function runQueryExplorerQuery(overrides?: {
       })
     })
     .catch((err: unknown) => {
+      if (requestId !== latestQueryRequestId) return
       const store = rootStoreInstance.getState()
       if (err instanceof ApiError) {
         const firstMessage =

@@ -156,4 +156,63 @@ describe('getContext', () => {
       typeName: 'Ref',
     })
   })
+
+  describe('malformed / edge-case schemas', () => {
+    it('falls back gracefully when field type is not in schema (orphaned ref)', () => {
+      const orphanSchema: DevQLSchema = {
+        Query: {
+          fields: {
+            missing: { type: 'NonExistent', args: {} },
+          },
+        },
+      }
+      // Enter missing's selection set — type can't be resolved so the stack
+      // doesn't push, but we should still get a nested context.
+      const text = 'query { missing { '
+      const ctx = getContext(text, text.length, orphanSchema, 'Query')
+      expect(ctx.kind).toBe('nested')
+    })
+
+    it('handles fields with undefined args gracefully', () => {
+      const noArgsSchema: DevQLSchema = {
+        Query: {
+          fields: {
+            simple: { type: 'String' },
+          },
+        },
+      }
+      const text = 'query { '
+      const ctx = getContext(text, text.length, noArgsSchema, 'Query')
+      expect(ctx).toEqual({ kind: 'root' })
+    })
+
+    it('handles type with empty fields object', () => {
+      const emptyFieldsSchema: DevQLSchema = {
+        Query: { fields: {} },
+      }
+      const text = 'query { '
+      const ctx = getContext(text, text.length, emptyFieldsSchema, 'Query')
+      expect(ctx).toEqual({ kind: 'root' })
+    })
+
+    it('does not crash with deeply nested orphaned types', () => {
+      const deepSchema: DevQLSchema = {
+        Query: {
+          fields: {
+            a: { type: 'A' },
+          },
+        },
+        A: {
+          fields: {
+            b: { type: 'Missing' },
+          },
+        },
+      }
+      const text = 'query { a { b { '
+      const ctx = getContext(text, text.length, deepSchema, 'Query')
+      // b's type "Missing" isn't in schema, so the stack doesn't push it.
+      // We're at braceDepth 3 which is > 1 → nested context.
+      expect(ctx.kind).toBe('nested')
+    })
+  })
 })

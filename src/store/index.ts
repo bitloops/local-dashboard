@@ -27,9 +27,9 @@ export function createRootStore() {
 const rootStore = createRootStore()
 
 /**
- * Ensure the schema is loaded. Safe to call repeatedly; the slice will only
- * fetch once (guarded by schema / schemaLoading / schemaError).
- * Call from code paths that need the schema (e.g. Query Explorer).
+ * Ensure the schema is loaded. Safe to call repeatedly; the slice skips
+ * while a fetch is in flight or after a successful load (schema set).
+ * After a failed load, another call can retry (e.g. remounting Query Explorer).
  */
 export function ensureSchemaLoaded(): void {
   rootStore.getState().loadSchema()

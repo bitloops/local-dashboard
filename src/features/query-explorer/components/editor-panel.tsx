@@ -27,7 +27,7 @@ const EDITOR_LANGUAGE = 'graphql'
 const EDITOR_OPTIONS: Monaco.editor.IStandaloneEditorConstructionOptions = {
   automaticLayout: true,
   tabSize: 2,
-  insertSpaces: false,
+  insertSpaces: true,
   wordWrap: 'on',
   wordBasedSuggestions: 'off',
   suggest: { showWords: false },

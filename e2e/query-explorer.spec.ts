@@ -348,7 +348,7 @@ test.describe('History entry interactions', () => {
   })
 })
 
-test.describe('Schema fallback (MOCK_SCHEMA)', () => {
+test.describe('Schema endpoint failure', () => {
   test('page loads and Run button is enabled when schema endpoint fails', async ({
     page,
   }) => {
@@ -361,7 +361,7 @@ test.describe('Schema fallback (MOCK_SCHEMA)', () => {
     await expect(page.getByRole('button', { name: 'Run query' })).toBeEnabled()
   })
 
-  test('query can be executed successfully after schema endpoint failure', async ({
+  test('query can still be executed when schema endpoint fails', async ({
     page,
   }) => {
     await stubApis(page, {

@@ -34,6 +34,23 @@ describe('braceDepthAt', () => {
   it('never returns negative', () => {
     expect(braceDepthAt('}}}}', 4)).toBe(0)
   })
+
+  it('recovers after excess closing braces', () => {
+    // After `} {` at offset 1 the depth is 0 (clamped), at offset 3 it's 1
+    expect(braceDepthAt('} {', 1)).toBe(0)
+    expect(braceDepthAt('} {', 3)).toBe(1)
+  })
+
+  it('skips braces inside parentheses (not selection-set braces)', () => {
+    const text = 'query @dir(arg: {k: "v"}) { '
+    // The `{` inside the directive argument is ignored — only the
+    // selection-set `{` after `)` counts.
+    expect(braceDepthAt(text, text.length)).toBe(1)
+  })
+
+  it('handles single-quoted strings', () => {
+    expect(braceDepthAt("repo(name: '{') {", 17)).toBe(1)
+  })
 })
 
 describe('computeLineIndent', () => {

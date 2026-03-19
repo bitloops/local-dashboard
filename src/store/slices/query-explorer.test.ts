@@ -1,10 +1,17 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest'
 import { createStore, type StoreApi } from 'zustand'
+import { toast } from 'sonner'
 import { getQuerySchema } from '@/features/query-explorer/query-client'
-import { createQueryExplorerSlice, MOCK_SCHEMA } from './query-explorer'
+import { createQueryExplorerSlice } from './query-explorer'
 
 vi.mock('@/features/query-explorer/query-client', () => ({
   getQuerySchema: vi.fn(),
+}))
+
+vi.mock('sonner', () => ({
+  toast: {
+    error: vi.fn(),
+  },
 }))
 
 const RUN_HISTORY_KEY = 'query-explorer-history'
@@ -204,6 +211,7 @@ describe('query-explorer slice', () => {
   describe('loadSchema', () => {
     beforeEach(() => {
       vi.mocked(getQuerySchema).mockClear()
+      vi.mocked(toast.error).mockClear()
     })
 
     it('sets schema and sets schemaLoading false on success', async () => {
@@ -216,13 +224,21 @@ describe('query-explorer slice', () => {
       expect(store.getState().schemaError).toBeNull()
     })
 
-    it('uses mock schema fallback and sets schemaLoading false on failure', async () => {
+    it('sets schema null, schemaError, and schemaLoading false on failure', async () => {
       vi.mocked(getQuerySchema).mockRejectedValue(new Error('Network error'))
       store.getState().loadSchema()
       await vi.mocked(getQuerySchema).mock.results[0]?.value?.catch(() => {})
-      expect(store.getState().schema).toEqual(MOCK_SCHEMA)
+      expect(store.getState().schema).toBeNull()
       expect(store.getState().schemaLoading).toBe(false)
-      expect(store.getState().schemaError).toBeNull()
+      expect(store.getState().schemaError).toBe('Network error')
+      expect(toast.error).toHaveBeenCalledWith(
+        'Could not fetch dependencies',
+        expect.objectContaining({
+          description:
+            "Autocomplete won't work until dependencies are fetched.",
+          duration: 6000,
+        }),
+      )
     })
 
     it('does not fetch when schema is already set', async () => {
@@ -234,13 +250,13 @@ describe('query-explorer slice', () => {
       expect(getQuerySchema).toHaveBeenCalledTimes(1)
     })
 
-    it('does not refetch after fallback (no retry storm)', async () => {
+    it('allows retry after failure when schema is still null', async () => {
       vi.mocked(getQuerySchema).mockRejectedValue(new Error('fail'))
       store.getState().loadSchema()
       await vi.mocked(getQuerySchema).mock.results[0]?.value?.catch(() => {})
       expect(getQuerySchema).toHaveBeenCalledTimes(1)
       store.getState().loadSchema()
-      expect(getQuerySchema).toHaveBeenCalledTimes(1)
+      expect(getQuerySchema).toHaveBeenCalledTimes(2)
     })
 
     it('does not fetch when schemaLoading is true', async () => {

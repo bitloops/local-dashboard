@@ -53,28 +53,36 @@ export function wrapItemsForSameLineBrace(
   indentUnit: string,
   depth: number,
 ): SuggestionItem[] {
-  const fieldIndent = indentUnit.repeat(depth)
-  const bodyIndent = indentUnit.repeat(depth + 1)
-  const parentIndent = indentUnit.repeat(Math.max(0, depth - 1))
+  // For non-snippet (leaf) fields we emit absolute in-document indentation,
+  // because there is no snippet placeholder structure that Monaco will adjust.
+  const absFieldIndent = indentUnit.repeat(depth)
+  const absParentIndent = indentUnit.repeat(Math.max(0, depth - 1))
+
+  // For snippet fields we emit relative indentation (+1, +2, +1, +0).
+  // Monaco applies insertion context and the on-type formatter normalizes
+  // final indentation after expansion/newline typing.
+  const snippetFieldIndent = indentUnit
+  const relBodyIndent = indentUnit.repeat(2)
+  const relCloseIndent = indentUnit
+  const relParentIndent = ''
 
   return items.map((item): SuggestionItem => {
     if (!item.isSnippet) {
-      // Leaf fields (no args / no selection set): wrap onto a new line
-      // inside the parent block but do NOT emit a nested `{ }`.
+      // Leaf fields (no args / no selection set): absolute indentation at depth.
       return {
         ...item,
-        insertText: `\n${fieldIndent}${item.insertText}\n${parentIndent}}`,
+        insertText: `\n${absFieldIndent}${item.insertText}\n${absParentIndent}}`,
       }
     }
     // Transform the canonical snippet (e.g. `repo($1) {\n\t$0\n}`)
-    // into a correctly indented multi-line form.
+    // into a correctly indented multi-line form using relative indents.
     // Use replaceAll so every placeholder `\t` is replaced, not just the first.
     let wrapped = item.insertText
-    wrapped = wrapped.replaceAll('\t', bodyIndent)
-    wrapped = wrapped.replace(/\n\}$/, `\n${fieldIndent}}`)
+    wrapped = wrapped.replaceAll('\t', relBodyIndent)
+    wrapped = wrapped.replace(/\n\}$/, `\n${relCloseIndent}}`)
     return {
       ...item,
-      insertText: `\n${fieldIndent}${wrapped}\n${parentIndent}}`,
+      insertText: `\n${snippetFieldIndent}${wrapped}\n${relParentIndent}}`,
     }
   })
 }
