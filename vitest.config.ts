@@ -3,10 +3,9 @@ import { defineConfig } from 'vitest/config'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 
-// Standalone Vitest config (avoids merging with vite.config to prevent Vite 5 vs 7 type conflicts).
-// Resolve alias and plugins match vite.config.ts so tests resolve `@/` and run with the same env.
+// Standalone Vitest config (mirrors vite.config plugins/alias so tests resolve `@/` the same way).
 export default defineConfig({
-  plugins: [react(), tailwindcss()] as any,
+  plugins: [react(), tailwindcss()],
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),
