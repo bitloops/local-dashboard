@@ -1,119 +1,54 @@
-# React + TypeScript + Vite
+# Bitloops Local Dashboard
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+A local-first dashboard UI for the Bitloops CLI. It provides real-time visibility into commits, branches and agents used, alongside an interactive GraphQL query explorer for exploring code intelligence data.
 
-Currently, two official plugins are available:
+## Prerequisites
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+- **Node.js** `>= 20.19` or `>= 22.12` (required by Vite 8)
+- A running Bitloops CLI backend at `http://bitloops.local:5667`.
 
-## React Compiler
-
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
-
-## Expanding the ESLint configuration
-
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
-
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
-
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-```
-
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
-
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
-
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-```
-
-# local-dashboard
-
-## OpenAPI type generation
-
-The app generates OpenAPI types automatically before `dev` and `build`.
-
-- Primary schema URL: `https://bitloops.local:5667/api/openapi.json`
-- Fallback schema URL: `http://127.0.0.1:5667/api/openapi.json`
-- Generated file: `src/types/openapi.generated.d.ts`
-
-You can run generation manually:
+## Getting Started
 
 ```bash
-pnpm run generate:api-types
+# Install dependencies
+pnpm install
+
+# Start the dev server (opens http://localhost:5173)
+pnpm dev
 ```
 
-Optional overrides:
+## Scripts
 
-- `OPENAPI_PRIMARY_URL`
-- `OPENAPI_FALLBACK_URL`
-- `OPENAPI_TYPES_OUTPUT`
+| Command                 | Description                                             |
+| ----------------------- | ------------------------------------------------------- |
+| `pnpm dev`              | Start Vite dev server                                   |
+| `pnpm build`            | TypeScript check + production build                     |
+| `pnpm bundle`           | Build and copy output to `~/.bitloops/dashboard/bundle` |
+| `pnpm preview`          | Preview the production build locally                    |
+| `pnpm lint`             | Run ESLint                                              |
+| `pnpm format`           | Format all files with Prettier                          |
+| `pnpm format:check`     | Check formatting without writing                        |
+| `pnpm test`             | Run all Vitest tests once                               |
+| `pnpm test:watch`       | Run Vitest in watch mode                                |
+| `pnpm test:unit`        | Unit tests only (excludes `tests/integration/`)         |
+| `pnpm test:integration` | Integration tests only                                  |
+| `pnpm test:e2e`         | Playwright end-to-end tests                             |
+| `pnpm test:e2e:headed`  | E2E tests in a visible browser                          |
+| `pnpm test:e2e:ui`      | E2E tests with Playwright's interactive UI              |
+| `pnpm test:e2e:debug`   | E2E tests in debug mode                                 |
+| `pnpm test:e2e:install` | Install Chromium for Playwright                         |
+| `pnpm open-api-codegen` | Regenerate the OpenAPI client from the backend          |
 
-## Dashboard API
+## Environment
 
-Dashboard API calls are done via the generated CLI client:
+Variables
 
-- `src/api/types/schema/BitloopsCli.ts`
+All variables have sensible defaults; no `.env` file is required for local development against the standard CLI backend.
 
-Used endpoints:
+## Query Explorer
 
-- `/api/commits`
-- `/api/branches`
-- `/api/users`
-- `/api/agents`
+The query explorer provides an interactive GraphQL editor with schema-driven autocomplete. It offers context-aware suggestions for fields, arguments, variables, and types. Queries are executed and results are displayed in a JSON viewer. A run history panel persists recent queries in localStorage.
 
-There is no automatic mock fallback during runtime.
-Mock values are stored in:
+```bash
 
-- `src/features/dashboard/data/mock-commit-data.ts`
-
-Optional overrides:
-
-- `VITE_BITLOOPS_CLI_BASE` (base URL used by `BitloopsCli`, default empty string / same origin)
-- `VITE_DASHBOARD_REQUEST_TIMEOUT_MS` (per-request timeout, default `2500`)
-- `VITE_API_PROXY_TARGET` (Vite `/api` proxy target, default `http://bitloops.local:5667`)
+```
