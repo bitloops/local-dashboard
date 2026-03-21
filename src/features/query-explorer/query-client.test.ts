@@ -20,23 +20,26 @@ const mockSchemaRequest =
   vi.fn<(params: { method: string; url: string }) => Promise<DevQLSchema>>()
 
 vi.mock('@/api/types/schema', () => ({
-  BitloopsCli: vi.fn().mockImplementation(() => ({
-    request: {
-      request: vi.fn(
-        (params: {
-          method: string
-          url: string
-          body?: unknown
-          mediaType?: string
-        }) => {
-          if (params.url === '/api/query-schema') {
-            return mockSchemaRequest(params)
-          }
-          return mockExecuteRequest(params)
-        },
-      ),
-    },
-  })),
+  // Vitest 4+: `new BitloopsCli()` requires a non-arrow mock implementation.
+  BitloopsCli: vi.fn(function MockBitloopsCli() {
+    return {
+      request: {
+        request: vi.fn(
+          (params: {
+            method: string
+            url: string
+            body?: unknown
+            mediaType?: string
+          }) => {
+            if (params.url === '/api/query-schema') {
+              return mockSchemaRequest(params)
+            }
+            return mockExecuteRequest(params)
+          },
+        ),
+      },
+    }
+  }),
 }))
 
 describe('query-client', () => {
