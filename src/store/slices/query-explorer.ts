@@ -6,7 +6,8 @@ import type { DevQLSchema, HistoryEntry } from '@/store/types'
 const RUN_HISTORY_KEY = 'query-explorer-history'
 const RUN_HISTORY_MAX = 50
 
-const DEFAULT_QUERY = `# Sample query in GQL syntax
+const DEFAULT_QUERY = `# Hold Ctrl/Cmd+Space to see autocomplete suggestions.
+# Sample query in GQL syntax
 
 query GetArtefacts($repo: String!, $ref: String!, $path: String!) {
   repo(name: $repo) {
@@ -108,21 +109,27 @@ export function createQueryExplorerSlice(
 
     loadSchema: () => {
       const state = get()
-      if (
-        state.schema !== null ||
-        state.schemaLoading ||
-        state.schemaError !== null
-      )
-        return
+      if (state.schemaLoading || state.schema !== null) return
       set({ schemaLoading: true, schemaError: null })
       getQuerySchema()
-        .then((data) => set({ schema: data, schemaLoading: false }))
-        .catch((err: unknown) =>
+        .then((data) =>
           set({
-            schemaError: err instanceof Error ? err.message : String(err),
+            schema: data,
             schemaLoading: false,
+            schemaError: null,
           }),
         )
+        .catch((err: unknown) => {
+          const schemaErrorMessage =
+            err instanceof Error && err.message.trim().length > 0
+              ? err.message
+              : 'Failed to load query schema'
+          set({
+            schema: null,
+            schemaLoading: false,
+            schemaError: schemaErrorMessage,
+          })
+        })
     },
 
     addRunToHistory: (query, variables) => {

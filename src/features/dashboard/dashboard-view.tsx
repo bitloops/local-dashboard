@@ -37,6 +37,10 @@ const branchAutoValue = '__auto_branch__'
 const allFilterValue = '__all__'
 const minDate = new Date('1900-01-01')
 
+/** Dotted API / availability banners (matches Query Explorer schema error styling). */
+const dottedAlertClassName =
+  'mb-4 rounded-md border border-dashed border-red-900/30 bg-red-950/[0.04] px-3 py-2 text-xs text-red-900 dark:border-red-400/35 dark:bg-red-950/25 dark:text-red-200'
+
 export type LoadState = 'loading' | 'api' | 'error'
 export type CheckpointDetailLoadState = 'idle' | 'loading' | 'api' | 'error'
 export type UserOption = {
@@ -134,17 +138,17 @@ export function DashboardView({
         </div>
 
         {dataSource === 'error' && (
-          <p className='mb-4 rounded-md border border-dashed px-3 py-2 text-xs text-muted-foreground'>
+          <p className={dottedAlertClassName}>
             Could not load dashboard data from the API.
           </p>
         )}
         {optionsSource === 'error' && (
-          <p className='mb-4 rounded-md border border-dashed px-3 py-2 text-xs text-muted-foreground'>
+          <p className={dottedAlertClassName}>
             Could not load branch/user/agent filter options from the API.
           </p>
         )}
         {!effectiveBranch && optionsSource !== 'loading' && (
-          <p className='mb-4 rounded-md border border-dashed px-3 py-2 text-xs text-muted-foreground'>
+          <p className={dottedAlertClassName}>
             No branches are currently available from the API.
           </p>
         )}

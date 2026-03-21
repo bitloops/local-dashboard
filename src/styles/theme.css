@@ -36,6 +36,11 @@
   /* Editor surfaces: primary (query), secondary (variables) */
   --editor-bg: #ffffff;
   --editor-bg-secondary: transparent;
+
+  /* Sonner error: lighter red, more see-through (white text on tinted bar) */
+  --toast-error-bg: oklch(0.55 0.17 27 / 0.68);
+  --toast-error-border: oklch(0.48 0.18 27 / 0.4);
+  --toast-error-fg: oklch(0.985 0 0);
 }
 
 .dark {
@@ -66,6 +71,11 @@
   /* Editor surfaces: primary (query), secondary (variables) */
   --editor-bg: #0f172a;
   --editor-bg-secondary: transparent;
+
+  /* Sonner error: lighter semi-transparent red + white text */
+  --toast-error-bg: oklch(0.52 0.16 22 / 0.65);
+  --toast-error-border: oklch(0.46 0.17 22 / 0.36);
+  --toast-error-fg: oklch(0.985 0 0);
 }
 
 @theme inline {

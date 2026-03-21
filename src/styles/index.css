@@ -175,3 +175,29 @@
     height: 0;
   }
 }
+
+/* Sonner error toasts: use --toast-error-* from theme (beats Tailwind/Sonner defaults) */
+[data-sonner-toast][data-type='error'] {
+  background: var(--toast-error-bg) !important;
+  border-color: var(--toast-error-border) !important;
+  color: var(--toast-error-fg) !important;
+}
+
+[data-sonner-toast][data-type='error'] [data-title],
+[data-sonner-toast][data-type='error'] [data-description] {
+  color: var(--toast-error-fg) !important;
+}
+
+[data-sonner-toast][data-type='error'] svg {
+  color: var(--toast-error-fg) !important;
+}
+
+[data-sonner-toast][data-type='error'] [data-close-button],
+[data-sonner-toast][data-type='error'] button {
+  color: var(--toast-error-fg) !important;
+  border-color: color-mix(
+    in oklch,
+    var(--toast-error-fg) 30%,
+    transparent
+  ) !important;
+}

@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   validateQuery,
   validateVariables,
@@ -159,5 +159,141 @@ describe('runQueryExplorerQuery', () => {
       '{"id":"y"}',
     )
     expect(executeQuery).toHaveBeenCalledWith('query GetX { x }', { id: 'y' })
+  })
+
+  it('sets error result when executeQuery rejects with a generic Error', async () => {
+    const { executeQuery } = await import('./query-client')
+    vi.mocked(executeQuery).mockRejectedValue(new Error('Network failure'))
+
+    runQueryExplorerQuery()
+
+    await vi.waitFor(() => {
+      expect(mockSetResult).toHaveBeenLastCalledWith({
+        status: 'error',
+        error: 'Network failure',
+      })
+    })
+  })
+
+  it('sets error result when executeQuery rejects with an ApiError', async () => {
+    const { ApiError } = await import('@/api/types/schema')
+    const { executeQuery } = await import('./query-client')
+    const apiErr = new ApiError(
+      { method: 'POST', url: '/query' },
+      {
+        url: '/query',
+        ok: false,
+        status: 500,
+        statusText: 'Internal Server Error',
+        body: { errors: [{ message: 'upstream timeout' }] },
+      },
+      'Server error',
+    )
+    vi.mocked(executeQuery).mockRejectedValue(apiErr)
+
+    runQueryExplorerQuery()
+
+    await vi.waitFor(() => {
+      expect(mockSetResult).toHaveBeenLastCalledWith({
+        status: 'error',
+        error: 'upstream timeout',
+      })
+    })
+  })
+
+  it('sets error result when response has errors but no data', async () => {
+    const { executeQuery } = await import('./query-client')
+    vi.mocked(executeQuery).mockResolvedValue({
+      data: null,
+      errors: [{ message: 'Field "x" not found' }],
+    })
+
+    runQueryExplorerQuery()
+
+    await vi.waitFor(() => {
+      expect(mockSetResult).toHaveBeenLastCalledWith({
+        status: 'error',
+        error: 'Field "x" not found',
+      })
+    })
+  })
+
+  it('sets success with partial errors when response has both data and errors', async () => {
+    const { executeQuery } = await import('./query-client')
+    vi.mocked(executeQuery).mockResolvedValue({
+      data: { __typename: 'Query' },
+      errors: [{ message: 'partial failure' }],
+    })
+
+    runQueryExplorerQuery()
+
+    await vi.waitFor(() => {
+      expect(mockSetResult).toHaveBeenLastCalledWith({
+        status: 'success',
+        data: { __typename: 'Query' },
+        errors: ['partial failure'],
+      })
+    })
+  })
+
+  it('sets fallback error message when executeQuery rejects with non-Error', async () => {
+    const { executeQuery } = await import('./query-client')
+    vi.mocked(executeQuery).mockRejectedValue('string rejection')
+
+    runQueryExplorerQuery()
+
+    await vi.waitFor(() => {
+      expect(mockSetResult).toHaveBeenLastCalledWith({
+        status: 'error',
+        error: 'Request failed.',
+      })
+    })
+  })
+
+  it('ignores stale result from older request when a newer request is in flight', async () => {
+    const { executeQuery } = await import('./query-client')
+    let resolveFirst!: (value: {
+      data: unknown
+      errors?: Array<{ message: string }>
+    }) => void
+    let resolveSecond!: (value: {
+      data: unknown
+      errors?: Array<{ message: string }>
+    }) => void
+
+    vi.mocked(executeQuery)
+      .mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            resolveFirst = resolve
+          }),
+      )
+      .mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            resolveSecond = resolve
+          }),
+      )
+
+    runQueryExplorerQuery({ query: 'query { first }', variables: '{}' })
+    runQueryExplorerQuery({ query: 'query { second }', variables: '{}' })
+
+    resolveSecond({ data: { value: 'newer' } })
+    await vi.waitFor(() => {
+      expect(mockSetResult).toHaveBeenLastCalledWith({
+        status: 'success',
+        data: { value: 'newer' },
+        errors: undefined,
+      })
+    })
+
+    resolveFirst({ data: { value: 'older' } })
+    await vi.waitFor(() => {
+      expect(mockSetResult).toHaveBeenLastCalledWith({
+        status: 'success',
+        data: { value: 'newer' },
+        errors: undefined,
+      })
+    })
   })
 })

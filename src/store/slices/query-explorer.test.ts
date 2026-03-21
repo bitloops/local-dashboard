@@ -216,13 +216,13 @@ describe('query-explorer slice', () => {
       expect(store.getState().schemaError).toBeNull()
     })
 
-    it('sets schemaError and sets schemaLoading false on failure', async () => {
+    it('sets schema null, schemaError, and schemaLoading false on failure', async () => {
       vi.mocked(getQuerySchema).mockRejectedValue(new Error('Network error'))
       store.getState().loadSchema()
       await vi.mocked(getQuerySchema).mock.results[0]?.value?.catch(() => {})
-      expect(store.getState().schemaError).toBe('Network error')
-      expect(store.getState().schemaLoading).toBe(false)
       expect(store.getState().schema).toBeNull()
+      expect(store.getState().schemaLoading).toBe(false)
+      expect(store.getState().schemaError).toBe('Network error')
     })
 
     it('does not fetch when schema is already set', async () => {
@@ -234,13 +234,13 @@ describe('query-explorer slice', () => {
       expect(getQuerySchema).toHaveBeenCalledTimes(1)
     })
 
-    it('does not fetch when schemaError is set (no retry storm)', async () => {
+    it('allows retry after failure when schema is still null', async () => {
       vi.mocked(getQuerySchema).mockRejectedValue(new Error('fail'))
       store.getState().loadSchema()
       await vi.mocked(getQuerySchema).mock.results[0]?.value?.catch(() => {})
       expect(getQuerySchema).toHaveBeenCalledTimes(1)
       store.getState().loadSchema()
-      expect(getQuerySchema).toHaveBeenCalledTimes(1)
+      expect(getQuerySchema).toHaveBeenCalledTimes(2)
     })
 
     it('does not fetch when schemaLoading is true', async () => {

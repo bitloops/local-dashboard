@@ -1,7 +1,9 @@
 import { ensureSchemaLoaded, useStore } from '@/store'
 import { useEffect } from 'react'
+import { TriangleAlert } from 'lucide-react'
 import { Header } from '@/components/layout/header'
 import { Main } from '@/components/layout/main'
+import { Button } from '@/components/ui/button'
 import { ThemeSwitch } from '@/components/theme-switch'
 import { useTheme } from '@/context/theme-provider'
 import { QueryExplorerLayout } from './components/query-explorer'
@@ -43,6 +45,9 @@ export function QueryExplorer() {
   const setVariables = useStore((s) => s.setVariables)
   const result = useStore((s) => s.result)
   const setVariablesHaveErrors = useStore((s) => s.setVariablesHaveErrors)
+  const schemaError = useStore((s) => s.schemaError)
+  const schemaLoading = useStore((s) => s.schemaLoading)
+  const loadSchema = useStore((s) => s.loadSchema)
   const [editorPanelWidth, onResizeStart] = useResizeWidth({
     defaultWidth: EDITOR_PANEL_DEFAULT,
     minWidth: EDITOR_PANEL_MIN,
@@ -65,6 +70,31 @@ export function QueryExplorer() {
             <p className='mt-1 text-sm text-muted-foreground'>
               Query and explore your code intelligence data.
             </p>
+            {schemaError != null && schemaError !== '' && (
+              <div
+                className='mt-4 flex w-full items-center gap-2 rounded-md border border-dashed border-red-900/30 bg-red-950/[0.04] px-3 py-2 text-xs text-red-900 dark:border-red-400/35 dark:bg-red-950/25 dark:text-red-200'
+                role='alert'
+              >
+                <TriangleAlert
+                  className='size-4 shrink-0 text-red-900 dark:text-red-200'
+                  aria-hidden
+                />
+                <span className='min-w-0 flex-1'>
+                  Could not fetch dependencies from the API. Autocomplete is
+                  unavailable until it succeeds.
+                </span>
+                <Button
+                  type='button'
+                  variant='outline'
+                  size='sm'
+                  className='h-7 shrink-0 border-red-900/35 px-2 text-xs text-red-900 hover:bg-red-950/10 dark:border-red-400/40 dark:text-red-200 dark:hover:bg-red-950/40'
+                  onClick={() => loadSchema()}
+                  disabled={schemaLoading}
+                >
+                  Try again
+                </Button>
+              </div>
+            )}
           </div>
           <QueryExplorerLayout
             className='mt-4'

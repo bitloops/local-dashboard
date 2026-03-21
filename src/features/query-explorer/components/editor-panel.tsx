@@ -2,12 +2,15 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import Editor from '@monaco-editor/react'
 import { cn } from '@/lib/utils'
 import { useTheme } from '@/context/theme-provider'
+import { useStore } from '@/store'
 import {
   defineDashboardThemes,
   DASHBOARD_DARK_THEME,
   DASHBOARD_LIGHT_THEME,
 } from '../../../styles/monaco-theme'
 import type * as Monaco from 'monaco-editor'
+import type { DevQLSchema } from '@/store/types'
+import { useGraphQLCompletionProvider } from '@/hooks/use-graphql-completion-provider'
 
 type QueryEditorPanelProps = {
   value: string
@@ -26,6 +29,9 @@ const EDITOR_OPTIONS: Monaco.editor.IStandaloneEditorConstructionOptions = {
   tabSize: 2,
   insertSpaces: true,
   wordWrap: 'on',
+  wordBasedSuggestions: 'off',
+  suggest: { showWords: false },
+  formatOnType: true,
   minimap: { enabled: false },
   fontSize: 14,
   lineNumbers: 'on',
@@ -43,6 +49,18 @@ export function QueryEditorPanel({
 }: QueryEditorPanelProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const [editorHeight, setEditorHeight] = useState(200)
+  const [monacoInstance, setMonacoInstance] = useState<typeof Monaco | null>(
+    null,
+  )
+  const schemaRef = useRef<DevQLSchema | null>(null)
+  const schema = useStore((s) => s.schema)
+
+  useEffect(() => {
+    schemaRef.current = schema
+  }, [schema])
+
+  useGraphQLCompletionProvider(monacoInstance, schemaRef)
+
   const { resolvedTheme } = useTheme()
   const theme =
     resolvedTheme === 'dark' ? DASHBOARD_DARK_THEME : DASHBOARD_LIGHT_THEME
@@ -64,6 +82,13 @@ export function QueryEditorPanel({
   const handleBeforeMount = useCallback((monaco: typeof Monaco) => {
     defineDashboardThemes(monaco)
   }, [])
+
+  const handleOnMount = useCallback(
+    (_editor: Monaco.editor.IStandaloneCodeEditor, monaco: typeof Monaco) => {
+      setMonacoInstance(monaco)
+    },
+    [],
+  )
 
   return (
     <div
@@ -103,6 +128,7 @@ export function QueryEditorPanel({
             onChange={(v: string | undefined) => onChange(v ?? '')}
             options={EDITOR_OPTIONS}
             beforeMount={handleBeforeMount}
+            onMount={handleOnMount}
           />
         </div>
       </div>
