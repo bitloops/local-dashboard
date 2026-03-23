@@ -13,6 +13,7 @@ import {
   type UserOption,
 } from './dashboard-view'
 import { type Checkpoint, type CommitData } from './types'
+import { getBitloopsApiBase } from '@/config/api-base'
 import {
   endOfDayUnixSeconds,
   mapAgentOptions,
@@ -25,7 +26,7 @@ export function Dashboard() {
   const cli = useMemo(
     () =>
       new BitloopsCli({
-        BASE: import.meta.env.VITE_BITLOOPS_CLI_BASE ?? 'http://127.0.0.1:5667',
+        BASE: getBitloopsApiBase(),
       }),
     [],
   )

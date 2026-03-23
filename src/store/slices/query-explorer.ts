@@ -1,9 +1,19 @@
 import { getQuerySchema } from '@/features/query-explorer/query-client'
+import {
+  getHistoryStorage,
+  getHistoryStorageModeFromWindow,
+  getHistoryTtlMs,
+  pruneHistoryByTtl,
+  RUN_HISTORY_KEY,
+  STORAGE_MODE_KEY,
+  type HistoryStorageMode,
+} from '@/config/query-history-storage'
 import type { StoreApi } from 'zustand'
 import type { ResultViewerState } from '@/features/query-explorer/components/result-viewer-panel'
 import type { DevQLSchema, HistoryEntry } from '@/store/types'
 
-const RUN_HISTORY_KEY = 'query-explorer-history'
+export type { HistoryStorageMode }
+
 const RUN_HISTORY_MAX = 50
 
 const DEFAULT_QUERY = `# Hold Ctrl/Cmd+Space to see autocomplete suggestions.
@@ -37,14 +47,31 @@ function isHistoryEntry(value: unknown): value is HistoryEntry {
   )
 }
 
+function parseHistoryFromRaw(raw: string): HistoryEntry[] {
+  const parsed: unknown = JSON.parse(raw)
+  if (!Array.isArray(parsed)) return []
+  return parsed.filter(isHistoryEntry)
+}
+
 function getInitialRunHistory(): HistoryEntry[] {
   if (typeof window === 'undefined') return []
   try {
-    const raw = localStorage.getItem(RUN_HISTORY_KEY)
+    const storage = getHistoryStorage(window)
+    if (!storage) return []
+    const raw = storage.getItem(RUN_HISTORY_KEY)
     if (!raw) return []
-    const parsed: unknown = JSON.parse(raw)
-    if (!Array.isArray(parsed)) return []
-    return parsed.filter(isHistoryEntry)
+    const entries = parseHistoryFromRaw(raw)
+    const ttlMs = getHistoryTtlMs()
+    const now = Date.now()
+    const pruned = pruneHistoryByTtl(entries, now, ttlMs)
+    if (pruned.length !== entries.length) {
+      try {
+        storage.setItem(RUN_HISTORY_KEY, JSON.stringify(pruned))
+      } catch {
+        // ignore
+      }
+    }
+    return pruned
   } catch {
     return []
   }
@@ -52,10 +79,22 @@ function getInitialRunHistory(): HistoryEntry[] {
 
 function persistRunHistory(history: HistoryEntry[]) {
   if (typeof window === 'undefined') return
+  const storage = getHistoryStorage(window)
+  if (!storage) return
   try {
-    localStorage.setItem(RUN_HISTORY_KEY, JSON.stringify(history))
+    storage.setItem(RUN_HISTORY_KEY, JSON.stringify(history))
   } catch {
     // ignore quota or other errors
+  }
+}
+
+function clearHistoryFromBothStorages() {
+  if (typeof window === 'undefined') return
+  try {
+    window.localStorage.removeItem(RUN_HISTORY_KEY)
+    window.sessionStorage.removeItem(RUN_HISTORY_KEY)
+  } catch {
+    // ignore
   }
 }
 
@@ -69,6 +108,8 @@ export type QueryExplorerState = {
   schemaLoading: boolean
   schemaError: string | null
   runHistory: HistoryEntry[]
+  /** Where run history is persisted; preference lives in localStorage. */
+  historyStorageMode: HistoryStorageMode
 }
 
 export type QueryExplorerActions = {
@@ -81,6 +122,7 @@ export type QueryExplorerActions = {
   loadHistoryEntry: (id: string) => void
   removeHistoryEntry: (id: string) => void
   clearRunHistory: () => void
+  setHistoryStorageMode: (mode: HistoryStorageMode) => void
 }
 
 export type QueryExplorerSlice = QueryExplorerState & QueryExplorerActions
@@ -101,6 +143,10 @@ export function createQueryExplorerSlice(
     schemaLoading: false,
     schemaError: null,
     runHistory: getInitialRunHistory(),
+    historyStorageMode:
+      typeof window !== 'undefined'
+        ? getHistoryStorageModeFromWindow(window)
+        : 'local',
 
     setQuery: (query) => set({ query }),
     setVariables: (variables) => set({ variables }),
@@ -147,13 +193,13 @@ export function createQueryExplorerSlice(
 
     loadHistoryEntry: (id) => {
       const state = get()
-      const entry = state.runHistory.find((e) => e.id === id)
+      const entry = state.runHistory.find((e: HistoryEntry) => e.id === id)
       if (entry) set({ query: entry.query, variables: entry.variables })
     },
 
     removeHistoryEntry: (id) => {
       const state = get()
-      const next = state.runHistory.filter((e) => e.id !== id)
+      const next = state.runHistory.filter((e: HistoryEntry) => e.id !== id)
       set({ runHistory: next })
       persistRunHistory(next)
     },
@@ -161,6 +207,37 @@ export function createQueryExplorerSlice(
     clearRunHistory: () => {
       set({ runHistory: [] })
       persistRunHistory([])
+    },
+
+    setHistoryStorageMode: (mode) => {
+      set((state: QueryExplorerSlice) => {
+        if (typeof window === 'undefined') {
+          return { historyStorageMode: mode }
+        }
+        try {
+          window.localStorage.setItem(STORAGE_MODE_KEY, mode)
+        } catch {
+          // ignore
+        }
+
+        const json = JSON.stringify(state.runHistory)
+
+        try {
+          if (mode === 'off') {
+            clearHistoryFromBothStorages()
+          } else if (mode === 'local') {
+            window.sessionStorage.removeItem(RUN_HISTORY_KEY)
+            window.localStorage.setItem(RUN_HISTORY_KEY, json)
+          } else {
+            window.localStorage.removeItem(RUN_HISTORY_KEY)
+            window.sessionStorage.setItem(RUN_HISTORY_KEY, json)
+          }
+        } catch {
+          // ignore
+        }
+
+        return { historyStorageMode: mode }
+      })
     },
   }
 }

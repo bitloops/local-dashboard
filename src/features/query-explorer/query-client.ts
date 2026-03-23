@@ -1,4 +1,5 @@
 import { BitloopsCli } from '@/api/types/schema'
+import { getBitloopsApiBase } from '@/config/api-base'
 import type { DevQLSchema } from '@/store/types'
 
 /** Temporary type for POST /query response until OpenAPI codegen includes the endpoint. */
@@ -9,7 +10,7 @@ export type QueryApiResponse = {
 
 const getClient = (): BitloopsCli =>
   new BitloopsCli({
-    BASE: import.meta.env.VITE_BITLOOPS_CLI_BASE ?? 'http://127.0.0.1:5667',
+    BASE: getBitloopsApiBase(),
   })
 
 /**

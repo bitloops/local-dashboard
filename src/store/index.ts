@@ -10,6 +10,7 @@ export type { DevQLSchema, HistoryEntry } from './types'
 export type {
   QueryExplorerState,
   QueryExplorerActions,
+  HistoryStorageMode,
 } from './slices/query-explorer'
 
 export type RootState = QueryExplorerSlice
