@@ -8,7 +8,9 @@ export const RUN_HISTORY_KEY = 'query-explorer-history'
 
 export type HistoryStorageMode = 'local' | 'session' | 'off'
 
-export function parseHistoryStorageMode(raw: string | null): HistoryStorageMode {
+export function parseHistoryStorageMode(
+  raw: string | null,
+): HistoryStorageMode {
   if (raw === 'session' || raw === 'off' || raw === 'local') return raw
   return 'local'
 }

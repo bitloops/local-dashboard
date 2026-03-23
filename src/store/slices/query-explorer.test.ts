@@ -228,6 +228,55 @@ describe('query-explorer slice', () => {
       expect(sessionStorageData[RUN_HISTORY_KEY]).toBeDefined()
       expect(JSON.parse(sessionStorageData[RUN_HISTORY_KEY])).toHaveLength(1)
     })
+
+    it('migrates in-memory history to localStorage when switching from off to local', () => {
+      localStorageData[STORAGE_MODE_KEY] = 'off'
+      const s = createTestStore()
+      s.getState().addRunToHistory('query { a }', '{}')
+      // History exists only in memory while mode is off
+      expect(localStorageData[RUN_HISTORY_KEY]).toBeUndefined()
+
+      s.getState().setHistoryStorageMode('local')
+      expect(localStorageData[STORAGE_MODE_KEY]).toBe('local')
+      expect(s.getState().historyStorageMode).toBe('local')
+      expect(localStorageData[RUN_HISTORY_KEY]).toBeDefined()
+      expect(JSON.parse(localStorageData[RUN_HISTORY_KEY])).toHaveLength(1)
+    })
+
+    it('migrates in-memory history to sessionStorage when switching from off to session', () => {
+      localStorageData[STORAGE_MODE_KEY] = 'off'
+      const s = createTestStore()
+      s.getState().addRunToHistory('query { a }', '{}')
+      expect(sessionStorageData[RUN_HISTORY_KEY]).toBeUndefined()
+
+      s.getState().setHistoryStorageMode('session')
+      expect(localStorageData[STORAGE_MODE_KEY]).toBe('session')
+      expect(s.getState().historyStorageMode).toBe('session')
+      expect(sessionStorageData[RUN_HISTORY_KEY]).toBeDefined()
+      expect(JSON.parse(sessionStorageData[RUN_HISTORY_KEY])).toHaveLength(1)
+    })
+
+    it('prunes stale entries when switching to local mode', () => {
+      vi.stubEnv('VITE_QUERY_HISTORY_TTL_MS', '1000')
+      const now = 2_000_000
+      vi.spyOn(Date, 'now').mockReturnValue(now)
+
+      localStorageData[STORAGE_MODE_KEY] = 'off'
+      const s = createTestStore()
+      // Manually seed in-memory history with one fresh and one stale entry
+      s.setState({
+        runHistory: [
+          { id: 'fresh', query: 'q1', variables: '{}', runAt: now - 500 },
+          { id: 'stale', query: 'q2', variables: '{}', runAt: now - 5000 },
+        ],
+      })
+
+      s.getState().setHistoryStorageMode('local')
+      const stored = JSON.parse(localStorageData[RUN_HISTORY_KEY])
+      expect(stored).toHaveLength(1)
+      expect(stored[0].id).toBe('fresh')
+      expect(s.getState().runHistory).toHaveLength(1)
+    })
   })
 
   describe('loadHistoryEntry', () => {

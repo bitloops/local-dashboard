@@ -8,7 +8,7 @@ If you believe you found a vulnerability, please report it privately. Do not ope
 
 ### Preferred reporting channels
 
-- GitHub Security Advisories for this repository, if private reporting is enabled
+- GitHub Security Advisories for this repository (use the "Report a vulnerability" button on the Security tab)
 - Email [opencode@bitloops.com](mailto:opencode@bitloops.com) with `SECURITY` in the subject line
 
 ### What to include

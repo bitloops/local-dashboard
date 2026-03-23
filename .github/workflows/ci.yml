@@ -35,15 +35,15 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      # Fails on critical; run `pnpm audit` locally to see high/moderate (e.g. transitive devDeps).
-      - name: Dependency audit
-        run: pnpm audit --audit-level=critical
-
       - name: Run format checker
         run: pnpm run format:check
 
       - name: Run linter
         run: pnpm run lint
+
+      # Fails on critical; run `pnpm audit` locally to see high/moderate (e.g. transitive devDeps).
+      - name: Dependency audit
+        run: pnpm audit --audit-level=critical
 
   test:
     name: Unit And Integration Tests

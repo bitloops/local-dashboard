@@ -77,10 +77,16 @@ function getInitialRunHistory(): HistoryEntry[] {
   }
 }
 
-function persistRunHistory(history: HistoryEntry[]) {
+/**
+ * Persist history to the appropriate storage backend.
+ * Accepts the current mode from the store to avoid an extra localStorage read
+ * on every mutation.
+ */
+function persistRunHistory(history: HistoryEntry[], mode: HistoryStorageMode) {
   if (typeof window === 'undefined') return
-  const storage = getHistoryStorage(window)
-  if (!storage) return
+  if (mode === 'off') return
+  const storage =
+    mode === 'session' ? window.sessionStorage : window.localStorage
   try {
     storage.setItem(RUN_HISTORY_KEY, JSON.stringify(history))
   } catch {
@@ -93,8 +99,10 @@ function clearHistoryFromBothStorages() {
   try {
     window.localStorage.removeItem(RUN_HISTORY_KEY)
     window.sessionStorage.removeItem(RUN_HISTORY_KEY)
-  } catch {
-    // ignore
+  } catch (err) {
+    if (import.meta.env.DEV) {
+      console.warn('[query-history] Failed to clear history from storage:', err)
+    }
   }
 }
 
@@ -188,7 +196,7 @@ export function createQueryExplorerSlice(
       }
       const next = [entry, ...state.runHistory].slice(0, RUN_HISTORY_MAX)
       set({ runHistory: next })
-      persistRunHistory(next)
+      persistRunHistory(next, state.historyStorageMode)
     },
 
     loadHistoryEntry: (id) => {
@@ -201,12 +209,12 @@ export function createQueryExplorerSlice(
       const state = get()
       const next = state.runHistory.filter((e: HistoryEntry) => e.id !== id)
       set({ runHistory: next })
-      persistRunHistory(next)
+      persistRunHistory(next, state.historyStorageMode)
     },
 
     clearRunHistory: () => {
       set({ runHistory: [] })
-      persistRunHistory([])
+      persistRunHistory([], get().historyStorageMode)
     },
 
     setHistoryStorageMode: (mode) => {
@@ -220,17 +228,27 @@ export function createQueryExplorerSlice(
           // ignore
         }
 
-        const json = JSON.stringify(state.runHistory)
-
         try {
           if (mode === 'off') {
             clearHistoryFromBothStorages()
           } else if (mode === 'local') {
+            // Prune stale entries before writing to localStorage so entries
+            // that accumulated in memory (e.g. while in session/off mode) don't
+            // bypass the TTL that would have been enforced on a normal load.
+            const pruned = pruneHistoryByTtl(
+              state.runHistory,
+              Date.now(),
+              getHistoryTtlMs(),
+            )
             window.sessionStorage.removeItem(RUN_HISTORY_KEY)
-            window.localStorage.setItem(RUN_HISTORY_KEY, json)
+            window.localStorage.setItem(RUN_HISTORY_KEY, JSON.stringify(pruned))
+            return { historyStorageMode: mode, runHistory: pruned }
           } else {
             window.localStorage.removeItem(RUN_HISTORY_KEY)
-            window.sessionStorage.setItem(RUN_HISTORY_KEY, json)
+            window.sessionStorage.setItem(
+              RUN_HISTORY_KEY,
+              JSON.stringify(state.runHistory),
+            )
           }
         } catch {
           // ignore

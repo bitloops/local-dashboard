@@ -44,7 +44,10 @@ export function HistoryPanel({
 
   const storageFooter = (
     <div className='shrink-0 space-y-1.5 border-t border-border px-3 py-2'>
-      <Label htmlFor='history-storage-mode' className='text-xs text-muted-foreground'>
+      <Label
+        htmlFor='history-storage-mode'
+        className='text-xs text-muted-foreground'
+      >
         Save history
       </Label>
       <Select
