@@ -1,6 +1,7 @@
 import { getQuerySchema } from '@/features/query-explorer/query-client'
 import {
   getHistoryStorage,
+  getHistoryStorageForMode,
   getHistoryStorageModeFromWindow,
   getHistoryTtlMs,
   pruneHistoryByTtl,
@@ -85,12 +86,12 @@ function getInitialRunHistory(): HistoryEntry[] {
 function persistRunHistory(history: HistoryEntry[], mode: HistoryStorageMode) {
   if (typeof window === 'undefined') return
   if (mode === 'off') return
-  const storage =
-    mode === 'session' ? window.sessionStorage : window.localStorage
   try {
+    const storage = getHistoryStorageForMode(window, mode)
+    if (!storage) return
     storage.setItem(RUN_HISTORY_KEY, JSON.stringify(history))
   } catch {
-    // ignore quota or other errors
+    // ignore quota, SecurityError, or other storage errors
   }
 }
 

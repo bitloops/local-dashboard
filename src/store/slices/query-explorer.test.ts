@@ -65,6 +65,7 @@ describe('query-explorer slice', () => {
   })
 
   afterEach(() => {
+    vi.restoreAllMocks()
     vi.unstubAllEnvs()
   })
 
@@ -140,7 +141,12 @@ describe('query-explorer slice', () => {
       const now = 2_000_000
       vi.spyOn(Date, 'now').mockReturnValue(now)
       const old = { id: 'a', query: 'q', variables: '{}', runAt: 100 }
-      const recent = { id: 'b', query: 'q2', variables: '{}', runAt: 1_999_500 }
+      const recent = {
+        id: 'b',
+        query: 'q2',
+        variables: '{}',
+        runAt: 1_999_500,
+      }
       localStorageData[RUN_HISTORY_KEY] = JSON.stringify([old, recent])
       const storeWithTtl = createTestStore()
       expect(storeWithTtl.getState().runHistory).toEqual([recent])

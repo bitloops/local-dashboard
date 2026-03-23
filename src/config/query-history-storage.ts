@@ -25,14 +25,25 @@ export function getHistoryStorageModeFromWindow(
   }
 }
 
+/** Returns null when mode is `off` or accessing storage throws (e.g. SecurityError). */
+export function getHistoryStorageForMode(
+  w: Window & typeof globalThis,
+  mode: HistoryStorageMode,
+): Storage | null {
+  if (mode === 'off') return null
+  try {
+    return mode === 'session' ? w.sessionStorage : w.localStorage
+  } catch {
+    return null
+  }
+}
+
 /** Returns null when mode is `off` (no persistence). */
 export function getHistoryStorage(
   w: Window & typeof globalThis,
 ): Storage | null {
   const mode = getHistoryStorageModeFromWindow(w)
-  if (mode === 'off') return null
-  if (mode === 'session') return w.sessionStorage
-  return w.localStorage
+  return getHistoryStorageForMode(w, mode)
 }
 
 export function getHistoryTtlMs(): number {
