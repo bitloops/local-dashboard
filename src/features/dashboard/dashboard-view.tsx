@@ -24,7 +24,13 @@ import { Sidebar, SidebarRail } from '@/components/ui/sidebar'
 import { useSidebar } from '@/components/ui/use-sidebar'
 import { CheckpointDetailContent } from './components/checkpoint-sheet'
 import { CommitTable } from './components/commits-table'
-import { type Checkpoint, type CommitData } from './types'
+import {
+  type Checkpoint,
+  type CheckpointDetailLoadState,
+  type CommitData,
+  type LoadState,
+  type UserOption,
+} from './types'
 import { formatAgentLabel } from './utils'
 
 const CommitCheckpointChart = lazy(() =>
@@ -40,13 +46,6 @@ const minDate = new Date('1900-01-01')
 /** Dotted API / availability banners (matches Query Explorer schema error styling). */
 const dottedAlertClassName =
   'mb-4 rounded-md border border-dashed border-red-900/30 bg-red-950/[0.04] px-3 py-2 text-xs text-red-900 dark:border-red-400/35 dark:bg-red-950/25 dark:text-red-200'
-
-export type LoadState = 'loading' | 'api' | 'error'
-export type CheckpointDetailLoadState = 'idle' | 'loading' | 'api' | 'error'
-export type UserOption = {
-  label: string
-  value: string
-}
 
 type DashboardViewProps = {
   rows: CommitData[]
@@ -71,7 +70,6 @@ type DashboardViewProps = {
   onToDateChange: (value: Date | undefined) => void
   onClearFilters: () => void
   onCheckpointSelect: (checkpoint: Checkpoint) => void
-  onCheckpointClose: () => void
 }
 
 export function DashboardView({
@@ -97,7 +95,6 @@ export function DashboardView({
   onToDateChange,
   onClearFilters,
   onCheckpointSelect,
-  onCheckpointClose,
 }: DashboardViewProps) {
   const [selectedCommit, setSelectedCommit] = useState<string | null>(null)
   const { setOpen, setRightOpen } = useSidebar()
@@ -372,7 +369,6 @@ export function DashboardView({
           userName={userName}
           onClose={() => {
             setRightOpen(false)
-            onCheckpointClose()
           }}
         />
       </Sidebar>

@@ -68,8 +68,8 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Run unit and integration tests
-        run: pnpm run test
+      - name: Run unit and integration tests with coverage
+        run: pnpm run test:coverage
 
   e2e:
     name: E2E Tests

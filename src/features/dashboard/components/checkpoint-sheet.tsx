@@ -19,7 +19,7 @@ import { ChatTranscript } from './chat-transcript'
 import { codeBlockStyle } from './code-block-style'
 import { FileTree } from './file-tree'
 import { type Checkpoint } from '../types'
-import { type CheckpointDetailLoadState } from '../dashboard-view'
+import { type CheckpointDetailLoadState } from '../types'
 import { formatAgentLabel } from '../utils'
 import {
   formatDateTime,
