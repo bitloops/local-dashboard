@@ -2,6 +2,7 @@
   "name": "local-dashboard",
   "private": true,
   "version": "0.0.3",
+  "license": "Apache-2.0",
   "type": "module",
   "scripts": {
     "generate-openapi-types": "node scripts/generate-openapi-types.mjs",
