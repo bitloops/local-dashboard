@@ -1,4 +1,4 @@
-/** Single entry in the query explorer run history (localStorage). */
+/** Single entry in the query explorer run history (persisted per storage mode). */
 export type HistoryEntry = {
   id: string
   query: string

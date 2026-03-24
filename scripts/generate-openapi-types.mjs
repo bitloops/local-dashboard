@@ -38,15 +38,9 @@ const fileExists = async (filePath) => {
 
 const runGenerator = async (schemaUrl) =>
   new Promise((resolve, reject) => {
-    const env = { ...process.env }
-
-    if (schemaUrl.startsWith('https://')) {
-      env.NODE_TLS_REJECT_UNAUTHORIZED ??= '0'
-    }
-
     const child = spawn(generatorBin, [schemaUrl, '--output', outputPath], {
       stdio: isVerbose ? 'inherit' : 'pipe',
-      env,
+      env: process.env,
     })
 
     let output = ''

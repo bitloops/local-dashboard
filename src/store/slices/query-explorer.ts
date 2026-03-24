@@ -1,9 +1,20 @@
 import { getQuerySchema } from '@/features/query-explorer/query-client'
+import {
+  getHistoryStorage,
+  getHistoryStorageForMode,
+  getHistoryStorageModeFromWindow,
+  getHistoryTtlMs,
+  pruneHistoryByTtl,
+  RUN_HISTORY_KEY,
+  STORAGE_MODE_KEY,
+  type HistoryStorageMode,
+} from '@/config/query-history-storage'
 import type { StoreApi } from 'zustand'
 import type { ResultViewerState } from '@/features/query-explorer/components/result-viewer-panel'
 import type { DevQLSchema, HistoryEntry } from '@/store/types'
 
-const RUN_HISTORY_KEY = 'query-explorer-history'
+export type { HistoryStorageMode }
+
 const RUN_HISTORY_MAX = 50
 
 const DEFAULT_QUERY = `# Hold Ctrl/Cmd+Space to see autocomplete suggestions.
@@ -37,25 +48,62 @@ function isHistoryEntry(value: unknown): value is HistoryEntry {
   )
 }
 
+function parseHistoryFromRaw(raw: string): HistoryEntry[] {
+  const parsed: unknown = JSON.parse(raw)
+  if (!Array.isArray(parsed)) return []
+  return parsed.filter(isHistoryEntry)
+}
+
 function getInitialRunHistory(): HistoryEntry[] {
   if (typeof window === 'undefined') return []
   try {
-    const raw = localStorage.getItem(RUN_HISTORY_KEY)
+    const storage = getHistoryStorage(window)
+    if (!storage) return []
+    const raw = storage.getItem(RUN_HISTORY_KEY)
     if (!raw) return []
-    const parsed: unknown = JSON.parse(raw)
-    if (!Array.isArray(parsed)) return []
-    return parsed.filter(isHistoryEntry)
+    const entries = parseHistoryFromRaw(raw)
+    const ttlMs = getHistoryTtlMs()
+    const now = Date.now()
+    const pruned = pruneHistoryByTtl(entries, now, ttlMs)
+    if (pruned.length !== entries.length) {
+      try {
+        storage.setItem(RUN_HISTORY_KEY, JSON.stringify(pruned))
+      } catch {
+        // ignore
+      }
+    }
+    return pruned
   } catch {
     return []
   }
 }
 
-function persistRunHistory(history: HistoryEntry[]) {
+/**
+ * Persist history to the appropriate storage backend.
+ * Accepts the current mode from the store to avoid an extra localStorage read
+ * on every mutation.
+ */
+function persistRunHistory(history: HistoryEntry[], mode: HistoryStorageMode) {
+  if (typeof window === 'undefined') return
+  if (mode === 'off') return
+  try {
+    const storage = getHistoryStorageForMode(window, mode)
+    if (!storage) return
+    storage.setItem(RUN_HISTORY_KEY, JSON.stringify(history))
+  } catch {
+    // ignore quota, SecurityError, or other storage errors
+  }
+}
+
+function clearHistoryFromBothStorages() {
   if (typeof window === 'undefined') return
   try {
-    localStorage.setItem(RUN_HISTORY_KEY, JSON.stringify(history))
-  } catch {
-    // ignore quota or other errors
+    window.localStorage.removeItem(RUN_HISTORY_KEY)
+    window.sessionStorage.removeItem(RUN_HISTORY_KEY)
+  } catch (err) {
+    if (import.meta.env.DEV) {
+      console.warn('[query-history] Failed to clear history from storage:', err)
+    }
   }
 }
 
@@ -69,6 +117,8 @@ export type QueryExplorerState = {
   schemaLoading: boolean
   schemaError: string | null
   runHistory: HistoryEntry[]
+  /** Where run history is persisted; preference lives in localStorage. */
+  historyStorageMode: HistoryStorageMode
 }
 
 export type QueryExplorerActions = {
@@ -81,6 +131,7 @@ export type QueryExplorerActions = {
   loadHistoryEntry: (id: string) => void
   removeHistoryEntry: (id: string) => void
   clearRunHistory: () => void
+  setHistoryStorageMode: (mode: HistoryStorageMode) => void
 }
 
 export type QueryExplorerSlice = QueryExplorerState & QueryExplorerActions
@@ -101,6 +152,10 @@ export function createQueryExplorerSlice(
     schemaLoading: false,
     schemaError: null,
     runHistory: getInitialRunHistory(),
+    historyStorageMode:
+      typeof window !== 'undefined'
+        ? getHistoryStorageModeFromWindow(window)
+        : 'local',
 
     setQuery: (query) => set({ query }),
     setVariables: (variables) => set({ variables }),
@@ -142,25 +197,66 @@ export function createQueryExplorerSlice(
       }
       const next = [entry, ...state.runHistory].slice(0, RUN_HISTORY_MAX)
       set({ runHistory: next })
-      persistRunHistory(next)
+      persistRunHistory(next, state.historyStorageMode)
     },
 
     loadHistoryEntry: (id) => {
       const state = get()
-      const entry = state.runHistory.find((e) => e.id === id)
+      const entry = state.runHistory.find((e: HistoryEntry) => e.id === id)
       if (entry) set({ query: entry.query, variables: entry.variables })
     },
 
     removeHistoryEntry: (id) => {
       const state = get()
-      const next = state.runHistory.filter((e) => e.id !== id)
+      const next = state.runHistory.filter((e: HistoryEntry) => e.id !== id)
       set({ runHistory: next })
-      persistRunHistory(next)
+      persistRunHistory(next, state.historyStorageMode)
     },
 
     clearRunHistory: () => {
       set({ runHistory: [] })
-      persistRunHistory([])
+      persistRunHistory([], get().historyStorageMode)
+    },
+
+    setHistoryStorageMode: (mode) => {
+      set((state: QueryExplorerSlice) => {
+        if (typeof window === 'undefined') {
+          return { historyStorageMode: mode }
+        }
+        try {
+          window.localStorage.setItem(STORAGE_MODE_KEY, mode)
+        } catch {
+          // ignore
+        }
+
+        try {
+          if (mode === 'off') {
+            clearHistoryFromBothStorages()
+          } else if (mode === 'local') {
+            // Prune stale entries before writing to localStorage so entries
+            // that accumulated in memory (e.g. while in session/off mode) don't
+            // bypass the TTL that would have been enforced on a normal load.
+            const pruned = pruneHistoryByTtl(
+              state.runHistory,
+              Date.now(),
+              getHistoryTtlMs(),
+            )
+            window.sessionStorage.removeItem(RUN_HISTORY_KEY)
+            window.localStorage.setItem(RUN_HISTORY_KEY, JSON.stringify(pruned))
+            return { historyStorageMode: mode, runHistory: pruned }
+          } else {
+            window.localStorage.removeItem(RUN_HISTORY_KEY)
+            window.sessionStorage.setItem(
+              RUN_HISTORY_KEY,
+              JSON.stringify(state.runHistory),
+            )
+          }
+        } catch {
+          // ignore
+        }
+
+        return { historyStorageMode: mode }
+      })
     },
   }
 }

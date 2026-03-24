@@ -1,13 +1,15 @@
-import { describe, expect, it, vi, beforeEach } from 'vitest'
+import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest'
 import { createStore, type StoreApi } from 'zustand'
 import { getQuerySchema } from '@/features/query-explorer/query-client'
+import {
+  RUN_HISTORY_KEY,
+  STORAGE_MODE_KEY,
+} from '@/config/query-history-storage'
 import { createQueryExplorerSlice } from './query-explorer'
 
 vi.mock('@/features/query-explorer/query-client', () => ({
   getQuerySchema: vi.fn(),
 }))
-
-const RUN_HISTORY_KEY = 'query-explorer-history'
 
 const mockSchema = {
   Query: {
@@ -29,20 +31,42 @@ function createTestStore() {
 describe('query-explorer slice', () => {
   let store: ReturnType<typeof createTestStore>
   let localStorageData: Record<string, string>
+  let sessionStorageData: Record<string, string>
 
   beforeEach(() => {
     localStorageData = {}
+    sessionStorageData = {}
+    vi.stubEnv('VITE_QUERY_HISTORY_TTL_MS', '')
     vi.stubGlobal('localStorage', {
       getItem: vi.fn((key: string) => localStorageData[key] ?? null),
       setItem: vi.fn((key: string, value: string) => {
         localStorageData[key] = value
       }),
-      removeItem: vi.fn(),
+      removeItem: vi.fn((key: string) => {
+        delete localStorageData[key]
+      }),
+      clear: vi.fn(),
+      length: 0,
+      key: vi.fn(),
+    })
+    vi.stubGlobal('sessionStorage', {
+      getItem: vi.fn((key: string) => sessionStorageData[key] ?? null),
+      setItem: vi.fn((key: string, value: string) => {
+        sessionStorageData[key] = value
+      }),
+      removeItem: vi.fn((key: string) => {
+        delete sessionStorageData[key]
+      }),
       clear: vi.fn(),
       length: 0,
       key: vi.fn(),
     })
     store = createTestStore()
+  })
+
+  afterEach(() => {
+    vi.restoreAllMocks()
+    vi.unstubAllEnvs()
   })
 
   describe('initial state', () => {
@@ -58,6 +82,10 @@ describe('query-explorer slice', () => {
 
     it('has empty runHistory when localStorage is empty', () => {
       expect(store.getState().runHistory).toEqual([])
+    })
+
+    it('has historyStorageMode local by default', () => {
+      expect(store.getState().historyStorageMode).toBe('local')
     })
 
     it('has null schema, schemaLoading false, schemaError null', () => {
@@ -84,7 +112,7 @@ describe('query-explorer slice', () => {
         id: 'id-1',
         query: 'query { x }',
         variables: '{}',
-        runAt: 1000,
+        runAt: Date.now() - 60_000,
       }
       localStorageData[RUN_HISTORY_KEY] = JSON.stringify([
         validEntry,
@@ -106,6 +134,22 @@ describe('query-explorer slice', () => {
       ])
       const storeWithInvalidOnly = createTestStore()
       expect(storeWithInvalidOnly.getState().runHistory).toEqual([])
+    })
+
+    it('drops entries older than TTL on load', () => {
+      vi.stubEnv('VITE_QUERY_HISTORY_TTL_MS', '1000')
+      const now = 2_000_000
+      vi.spyOn(Date, 'now').mockReturnValue(now)
+      const old = { id: 'a', query: 'q', variables: '{}', runAt: 100 }
+      const recent = {
+        id: 'b',
+        query: 'q2',
+        variables: '{}',
+        runAt: 1_999_500,
+      }
+      localStorageData[RUN_HISTORY_KEY] = JSON.stringify([old, recent])
+      const storeWithTtl = createTestStore()
+      expect(storeWithTtl.getState().runHistory).toEqual([recent])
     })
   })
 
@@ -161,6 +205,83 @@ describe('query-explorer slice', () => {
       const stored = JSON.parse(localStorageData[RUN_HISTORY_KEY])
       expect(stored).toHaveLength(1)
       expect(stored[0].query).toBe('query { a }')
+    })
+
+    it('does not persist when history storage mode is off', () => {
+      localStorageData[STORAGE_MODE_KEY] = 'off'
+      const s = createTestStore()
+      vi.mocked(localStorage.setItem).mockClear()
+      s.getState().addRunToHistory('query { a }', '{}')
+      expect(localStorageData[RUN_HISTORY_KEY]).toBeUndefined()
+      expect(sessionStorageData[RUN_HISTORY_KEY]).toBeUndefined()
+    })
+
+    it('persists to sessionStorage when mode is session', () => {
+      localStorageData[STORAGE_MODE_KEY] = 'session'
+      const s = createTestStore()
+      s.getState().addRunToHistory('query { a }', '{}')
+      expect(sessionStorageData[RUN_HISTORY_KEY]).toBeDefined()
+      expect(JSON.parse(sessionStorageData[RUN_HISTORY_KEY])).toHaveLength(1)
+    })
+  })
+
+  describe('setHistoryStorageMode', () => {
+    it('writes preference to localStorage and migrates history to session', () => {
+      store.getState().addRunToHistory('query { a }', '{}')
+      store.getState().setHistoryStorageMode('session')
+      expect(localStorageData[STORAGE_MODE_KEY]).toBe('session')
+      expect(store.getState().historyStorageMode).toBe('session')
+      expect(sessionStorageData[RUN_HISTORY_KEY]).toBeDefined()
+      expect(JSON.parse(sessionStorageData[RUN_HISTORY_KEY])).toHaveLength(1)
+    })
+
+    it('migrates in-memory history to localStorage when switching from off to local', () => {
+      localStorageData[STORAGE_MODE_KEY] = 'off'
+      const s = createTestStore()
+      s.getState().addRunToHistory('query { a }', '{}')
+      // History exists only in memory while mode is off
+      expect(localStorageData[RUN_HISTORY_KEY]).toBeUndefined()
+
+      s.getState().setHistoryStorageMode('local')
+      expect(localStorageData[STORAGE_MODE_KEY]).toBe('local')
+      expect(s.getState().historyStorageMode).toBe('local')
+      expect(localStorageData[RUN_HISTORY_KEY]).toBeDefined()
+      expect(JSON.parse(localStorageData[RUN_HISTORY_KEY])).toHaveLength(1)
+    })
+
+    it('migrates in-memory history to sessionStorage when switching from off to session', () => {
+      localStorageData[STORAGE_MODE_KEY] = 'off'
+      const s = createTestStore()
+      s.getState().addRunToHistory('query { a }', '{}')
+      expect(sessionStorageData[RUN_HISTORY_KEY]).toBeUndefined()
+
+      s.getState().setHistoryStorageMode('session')
+      expect(localStorageData[STORAGE_MODE_KEY]).toBe('session')
+      expect(s.getState().historyStorageMode).toBe('session')
+      expect(sessionStorageData[RUN_HISTORY_KEY]).toBeDefined()
+      expect(JSON.parse(sessionStorageData[RUN_HISTORY_KEY])).toHaveLength(1)
+    })
+
+    it('prunes stale entries when switching to local mode', () => {
+      vi.stubEnv('VITE_QUERY_HISTORY_TTL_MS', '1000')
+      const now = 2_000_000
+      vi.spyOn(Date, 'now').mockReturnValue(now)
+
+      localStorageData[STORAGE_MODE_KEY] = 'off'
+      const s = createTestStore()
+      // Manually seed in-memory history with one fresh and one stale entry
+      s.setState({
+        runHistory: [
+          { id: 'fresh', query: 'q1', variables: '{}', runAt: now - 500 },
+          { id: 'stale', query: 'q2', variables: '{}', runAt: now - 5000 },
+        ],
+      })
+
+      s.getState().setHistoryStorageMode('local')
+      const stored = JSON.parse(localStorageData[RUN_HISTORY_KEY])
+      expect(stored).toHaveLength(1)
+      expect(stored[0].id).toBe('fresh')
+      expect(s.getState().runHistory).toHaveLength(1)
     })
   })
 

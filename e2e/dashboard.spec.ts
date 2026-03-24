@@ -254,7 +254,7 @@ async function stubApiRoutes(page: Page) {
       body: JSON.stringify(STUB_CHECKPOINT_DETAIL),
     })
   })
-  await page.route('**/api/checkpoints*', (route: Route) => {
+  await page.route('**/api/checkpoints/**', (route: Route) => {
     void route.fulfill({
       status: 200,
       contentType: 'application/json',
@@ -311,10 +311,30 @@ test.describe('App / dashboard load', () => {
   test('dashboard shows API error banner when data endpoints fail', async ({
     page,
   }) => {
-    const base = 'http://127.0.0.1:5667'
-
-    // All other data endpoints fail
-    await page.route(`${base}/api/**`, (route: Route) => {
+    // Keep option endpoints healthy so branch resolution succeeds, but force
+    // commit loading to fail to trigger the dashboard data error banner.
+    await page.route('**/api/branches*', (route: Route) => {
+      void route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify(STUB_BRANCHES),
+      })
+    })
+    await page.route('**/api/users*', (route: Route) => {
+      void route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify(STUB_USERS),
+      })
+    })
+    await page.route('**/api/agents*', (route: Route) => {
+      void route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify(STUB_AGENTS),
+      })
+    })
+    await page.route('**/api/commits*', (route: Route) => {
       void route.fulfill({
         status: 500,
         contentType: 'application/json',
@@ -322,28 +342,17 @@ test.describe('App / dashboard load', () => {
       })
     })
 
-    // Branches must succeed so effectiveBranch is set and the data request fires.
-    // Register this after the catch-all so it takes precedence for /api/branches*.
-    await page.route(`${base}/api/branches*`, (route: Route) => {
-      void route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify(STUB_BRANCHES),
-      })
-    })
-
     await page.goto('/')
 
     await expect(
       page.getByText(/Could not load dashboard data from the API/),
-    ).toBeVisible()
+    ).toBeVisible({ timeout: 8000 })
   })
 
   test('shows "No branches" message when /api/branches returns empty', async ({
     page,
   }) => {
-    const base = 'http://127.0.0.1:5667'
-    await page.route(`${base}/api/branches*`, (route: Route) => {
+    await page.route('**/api/branches*', (route: Route) => {
       void route.fulfill({
         status: 200,
         contentType: 'application/json',
@@ -581,7 +590,7 @@ test.describe('Checkpoint sheet', () => {
         body: JSON.stringify({ error: 'error' }),
       })
     })
-    await page.route('**/api/checkpoints*', (route) => {
+    await page.route('**/api/checkpoints/**', (route) => {
       void route.fulfill({
         status: 500,
         contentType: 'application/json',

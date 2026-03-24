@@ -6,6 +6,9 @@ import tailwindcss from '@tailwindcss/vite'
 const apiProxyTarget =
   process.env.VITE_API_PROXY_TARGET ?? 'http://bitloops.local:5667'
 
+const proxyTargetIsHttps = apiProxyTarget.startsWith('https://')
+const proxySecure = proxyTargetIsHttps
+
 export default defineConfig({
   plugins: [react(), tailwindcss()],
   worker: {
@@ -24,7 +27,7 @@ export default defineConfig({
       '/api': {
         target: apiProxyTarget,
         changeOrigin: true,
-        secure: false,
+        secure: proxySecure,
       },
     },
   },

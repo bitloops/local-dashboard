@@ -22,13 +22,7 @@ import {
 } from './utils'
 
 export function Dashboard() {
-  const cli = useMemo(
-    () =>
-      new BitloopsCli({
-        BASE: import.meta.env.VITE_BITLOOPS_CLI_BASE ?? 'http://127.0.0.1:5667',
-      }),
-    [],
-  )
+  const cli = useMemo(() => new BitloopsCli(), [])
 
   const [selectedBranch, setSelectedBranch] = useState<string | null>(null)
   const [selectedUser, setSelectedUser] = useState<string | null>(null)

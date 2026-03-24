@@ -7,10 +7,7 @@ export type QueryApiResponse = {
   errors?: Array<{ message: string }>
 }
 
-const getClient = (): BitloopsCli =>
-  new BitloopsCli({
-    BASE: import.meta.env.VITE_BITLOOPS_CLI_BASE ?? 'http://127.0.0.1:5667',
-  })
+const getClient = (): BitloopsCli => new BitloopsCli()
 
 /**
  * Fetches schema metadata from GET /query-schema for autocomplete.
