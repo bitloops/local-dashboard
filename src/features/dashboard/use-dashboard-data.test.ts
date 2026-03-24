@@ -270,6 +270,44 @@ describe('useDashboardData', () => {
     })
   })
 
+  it('resets selectedCheckpoint to first available when current selection disappears from rows', async () => {
+    const { result } = renderHook(() => useDashboardData())
+
+    // Wait for initial load — checkpoint abcd1234abcd is auto-selected.
+    await waitFor(() =>
+      expect(result.current.selectedCheckpoint?.id).toBe('abcd1234abcd'),
+    )
+
+    // Now simulate a filter change that returns a different checkpoint.
+    const newCheckpointId = 'beef5678beef'
+    mockRequest.mockImplementation((params) => {
+      switch (params.url) {
+        case '/api/branches':
+          return Promise.resolve(defaultBranchList())
+        case '/api/users':
+          return Promise.resolve(defaultUsers())
+        case '/api/agents':
+          return Promise.resolve(defaultAgents())
+        case '/api/commits':
+          return Promise.resolve([
+            minimalCommitRow({ checkpointId: newCheckpointId }),
+          ])
+        default:
+          return Promise.reject(new Error(`unexpected url: ${params.url}`))
+      }
+    })
+    mockHandleCheckpoint.mockClear()
+
+    // Trigger a re-fetch by changing a filter.
+    act(() => {
+      result.current.onUserChange('user-1')
+    })
+
+    await waitFor(() => {
+      expect(result.current.selectedCheckpoint?.id).toBe(newCheckpointId)
+    })
+  })
+
   it('sets checkpointDetailSource to error when handleApiCheckpoint rejects', async () => {
     mockHandleCheckpoint.mockRejectedValue(new Error('server error'))
 
@@ -282,6 +320,42 @@ describe('useDashboardData', () => {
     await waitFor(() => {
       expect(result.current.checkpointDetailSource).toBe('error')
       expect(result.current.checkpointDetail).toBeNull()
+    })
+  })
+
+  it('clears selected checkpoint detail when refreshed rows contain no checkpoints', async () => {
+    const { result } = renderHook(() => useDashboardData())
+
+    await waitFor(() =>
+      expect(result.current.selectedCheckpoint?.id).toBe('abcd1234abcd'),
+    )
+    await waitFor(() => {
+      expect(result.current.checkpointDetailSource).toBe('api')
+    })
+
+    mockRequest.mockImplementation((params) => {
+      switch (params.url) {
+        case '/api/branches':
+          return Promise.resolve(defaultBranchList())
+        case '/api/users':
+          return Promise.resolve(defaultUsers())
+        case '/api/agents':
+          return Promise.resolve(defaultAgents())
+        case '/api/commits':
+          return Promise.resolve([])
+        default:
+          return Promise.reject(new Error(`unexpected url: ${params.url}`))
+      }
+    })
+
+    act(() => {
+      result.current.onUserChange('user-1')
+    })
+
+    await waitFor(() => {
+      expect(result.current.selectedCheckpoint).toBeNull()
+      expect(result.current.checkpointDetail).toBeNull()
+      expect(result.current.checkpointDetailSource).toBe('idle')
     })
   })
 })

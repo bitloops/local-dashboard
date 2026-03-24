@@ -57,6 +57,7 @@ This runs a production build and moves `dist` to `~/.bitloops/dashboard/bundle`.
 | `pnpm format`           | Format with Prettier                                          |
 | `pnpm format:check`     | Check formatting without writing files                        |
 | `pnpm test`             | Run all Vitest unit and integration tests once                |
+| `pnpm test:coverage`    | Run Vitest with coverage and enforce configured thresholds    |
 | `pnpm test:watch`       | Run Vitest in watch mode                                      |
 | `pnpm test:e2e`         | Playwright end-to-end tests (headless)                        |
 | `pnpm test:e2e:headed`  | E2E tests in a visible browser                                |

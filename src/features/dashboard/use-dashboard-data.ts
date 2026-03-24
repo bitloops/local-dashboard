@@ -168,13 +168,33 @@ export function useDashboardData() {
 
         const mappedRows = mapCommitRows(commitRows)
         setRows(mappedRows)
-        const firstCheckpoint = mappedRows[0]?.checkpointList?.[0]
-        if (firstCheckpoint) {
-          setSelectedCheckpoint((current) => current ?? firstCheckpoint)
-          if (!selectedCheckpointRef.current) {
-            setCheckpointDetail(null)
-            setCheckpointDetailSource('loading')
+
+        const allCheckpoints = mappedRows.flatMap((r) => r.checkpointList)
+        const firstCheckpoint = allCheckpoints[0] ?? null
+
+        setSelectedCheckpoint((current) => {
+          if (!current) {
+            return firstCheckpoint
           }
+          if (allCheckpoints.some((cp) => cp.id === current.id)) {
+            return current
+          }
+          return firstCheckpoint
+        })
+
+        // Reload detail when the selection changed (or was just initialised),
+        // and clear stale detail when no checkpoint remains visible.
+        const prev = selectedCheckpointRef.current
+        const next =
+          prev && allCheckpoints.some((cp) => cp.id === prev.id)
+            ? prev
+            : firstCheckpoint
+        if (!next && prev) {
+          setCheckpointDetail(null)
+          setCheckpointDetailSource('idle')
+        } else if (next && next.id !== prev?.id) {
+          setCheckpointDetail(null)
+          setCheckpointDetailSource('loading')
         }
         setDataSource('api')
         setOptionsSource('api')
