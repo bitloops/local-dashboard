@@ -1,5 +1,4 @@
 import { BitloopsCli } from '@/api/types/schema'
-import { getBitloopsApiBase } from '@/config/api-base'
 import type { DevQLSchema } from '@/store/types'
 
 /** Temporary type for POST /query response until OpenAPI codegen includes the endpoint. */
@@ -8,10 +7,7 @@ export type QueryApiResponse = {
   errors?: Array<{ message: string }>
 }
 
-const getClient = (): BitloopsCli =>
-  new BitloopsCli({
-    BASE: getBitloopsApiBase(),
-  })
+const getClient = (): BitloopsCli => new BitloopsCli()
 
 /**
  * Fetches schema metadata from GET /query-schema for autocomplete.

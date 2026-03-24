@@ -14,7 +14,7 @@ env:
 jobs:
   quality:
     name: Quality
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     permissions:
       contents: read
     steps:
@@ -47,7 +47,7 @@ jobs:
 
   test:
     name: Unit And Integration Tests
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     permissions:
       contents: read
     steps:
@@ -73,7 +73,7 @@ jobs:
 
   e2e:
     name: E2E Tests
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     permissions:
       contents: read
     steps:
@@ -102,7 +102,7 @@ jobs:
 
   codeql:
     name: Security Analysis
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     permissions:
       contents: read
       security-events: write
@@ -137,7 +137,7 @@ jobs:
 
   build:
     name: Build
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     permissions:
       contents: read
     steps:

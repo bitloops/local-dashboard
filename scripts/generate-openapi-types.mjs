@@ -15,10 +15,6 @@ const fetchTimeoutMs =
   Number.isFinite(parsedTimeout) && parsedTimeout > 0 ? parsedTimeout : 8000
 const isVerbose = process.env.OPENAPI_TYPES_VERBOSE === '1'
 
-/** Prefer fixing TLS with a trusted cert (e.g. `NODE_EXTRA_CA_CERTS=/path/to/ca.pem`) over disabling verification. */
-const allowInsecureTls =
-  process.env.OPENAPI_ALLOW_INSECURE_TLS?.toLowerCase() === 'true'
-
 const schemaUrls = [primaryUrl, fallbackUrl].filter(
   (value, index, list) => Boolean(value) && list.indexOf(value) === index,
 )
@@ -42,15 +38,9 @@ const fileExists = async (filePath) => {
 
 const runGenerator = async (schemaUrl) =>
   new Promise((resolve, reject) => {
-    const env = { ...process.env }
-
-    if (schemaUrl.startsWith('https://') && allowInsecureTls) {
-      env.NODE_TLS_REJECT_UNAUTHORIZED = '0'
-    }
-
     const child = spawn(generatorBin, [schemaUrl, '--output', outputPath], {
       stdio: isVerbose ? 'inherit' : 'pipe',
-      env,
+      env: process.env,
     })
 
     let output = ''

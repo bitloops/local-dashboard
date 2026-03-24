@@ -13,7 +13,6 @@ import {
   type UserOption,
 } from './dashboard-view'
 import { type Checkpoint, type CommitData } from './types'
-import { getBitloopsApiBase } from '@/config/api-base'
 import {
   endOfDayUnixSeconds,
   mapAgentOptions,
@@ -23,13 +22,7 @@ import {
 } from './utils'
 
 export function Dashboard() {
-  const cli = useMemo(
-    () =>
-      new BitloopsCli({
-        BASE: getBitloopsApiBase(),
-      }),
-    [],
-  )
+  const cli = useMemo(() => new BitloopsCli(), [])
 
   const [selectedBranch, setSelectedBranch] = useState<string | null>(null)
   const [selectedUser, setSelectedUser] = useState<string | null>(null)
