@@ -47,21 +47,21 @@ This runs a production build and moves `dist` to `~/.bitloops/dashboard/bundle`.
 
 ## Scripts
 
-| Command                        | Description                                                   |
-| ------------------------------ | ------------------------------------------------------------- |
-| `pnpm dev`                     | Start the Vite dev server                                     |
-| `pnpm build`                   | TypeScript project build + production bundle to `dist/`       |
-| `pnpm preview`                 | Preview the production build                                  |
-| `pnpm bundle`                  | Build and install output under `~/.bitloops/dashboard/bundle` |
-| `pnpm lint`                    | Run ESLint                                                    |
-| `pnpm format`                  | Format with Prettier                                          |
-| `pnpm format:check`            | Check formatting without writing files                        |
-| `pnpm test`                    | Run all Vitest unit and integration tests once                |
-| `pnpm test:watch`              | Run Vitest in watch mode                                      |
-| `pnpm test:e2e`                | Playwright end-to-end tests (headless)                        |
-| `pnpm test:e2e:headed`         | E2E tests in a visible browser                                |
-| `pnpm test:e2e:ui`             | E2E tests with Playwright's interactive UI                    |
-| `pnpm open-api-codegen`        | Regenerate the OpenAPI client under `src/api/types/schema`     |
+| Command                 | Description                                                   |
+| ----------------------- | ------------------------------------------------------------- |
+| `pnpm dev`              | Start the Vite dev server                                     |
+| `pnpm build`            | TypeScript project build + production bundle to `dist/`       |
+| `pnpm preview`          | Preview the production build                                  |
+| `pnpm bundle`           | Build and install output under `~/.bitloops/dashboard/bundle` |
+| `pnpm lint`             | Run ESLint                                                    |
+| `pnpm format`           | Format with Prettier                                          |
+| `pnpm format:check`     | Check formatting without writing files                        |
+| `pnpm test`             | Run all Vitest unit and integration tests once                |
+| `pnpm test:watch`       | Run Vitest in watch mode                                      |
+| `pnpm test:e2e`         | Playwright end-to-end tests (headless)                        |
+| `pnpm test:e2e:headed`  | E2E tests in a visible browser                                |
+| `pnpm test:e2e:ui`      | E2E tests with Playwright's interactive UI                    |
+| `pnpm open-api-codegen` | Regenerate the OpenAPI client under `src/api/types/schema`    |
 
 ## Environment
 
