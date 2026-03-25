@@ -35,3 +35,12 @@ export type CommitData = {
   agents?: string[]
   checkpointList: Checkpoint[]
 }
+
+export type LoadState = 'loading' | 'api' | 'error'
+
+export type CheckpointDetailLoadState = 'idle' | 'loading' | 'api' | 'error'
+
+export type UserOption = {
+  label: string
+  value: string
+}

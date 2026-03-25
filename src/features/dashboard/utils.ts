@@ -4,7 +4,7 @@ import type {
   ApiUserDto,
 } from '@/api/types/schema'
 import type { CommitData } from './types'
-import type { UserOption } from './dashboard-view'
+import type { UserOption } from './types'
 
 export const startOfDayIso = (date: Date): string => {
   const normalized = new Date(date)

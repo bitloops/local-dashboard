@@ -1,54 +1,88 @@
 # Bitloops Local Dashboard
 
-A local-first dashboard UI for the Bitloops CLI. It provides real-time visibility into commits, branches and agents used, alongside an interactive GraphQL query explorer for exploring code intelligence data.
+A local-first web UI for the [Bitloops](https://bitloops.com) CLI. Use it to see activity across commits, branches, and agents, and to run ad hoc queries in a GraphQL explorer backed by your local Bitloops backend.
 
 ## Prerequisites
 
 - **Node.js** `>= 20.19` or `>= 22.12` (required by Vite 8)
-- A running Bitloops CLI backend at `http://bitloops.local:5667`.
+- **pnpm** (this repo uses pnpm; CI uses pnpm 9)
+- A reachable Bitloops CLI HTTP API. By default the dev server proxies `/api` to `http://bitloops.local:5667` (see [Environment](#environment)).
 
-## Getting Started
+## Setup
 
 ```bash
-# Install dependencies
 pnpm install
+```
 
-# Start the dev server (opens http://localhost:5173)
+Copy optional env defaults if you want to customize behavior:
+
+```bash
+cp .env.example .env
+```
+
+## Running the app
+
+```bash
 pnpm dev
 ```
 
+Open the URL shown in the terminal (typically [http://localhost:5173](http://localhost:5173)). API requests from the browser go to `/api/...` on the same origin; Vite forwards them to the backend you configure with `VITE_API_PROXY_TARGET`.
+
+## Production build and preview
+
+```bash
+pnpm build    # TypeScript check + Vite production build → dist/
+pnpm preview  # Serve the production build locally
+```
+
+## Install into the CLI bundle path
+
+To replace the dashboard files the CLI reads from `~/.bitloops/dashboard/bundle`:
+
+```bash
+pnpm bundle
+```
+
+This runs a production build and moves `dist` to `~/.bitloops/dashboard/bundle`.
+
 ## Scripts
 
-| Command                 | Description                                             |
-| ----------------------- | ------------------------------------------------------- |
-| `pnpm dev`              | Start Vite dev server                                   |
-| `pnpm build`            | TypeScript check + production build                     |
-| `pnpm bundle`           | Build and copy output to `~/.bitloops/dashboard/bundle` |
-| `pnpm preview`          | Preview the production build locally                    |
-| `pnpm lint`             | Run ESLint                                              |
-| `pnpm format`           | Format all files with Prettier                          |
-| `pnpm format:check`     | Check formatting without writing                        |
-| `pnpm test`             | Run all Vitest tests once                               |
-| `pnpm test:watch`       | Run Vitest in watch mode                                |
-| `pnpm test:unit`        | Unit tests only (excludes `tests/integration/`)         |
-| `pnpm test:integration` | Integration tests only                                  |
-| `pnpm test:e2e`         | Playwright end-to-end tests                             |
-| `pnpm test:e2e:headed`  | E2E tests in a visible browser                          |
-| `pnpm test:e2e:ui`      | E2E tests with Playwright's interactive UI              |
-| `pnpm test:e2e:debug`   | E2E tests in debug mode                                 |
-| `pnpm test:e2e:install` | Install Chromium for Playwright                         |
-| `pnpm open-api-codegen` | Regenerate the OpenAPI client from the backend          |
+| Command                 | Description                                                   |
+| ----------------------- | ------------------------------------------------------------- |
+| `pnpm dev`              | Start the Vite dev server                                     |
+| `pnpm build`            | TypeScript project build + production bundle to `dist/`       |
+| `pnpm preview`          | Preview the production build                                  |
+| `pnpm bundle`           | Build and install output under `~/.bitloops/dashboard/bundle` |
+| `pnpm lint`             | Run ESLint                                                    |
+| `pnpm format`           | Format with Prettier                                          |
+| `pnpm format:check`     | Check formatting without writing files                        |
+| `pnpm test`             | Run all Vitest unit and integration tests once                |
+| `pnpm test:coverage`    | Run Vitest with coverage and enforce configured thresholds    |
+| `pnpm test:watch`       | Run Vitest in watch mode                                      |
+| `pnpm test:e2e`         | Playwright end-to-end tests (headless)                        |
+| `pnpm test:e2e:headed`  | E2E tests in a visible browser                                |
+| `pnpm test:e2e:ui`      | E2E tests with Playwright's interactive UI                    |
+| `pnpm open-api-codegen` | Regenerate the OpenAPI client under `src/api/types/schema`    |
 
 ## Environment
 
-Variables
+You do not need a `.env` file for typical local use if your API is already at the default proxy target.
 
-All variables have sensible defaults; no `.env` file is required for local development against the standard CLI backend.
+| Variable                    | Purpose                                                                                                                         |
+| --------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| `VITE_API_PROXY_TARGET`     | Origin for the dev-server `/api` proxy (default `http://bitloops.local:5667`). Use `https://...` if your API is TLS-terminated. |
+| `VITE_QUERY_HISTORY_TTL_MS` | Max age (ms) for persisted query-explorer run history in the browser (default 30 days).                                         |
 
-## Query Explorer
+See [.env.example](.env.example) for commented templates.
 
-The query explorer provides an interactive GraphQL editor with schema-driven autocomplete. It offers context-aware suggestions for fields, arguments, variables, and types. Queries are executed and results are displayed in a JSON viewer. A run history panel persists recent queries in localStorage.
+## Query explorer
 
-```bash
+The query explorer is a **read-only DevQL workspace** for exploring your Bitloops code-intelligence data. The editor speaks **GraphQL syntax**: you write operations with `query`, fields, arguments and variables and the UI uses your live schema (`GET /api/query-schema`) for autocomplete and validation of that syntax.
 
-```
+**What it is not:** this is not a full GraphQL client. **Only queries are supported** for execution against `POST /api/query`. **Mutations and subscriptions are not supported**—the backend and explorer are built for ad hoc reads, not for changing server state or streaming updates. If you paste a mutation or subscription document, it may parse as valid GraphQL text, but it is outside what the explorer and API are meant to run.
+
+Results render in a JSON viewer. Recent runs are stored in the browser (subject to `VITE_QUERY_HISTORY_TTL_MS`).
+
+## License
+
+Licensed under the Apache License, Version 2.0. See [LICENSE](LICENSE).

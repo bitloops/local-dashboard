@@ -17,5 +17,24 @@ export default defineConfig({
     include: ['src/**/*.test.{ts,tsx}', 'tests/integration/**/*.test.{ts,tsx}'],
     exclude: ['node_modules', 'dist', 'e2e'],
     globals: true,
+    coverage: {
+      provider: 'v8',
+      reporter: ['text', 'lcov', 'html'],
+      // Vitest v4 removed `coverage.all`. Set `coverage.include` so files that
+      // never load during tests still appear as 0% and count toward thresholds.
+      include: ['src/**/*.{ts,tsx}'],
+      exclude: [
+        '**/*.test.{ts,tsx}',
+        '**/node_modules/**',
+        'src/api/types/schema/**',
+      ],
+      // ~4–5 pts below current totals; raise when coverage improves.
+      thresholds: {
+        lines: 75,
+        statements: 75,
+        branches: 70,
+        functions: 65,
+      },
+    },
   },
 })
