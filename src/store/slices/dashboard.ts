@@ -22,9 +22,7 @@ type DashboardSet = (
     | ((state: DashboardSlice) => Partial<DashboardSlice>),
 ) => void
 
-export function createDashboardSlice(
-  set: DashboardSet,
-): DashboardSlice {
+export function createDashboardSlice(set: DashboardSet): DashboardSlice {
   return {
     dashboardCommitsAfterStack: [...INITIAL_COMMITS_AFTER_STACK],
 
