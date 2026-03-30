@@ -1,75 +1,41 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest'
 import type { DevQLSchema } from '@/store/types'
-import {
-  executeQuery,
-  getQuerySchema,
-  type QueryApiResponse,
-} from './query-client'
+import { executeQuery, getQuerySchema } from './query-client'
 
-const mockExecuteRequest =
-  vi.fn<
-    (params: {
-      method: string
-      url: string
-      body?: unknown
-      mediaType?: string
-    }) => Promise<QueryApiResponse>
-  >()
+const mockRequestGraphQL = vi.fn()
+const mockFetchGraphQLSdl = vi.fn()
 
-const mockSchemaRequest =
-  vi.fn<(params: { method: string; url: string }) => Promise<DevQLSchema>>()
-
-vi.mock('@/api/types/schema', () => ({
-  // Vitest 4+: `new BitloopsCli()` requires a non-arrow mock implementation.
-  BitloopsCli: vi.fn(function MockBitloopsCli() {
-    return {
-      request: {
-        request: vi.fn(
-          (params: {
-            method: string
-            url: string
-            body?: unknown
-            mediaType?: string
-          }) => {
-            if (params.url === '/api/query-schema') {
-              return mockSchemaRequest(params)
-            }
-            return mockExecuteRequest(params)
-          },
-        ),
-      },
-    }
-  }),
+vi.mock('@/api/graphql/client', () => ({
+  requestGraphQL: (query: string, variables: Record<string, unknown>) =>
+    mockRequestGraphQL(query, variables),
+  fetchGraphQLSdl: () => mockFetchGraphQLSdl(),
 }))
 
 describe('query-client', () => {
   beforeEach(() => {
-    mockExecuteRequest.mockReset()
-    mockSchemaRequest.mockReset()
+    mockRequestGraphQL.mockReset()
+    mockFetchGraphQLSdl.mockReset()
   })
 
   describe('executeQuery', () => {
-    it('sends POST to /api/query with query and variables', async () => {
-      const response: QueryApiResponse = { data: { repo: null } }
-      mockExecuteRequest.mockResolvedValue(response)
+    it('sends query and variables via shared GraphQL client', async () => {
+      const response = { data: { repo: null } }
+      mockRequestGraphQL.mockResolvedValue(response)
 
       const result = await executeQuery('query { repo }', { id: 'x' })
 
-      expect(mockExecuteRequest).toHaveBeenCalledTimes(1)
-      expect(mockExecuteRequest).toHaveBeenCalledWith({
-        method: 'POST',
-        url: '/api/query',
-        body: { query: 'query { repo }', variables: { id: 'x' } },
-        mediaType: 'application/json',
+      expect(mockRequestGraphQL).toHaveBeenCalledTimes(1)
+      expect(mockRequestGraphQL).toHaveBeenCalledWith('query { repo }', {
+        id: 'x',
       })
       expect(result).toEqual(response)
     })
 
     it('resolves with response data when request succeeds', async () => {
-      const response: QueryApiResponse = {
+      const response = {
         data: { repo: { ref: { file: { artefacts: [] } } } },
       }
-      mockExecuteRequest.mockResolvedValue(response)
+      mockRequestGraphQL.mockResolvedValue(response)
 
       const result = await executeQuery(
         'query GetArtefacts { repo { ref { file { artefacts { symbolFqn } } } } }',
@@ -81,11 +47,11 @@ describe('query-client', () => {
     })
 
     it('resolves with response including errors when API returns partial success', async () => {
-      const response: QueryApiResponse = {
+      const response = {
         data: { repo: { ref: null } },
         errors: [{ message: "Ref 'main' not found." }],
       }
-      mockExecuteRequest.mockResolvedValue(response)
+      mockRequestGraphQL.mockResolvedValue(response)
 
       const result = await executeQuery('query { repo { ref { name } } }', {})
 
@@ -96,7 +62,7 @@ describe('query-client', () => {
 
     it('rejects when request fails', async () => {
       const error = new Error('Network error')
-      mockExecuteRequest.mockRejectedValue(error)
+      mockRequestGraphQL.mockRejectedValue(error)
 
       await expect(executeQuery('query { }', {})).rejects.toThrow(
         'Network error',
@@ -105,20 +71,31 @@ describe('query-client', () => {
   })
 
   describe('getQuerySchema', () => {
-    it('sends GET to /api/query-schema', async () => {
-      const schema: DevQLSchema = {
-        Query: { fields: { repo: { type: 'Repo' } } },
-      }
-      mockSchemaRequest.mockResolvedValue(schema)
+    it('loads SDL and maps it into autocomplete schema', async () => {
+      const sdl = `
+        type QueryRoot {
+          repo(name: String!): Repository!
+        }
+        type Repository {
+          name: String!
+        }
+        schema { query: QueryRoot }
+      `
+      mockFetchGraphQLSdl.mockResolvedValue(sdl)
 
       const result = await getQuerySchema()
 
-      expect(mockSchemaRequest).toHaveBeenCalledTimes(1)
-      expect(mockSchemaRequest).toHaveBeenCalledWith({
-        method: 'GET',
-        url: '/api/query-schema',
-      })
-      expect(result).toEqual(schema)
+      expect(mockFetchGraphQLSdl).toHaveBeenCalledTimes(1)
+      const expected: DevQLSchema = {
+        QueryRoot: {
+          fields: { repo: { type: 'Repository!', args: { name: 'String!' } } },
+        },
+        Repository: { fields: { name: { type: 'String!' } } },
+        Query: {
+          fields: { repo: { type: 'Repository!', args: { name: 'String!' } } },
+        },
+      }
+      expect(result).toEqual(expected)
     })
   })
 })

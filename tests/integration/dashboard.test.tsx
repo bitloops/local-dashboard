@@ -5,7 +5,7 @@ import userEvent from '@testing-library/user-event'
 import { SidebarProvider } from '@/components/ui/sidebar'
 import { DashboardView } from '@/features/dashboard/dashboard-view'
 import { type Checkpoint, type CommitData } from '@/features/dashboard/types'
-import type { ApiCheckpointDetailResponse } from '@/api/types/schema'
+import type { ApiCheckpointDetailResponse } from '@/api/rest'
 
 const commitData: CommitData[] = [
   {
@@ -145,6 +145,10 @@ function defaultProps(
     effectiveBranch: 'main',
     dataSource: 'api' as const,
     optionsSource: 'api' as const,
+    commitsHasNextPage: false,
+    commitsHasPreviousPage: false,
+    onCommitsNext: () => {},
+    onCommitsBack: () => {},
     selectedCheckpoint: null,
     checkpointDetail: null,
     checkpointDetailSource: 'idle' as const,

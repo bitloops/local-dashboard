@@ -1,5 +1,23 @@
 import { test, expect, type Page } from '@playwright/test'
 
+const STUB_SDL = `
+  type Query {
+    repo(name: String!): Repository
+  }
+
+  type Repository {
+    ref(name: String): Ref
+  }
+
+  type Ref {
+    files: [File!]!
+  }
+
+  type File {
+    path: String!
+  }
+`
+
 /** Stub both API endpoints so tests never need a real backend. */
 async function stubApis(
   page: Page,
@@ -11,12 +29,16 @@ async function stubApis(
     schemaStatus?: number
   } = {},
 ) {
-  await page.route('**/api/query-schema', (route) =>
+  await page.route('**/devql/sdl', (route) =>
     schemaStatus === 200
-      ? route.fulfill({ status: 200, json: {} })
+      ? route.fulfill({
+          status: 200,
+          contentType: 'text/plain',
+          body: STUB_SDL,
+        })
       : route.fulfill({ status: schemaStatus, body: '' }),
   )
-  await page.route('**/api/query', (route) =>
+  await page.route('**/devql', (route) =>
     route.fulfill({ status: 200, json: queryResponse }),
   )
 }
@@ -224,13 +246,13 @@ test.describe('Query execution', () => {
   })
 
   test('loading spinner shown while query is in-flight', async ({ page }) => {
-    // Hold the /api/query response until we've observed the spinner.
+    // Hold the /devql response until we've observed the spinner.
     let resolveQuery!: () => void
     const queryGate = new Promise<void>((r) => {
       resolveQuery = r
     })
 
-    await page.route('**/api/query', async (route) => {
+    await page.route('**/devql', async (route) => {
       await queryGate
       await route.fulfill({ status: 200, json: { data: {} } })
     })
@@ -266,7 +288,7 @@ test.describe('Query execution', () => {
   test('network-level error shows error styling in Results panel', async ({
     page,
   }) => {
-    await page.route('**/api/query', (route) =>
+    await page.route('**/devql', (route) =>
       route.fulfill({ status: 500, body: 'Internal Server Error' }),
     )
     await page.goto('/explorer')

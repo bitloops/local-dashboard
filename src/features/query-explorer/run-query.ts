@@ -1,4 +1,4 @@
-import { ApiError } from '@/api/types/schema'
+import { GraphQLRequestError } from '@/api/graphql/errors'
 import { rootStoreInstance } from '@/store'
 import { parse } from 'graphql'
 import { executeQuery } from './query-client'
@@ -96,9 +96,10 @@ export function runQueryExplorerQuery(overrides?: {
     .catch((err: unknown) => {
       if (requestId !== latestQueryRequestId) return
       const store = rootStoreInstance.getState()
-      if (err instanceof ApiError) {
-        const firstMessage =
-          err.body?.errors?.[0]?.message ?? err.message ?? err.statusText
+      if (err instanceof GraphQLRequestError) {
+        // err.message is set by the client to `firstGraphQLError ?? 'Request failed (status).'`,
+        // so it already encodes HTTP status context; no statusText fallback needed.
+        const firstMessage = err.graphQLErrors?.[0]?.message ?? err.message
         store.setResult({ status: 'error', error: firstMessage })
         return
       }

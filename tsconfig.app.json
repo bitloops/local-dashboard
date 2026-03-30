@@ -29,6 +29,6 @@
     "noUncheckedSideEffectImports": true
   },
   "include": ["src", "tests"],
-  "exclude": ["src/api/types/schema"],
-  "references": [{ "path": "src/api/types/schema" }]
+  "exclude": ["src/api/rest/types/schema"],
+  "references": [{ "path": "src/api/rest/types/schema" }]
 }

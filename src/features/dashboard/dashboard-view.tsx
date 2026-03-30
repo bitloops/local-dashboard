@@ -1,6 +1,13 @@
 import { lazy, Suspense, useState } from 'react'
-import { Gauge, GitBranch, Bookmark, Bot } from 'lucide-react'
-import { type ApiCheckpointDetailResponse } from '@/api/types/schema'
+import {
+  ChevronLeft,
+  ChevronRight,
+  Gauge,
+  GitBranch,
+  Bookmark,
+  Bot,
+} from 'lucide-react'
+import { type ApiCheckpointDetailResponse } from '@/api/rest'
 import { DatePicker } from '@/components/date-picker'
 import { Header } from '@/components/layout/header'
 import { Main } from '@/components/layout/main'
@@ -60,6 +67,10 @@ type DashboardViewProps = {
   effectiveBranch: string | null
   dataSource: LoadState
   optionsSource: LoadState
+  commitsHasNextPage: boolean
+  commitsHasPreviousPage: boolean
+  onCommitsNext: () => void
+  onCommitsBack: () => void
   selectedCheckpoint: Checkpoint | null
   checkpointDetail: ApiCheckpointDetailResponse | null
   checkpointDetailSource: CheckpointDetailLoadState
@@ -85,6 +96,10 @@ export function DashboardView({
   effectiveBranch,
   dataSource,
   optionsSource,
+  commitsHasNextPage,
+  commitsHasPreviousPage,
+  onCommitsNext,
+  onCommitsBack,
   selectedCheckpoint,
   checkpointDetail,
   checkpointDetailSource,
@@ -346,9 +361,37 @@ export function DashboardView({
         </Card>
 
         <div className='mt-6'>
-          <h2 className='mb-4 text-lg font-semibold tracking-tight'>
-            Recent Commits
-          </h2>
+          <div className='mb-4 flex flex-wrap items-center justify-between gap-2'>
+            <h2 className='text-lg font-semibold tracking-tight'>
+              Recent Commits
+            </h2>
+            {effectiveBranch && (
+              <div className='flex items-center gap-1'>
+                <Button
+                  type='button'
+                  variant='outline'
+                  size='sm'
+                  className='h-8 px-2'
+                  disabled={!commitsHasPreviousPage || dataSource === 'loading'}
+                  onClick={onCommitsBack}
+                  aria-label='Previous commits page'
+                >
+                  <ChevronLeft className='h-4 w-4' />
+                </Button>
+                <Button
+                  type='button'
+                  variant='outline'
+                  size='sm'
+                  className='h-8 px-2'
+                  disabled={!commitsHasNextPage || dataSource === 'loading'}
+                  onClick={onCommitsNext}
+                  aria-label='Next commits page'
+                >
+                  <ChevronRight className='h-4 w-4' />
+                </Button>
+              </div>
+            )}
+          </div>
           <CommitTable data={rows} onCheckpointClick={handleCheckpointSelect} />
         </div>
       </Main>

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import type { ApiCommitRowDto } from '@/api/types/schema'
+import type { ApiCommitRowDto } from '@/api/rest'
 import {
   endOfDayIso,
   endOfDayUnixSeconds,

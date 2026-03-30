@@ -2,7 +2,7 @@ import { lazy, Suspense, useState } from 'react'
 import {
   type ApiCheckpointDetailResponse,
   type ApiCheckpointSessionDetailDto,
-} from '@/api/types/schema'
+} from '@/api/rest'
 import { CopyButton } from '@/components/copy-button'
 import { Badge } from '@/components/ui/badge'
 import { cn } from '@/lib/utils'

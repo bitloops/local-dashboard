@@ -1,83 +1,102 @@
 import { act, renderHook, waitFor } from '@testing-library/react'
-import type { ApiAgentDto } from '@/api/types/schema/models/ApiAgentDto'
-import type { ApiBranchSummaryDto } from '@/api/types/schema/models/ApiBranchSummaryDto'
-import type { ApiCommitRowDto } from '@/api/types/schema/models/ApiCommitRowDto'
-import type { ApiUserDto } from '@/api/types/schema/models/ApiUserDto'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { COMMITS_PAGE_SIZE } from './graphql/fetch-dashboard-data'
 import { useDashboardData } from './use-dashboard-data'
+import { rootStoreInstance } from '@/store'
 
-const mockRequest = vi.fn()
+const mockRequestGraphQL = vi.fn()
 
 const mockHandleCheckpoint = vi.fn()
 
-vi.mock('@/api/types/schema', () => ({
+vi.mock('@/api/graphql/client', () => ({
+  requestGraphQL: (query: string, variables: Record<string, unknown>) =>
+    mockRequestGraphQL(query, variables),
+}))
+
+vi.mock('@/api/rest', () => ({
   BitloopsCli: vi.fn(function MockBitloopsCli() {
     return {
-      request: { request: mockRequest },
       default: { handleApiCheckpoint: mockHandleCheckpoint },
     }
   }),
 }))
 
-function minimalCommitRow(overrides?: {
-  checkpointId?: string
-}): ApiCommitRowDto {
-  const checkpointId = overrides?.checkpointId ?? 'abcd1234abcd'
+function dashboardCommitsResponse() {
   return {
-    checkpoint: {
-      agent: 'claude-code',
-      agents: ['claude-code'],
-      branch: 'main',
-      checkpoint_id: checkpointId,
-      checkpoints_count: 1,
-      created_at: '2025-01-15T14:30:00.000Z',
-      files_touched: [],
-      is_task: false,
-      session_count: 1,
-      session_id: 'session-1',
-      strategy: 'default',
-      tool_use_id: 'tool-1',
-    },
-    commit: {
-      author_email: 'dev@example.com',
-      author_name: 'Dev',
-      message: 'fix: sample',
-      parents: [],
-      sha: 'a1b2c3d4e5f6789012345678901234567890abcd',
-      timestamp: 1_738_000_000,
+    data: {
+      repo: {
+        commits: {
+          pageInfo: { hasNextPage: false, endCursor: null },
+          edges: [
+            {
+              node: {
+                sha: 'a1b2c3d4e5f6789012345678901234567890abcd',
+                parents: [],
+                authorName: 'Dev',
+                authorEmail: 'dev@example.com',
+                commitMessage: 'fix: sample',
+                committedAt: '2025-01-15T14:30:00.000Z',
+                filesChanged: [],
+                checkpoints: {
+                  edges: [
+                    {
+                      node: {
+                        id: 'abcd1234abcd',
+                        branch: 'main',
+                        agent: 'claude-code',
+                        strategy: 'default',
+                        filesTouched: [],
+                        checkpointsCount: 1,
+                        sessionCount: 1,
+                        sessionId: 'session-1',
+                        agents: ['claude-code'],
+                        firstPromptPreview: '',
+                        createdAt: '2025-01-15T14:30:00.000Z',
+                        isTask: false,
+                        toolUseId: 'tool-1',
+                        tokenUsage: null,
+                      },
+                    },
+                  ],
+                },
+              },
+            },
+          ],
+        },
+      },
     },
   }
 }
 
-function defaultBranchList(): ApiBranchSummaryDto[] {
-  return [{ branch: '  main  ', checkpoint_commits: 3 }]
-}
-
-function defaultUsers(): ApiUserDto[] {
-  return [{ key: 'user-1', name: 'Ada', email: 'ada@example.com' }]
-}
-
-function defaultAgents(): ApiAgentDto[] {
-  return [{ key: 'claude-code' }]
-}
-
 describe('useDashboardData', () => {
   beforeEach(() => {
-    mockRequest.mockReset()
+    mockRequestGraphQL.mockReset()
     mockHandleCheckpoint.mockReset()
-    mockRequest.mockImplementation((params) => {
-      switch (params.url) {
-        case '/api/branches':
-          return Promise.resolve(defaultBranchList())
-        case '/api/users':
-          return Promise.resolve(defaultUsers())
-        case '/api/agents':
-          return Promise.resolve(defaultAgents())
-        case '/api/commits':
-          return Promise.resolve([minimalCommitRow()])
-        default:
-          return Promise.reject(new Error(`unexpected url: ${params.url}`))
+    rootStoreInstance.getState().resetDashboardCommitsPagination()
+    mockRequestGraphQL.mockImplementation((query: string) => {
+      if (query.includes('query DashboardBranches')) {
+        return Promise.resolve({
+          data: {
+            repo: {
+              branches: [{ name: '  main  ', checkpointCount: 3 }],
+            },
+          },
+        })
       }
+      if (query.includes('query DashboardRepoOptions')) {
+        return Promise.resolve({
+          data: {
+            repo: {
+              users: ['user-1'],
+              agents: ['claude-code'],
+            },
+          },
+        })
+      }
+      if (query.includes('query DashboardCommits')) {
+        return Promise.resolve(dashboardCommitsResponse())
+      }
+      return Promise.reject(new Error('unexpected GraphQL query'))
     })
     mockHandleCheckpoint.mockResolvedValue({
       branch: 'main',
@@ -98,6 +117,15 @@ describe('useDashboardData', () => {
       expect(result.current.effectiveBranch).toBe('main')
       expect(result.current.optionsSource).toBe('api')
     })
+
+    const branchCalls = mockRequestGraphQL.mock.calls.filter((call) =>
+      String(call[0]).includes('query DashboardBranches'),
+    )
+    expect(branchCalls[0]?.[1]).toMatchObject({
+      repo: '',
+      since: null,
+      until: null,
+    })
   })
 
   it('loads commits and exposes mapped rows when a branch is effective', async () => {
@@ -109,21 +137,44 @@ describe('useDashboardData', () => {
       expect(result.current.dataSource).toBe('api')
     })
 
-    expect(mockRequest).toHaveBeenCalledWith(
-      expect.objectContaining({
-        method: 'GET',
-        url: '/api/branches',
-        query: { from: null, to: null },
-      }),
+    expect(mockRequestGraphQL).toHaveBeenCalled()
+    const commitsCalls = mockRequestGraphQL.mock.calls.filter((call) =>
+      String(call[0]).includes('query DashboardCommits'),
     )
+    expect(commitsCalls[0]?.[1]).toMatchObject({
+      author: null,
+      after: null,
+      commitsFirst: COMMITS_PAGE_SIZE,
+    })
+  })
+
+  it('passes author to DashboardCommits when a user is selected', async () => {
+    const { result } = renderHook(() => useDashboardData())
+
+    await waitFor(() => expect(result.current.effectiveBranch).toBe('main'))
+
+    mockRequestGraphQL.mockClear()
+
+    act(() => {
+      result.current.onUserChange('dev@example.com')
+    })
+
+    await waitFor(() => {
+      const commitsCalls = mockRequestGraphQL.mock.calls.filter((call) =>
+        String(call[0]).includes('query DashboardCommits'),
+      )
+      expect(
+        commitsCalls.some((call) => call[1]?.author === 'dev@example.com'),
+      ).toBe(true)
+    })
   })
 
   it('sets optionsSource to error when branch request fails', async () => {
-    mockRequest.mockImplementation((params) => {
-      if (params.url === '/api/branches') {
+    mockRequestGraphQL.mockImplementation((query: string) => {
+      if (query.includes('query DashboardBranches')) {
         return Promise.reject(new Error('network'))
       }
-      return Promise.resolve([])
+      return Promise.resolve({ data: { repo: null } })
     })
 
     const { result } = renderHook(() => useDashboardData())
@@ -133,28 +184,45 @@ describe('useDashboardData', () => {
     })
   })
 
-  it('sets dataSource and optionsSource to error when dashboard data request fails', async () => {
-    mockRequest.mockImplementation((params) => {
-      if (params.url === '/api/branches') {
-        return Promise.resolve(defaultBranchList())
+  it('sets dataSource to error when commits request fails', async () => {
+    mockRequestGraphQL.mockImplementation((query: string) => {
+      if (query.includes('query DashboardBranches')) {
+        return Promise.resolve({
+          data: { repo: { branches: [{ name: 'main', checkpointCount: 3 }] } },
+        })
       }
-      return Promise.reject(new Error('fail'))
+      if (query.includes('query DashboardRepoOptions')) {
+        return Promise.resolve({
+          data: { repo: { users: [], agents: [] } },
+        })
+      }
+      if (query.includes('query DashboardCommits')) {
+        return Promise.reject(new Error('fail'))
+      }
+      return Promise.reject(new Error('unexpected'))
     })
 
     const { result } = renderHook(() => useDashboardData())
 
     await waitFor(() => {
       expect(result.current.dataSource).toBe('error')
-      expect(result.current.optionsSource).toBe('error')
+      expect(result.current.optionsSource).toBe('api')
     })
   })
 
   it('keeps visible rows empty when there is no effective branch', async () => {
-    mockRequest.mockImplementation((params) => {
-      if (params.url === '/api/branches') {
-        return Promise.resolve([])
+    mockRequestGraphQL.mockImplementation((query: string) => {
+      if (query.includes('query DashboardBranches')) {
+        return Promise.resolve({
+          data: { repo: { branches: [] } },
+        })
       }
-      return Promise.reject(new Error('should not call'))
+      if (query.includes('query DashboardRepoOptions')) {
+        return Promise.resolve({
+          data: { repo: { users: [], agents: [] } },
+        })
+      }
+      return Promise.reject(new Error('unexpected GraphQL query'))
     })
 
     const { result } = renderHook(() => useDashboardData())
@@ -273,34 +341,76 @@ describe('useDashboardData', () => {
   it('resets selectedCheckpoint to first available when current selection disappears from rows', async () => {
     const { result } = renderHook(() => useDashboardData())
 
-    // Wait for initial load — checkpoint abcd1234abcd is auto-selected.
     await waitFor(() =>
       expect(result.current.selectedCheckpoint?.id).toBe('abcd1234abcd'),
     )
 
-    // Now simulate a filter change that returns a different checkpoint.
     const newCheckpointId = 'beef5678beef'
-    mockRequest.mockImplementation((params) => {
-      switch (params.url) {
-        case '/api/branches':
-          return Promise.resolve(defaultBranchList())
-        case '/api/users':
-          return Promise.resolve(defaultUsers())
-        case '/api/agents':
-          return Promise.resolve(defaultAgents())
-        case '/api/commits':
-          return Promise.resolve([
-            minimalCommitRow({ checkpointId: newCheckpointId }),
-          ])
-        default:
-          return Promise.reject(new Error(`unexpected url: ${params.url}`))
+    mockRequestGraphQL.mockImplementation((query: string) => {
+      if (query.includes('query DashboardBranches')) {
+        return Promise.resolve({
+          data: { repo: { branches: [{ name: 'main', checkpointCount: 3 }] } },
+        })
       }
+      if (query.includes('query DashboardRepoOptions')) {
+        return Promise.resolve({
+          data: { repo: { users: ['user-1'], agents: ['claude-code'] } },
+        })
+      }
+      if (query.includes('query DashboardCommits')) {
+        return Promise.resolve({
+          data: {
+            repo: {
+              commits: {
+                pageInfo: { hasNextPage: false, endCursor: null },
+                edges: [
+                  {
+                    node: {
+                      sha: 'a1b2c3d4e5f6789012345678901234567890abcd',
+                      parents: [],
+                      authorName: 'Dev',
+                      authorEmail: 'dev@example.com',
+                      commitMessage: 'fix: sample',
+                      committedAt: '2025-01-15T14:30:00.000Z',
+                      filesChanged: [],
+                      checkpoints: {
+                        edges: [
+                          {
+                            node: {
+                              id: newCheckpointId,
+                              branch: 'main',
+                              agent: 'claude-code',
+                              strategy: 'default',
+                              filesTouched: [],
+                              checkpointsCount: 1,
+                              sessionCount: 1,
+                              sessionId: 'session-1',
+                              agents: ['claude-code'],
+                              firstPromptPreview: '',
+                              createdAt: '2025-01-15T14:30:00.000Z',
+                              isTask: false,
+                              toolUseId: 'tool-1',
+                              tokenUsage: null,
+                            },
+                          },
+                        ],
+                      },
+                    },
+                  },
+                ],
+              },
+            },
+          },
+        })
+      }
+      return Promise.reject(new Error('unexpected GraphQL query'))
     })
     mockHandleCheckpoint.mockClear()
 
-    // Trigger a re-fetch by changing a filter.
+    expect(result.current.userOptions.length).toBeGreaterThan(0)
+    const selectedUserValue = result.current.userOptions[0]!.value
     act(() => {
-      result.current.onUserChange('user-1')
+      result.current.onUserChange(selectedUserValue)
     })
 
     await waitFor(() => {
@@ -333,19 +443,30 @@ describe('useDashboardData', () => {
       expect(result.current.checkpointDetailSource).toBe('api')
     })
 
-    mockRequest.mockImplementation((params) => {
-      switch (params.url) {
-        case '/api/branches':
-          return Promise.resolve(defaultBranchList())
-        case '/api/users':
-          return Promise.resolve(defaultUsers())
-        case '/api/agents':
-          return Promise.resolve(defaultAgents())
-        case '/api/commits':
-          return Promise.resolve([])
-        default:
-          return Promise.reject(new Error(`unexpected url: ${params.url}`))
+    mockRequestGraphQL.mockImplementation((query: string) => {
+      if (query.includes('query DashboardBranches')) {
+        return Promise.resolve({
+          data: { repo: { branches: [{ name: 'main', checkpointCount: 3 }] } },
+        })
       }
+      if (query.includes('query DashboardRepoOptions')) {
+        return Promise.resolve({
+          data: { repo: { users: [], agents: [] } },
+        })
+      }
+      if (query.includes('query DashboardCommits')) {
+        return Promise.resolve({
+          data: {
+            repo: {
+              commits: {
+                pageInfo: { hasNextPage: false, endCursor: null },
+                edges: [],
+              },
+            },
+          },
+        })
+      }
+      return Promise.reject(new Error('unexpected GraphQL query'))
     })
 
     act(() => {

@@ -1,5 +1,5 @@
 import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from 'recharts'
-import type { ApiTokenUsageDto } from '@/api/types/schema'
+import type { ApiTokenUsageDto } from '@/api/rest'
 
 const COLORS = {
   input: '#7c3aed',

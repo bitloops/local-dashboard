@@ -175,20 +175,13 @@ describe('runQueryExplorerQuery', () => {
     })
   })
 
-  it('sets error result when executeQuery rejects with an ApiError', async () => {
-    const { ApiError } = await import('@/api/types/schema')
+  it('sets error result when executeQuery rejects with GraphQLRequestError', async () => {
+    const { GraphQLRequestError } = await import('@/api/graphql/errors')
     const { executeQuery } = await import('./query-client')
-    const apiErr = new ApiError(
-      { method: 'POST', url: '/query' },
-      {
-        url: '/query',
-        ok: false,
-        status: 500,
-        statusText: 'Internal Server Error',
-        body: { errors: [{ message: 'upstream timeout' }] },
-      },
-      'Server error',
-    )
+    const apiErr = new GraphQLRequestError('Server error', {
+      status: 500,
+      graphQLErrors: [{ message: 'upstream timeout' }],
+    })
     vi.mocked(executeQuery).mockRejectedValue(apiErr)
 
     runQueryExplorerQuery()
