@@ -112,8 +112,6 @@ describe('fetchDashboardRepoOptions', () => {
 
     const data = await fetchDashboardRepoOptions({
       repo: '',
-      since: null,
-      until: null,
     })
 
     expect(data.repo?.users).toEqual(['a@b.com'])

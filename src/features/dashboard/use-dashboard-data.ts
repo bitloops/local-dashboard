@@ -84,8 +84,6 @@ export function useDashboardData() {
       }),
       fetchDashboardRepoOptions({
         repo: DASHBOARD_REPO_NAME,
-        since,
-        until,
       }),
     ])
       .then(([branchResponse, repoOptions]) => {

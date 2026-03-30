@@ -33,7 +33,6 @@ export function createRootStore() {
       ),
       ...createDashboardSlice(
         set as Parameters<typeof createDashboardSlice>[0],
-        get,
       ),
     }),
   )

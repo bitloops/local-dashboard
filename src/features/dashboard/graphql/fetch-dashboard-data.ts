@@ -23,8 +23,6 @@ export type FetchDashboardCommitsVariables = {
 
 export type FetchDashboardRepoOptionsVariables = {
   repo: string
-  since: string | null
-  until: string | null
 }
 
 /**
@@ -67,8 +65,6 @@ export async function fetchDashboardRepoOptions(
     DASHBOARD_REPO_OPTIONS_QUERY,
     {
       repo: variables.repo,
-      since: variables.since,
-      until: variables.until,
     },
     { signal },
   )

@@ -13,7 +13,7 @@ export const DASHBOARD_BRANCHES_QUERY = `
 
 /** Repo-wide user/agent key lists for filter dropdowns (not derived from commits). */
 export const DASHBOARD_REPO_OPTIONS_QUERY = `
-  query DashboardRepoOptions($repo: String!, $since: DateTime, $until: DateTime) {
+  query DashboardRepoOptions($repo: String!) {
     repo(name: $repo) {
       users
       agents
