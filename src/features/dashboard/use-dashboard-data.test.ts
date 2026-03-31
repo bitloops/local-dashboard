@@ -209,6 +209,32 @@ describe('useDashboardData', () => {
   })
 
   it('passes author to DashboardCommits when a user is selected', async () => {
+    mockRequestGraphQL.mockImplementation((query: string) => {
+      if (query.includes('query DashboardBranches')) {
+        return Promise.resolve({
+          data: {
+            repo: {
+              branches: [{ name: '  main  ', checkpointCount: 3 }],
+            },
+          },
+        })
+      }
+      if (query.includes('query DashboardRepoOptions')) {
+        return Promise.resolve({
+          data: {
+            repo: {
+              users: ['dev@example.com'],
+              agents: ['claude-code'],
+            },
+          },
+        })
+      }
+      if (query.includes('query DashboardCommits')) {
+        return Promise.resolve(dashboardCommitsResponse())
+      }
+      return Promise.reject(new Error('unexpected GraphQL query'))
+    })
+
     const { result } = renderHook(() => useDashboardData())
 
     await waitFor(() => expect(result.current.effectiveBranch).toBe('main'))
