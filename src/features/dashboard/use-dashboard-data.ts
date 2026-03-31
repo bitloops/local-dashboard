@@ -178,7 +178,20 @@ export function useDashboardData() {
     return () => {
       cancelled = true
     }
-  }, [since, until])
+  }, [
+    selectedAgent,
+    selectedBranch,
+    selectedUser,
+    setAgentOptions,
+    setBranchOptions,
+    setCurrentCommitsRequest,
+    setSelectedAgent,
+    setSelectedBranch,
+    setSelectedUser,
+    setUserOptions,
+    since,
+    until,
+  ])
 
   const loadCommitsPage = useCallback(
     async (paginationArg?: DashboardCommitsRequest) => {
@@ -379,7 +392,13 @@ export function useDashboardData() {
     return () => {
       cancelled = true
     }
-  }, [cli, selectedCheckpoint, checkpointDetailSource])
+  }, [
+    cli,
+    selectedCheckpoint,
+    checkpointDetailSource,
+    setCheckpointDetail,
+    setCheckpointDetailSource,
+  ])
 
   const onFromDateSelect = (date: Date | undefined) => {
     setFromDate(date)
