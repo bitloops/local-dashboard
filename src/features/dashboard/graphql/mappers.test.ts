@@ -91,7 +91,7 @@ describe('mapDashboardBranches', () => {
 describe('mapRepoUserStrings / mapRepoAgentStrings', () => {
   it('maps user keys and dedupes', () => {
     const users = mapRepoUserStrings(['a@b.com', 'Alice', 'a@b.com'])
-    expect(users.map((u) => u.key).sort()).toEqual(['a@b.com', 'alice'])
+    expect(users.map((u) => u.key).sort()).toEqual(['a@b.com', 'name:alice'])
   })
 
   it('maps agent keys and dedupes', () => {

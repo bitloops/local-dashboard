@@ -90,7 +90,7 @@ export function mapRepoUserStrings(keys: string[]): ApiUserDto[] {
     const trimmed = raw.trim()
     if (!trimmed) continue
     const looksLikeEmail = trimmed.includes('@')
-    const key = trimmed.toLowerCase()
+    const key = canonicalUserKey(trimmed, looksLikeEmail ? trimmed : '')
     if (seen.has(key)) continue
     seen.add(key)
     out.push({

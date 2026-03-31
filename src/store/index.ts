@@ -31,7 +31,7 @@ export function createRootStore() {
         set as StoreApi<QueryExplorerSlice>['setState'],
         get as StoreApi<QueryExplorerSlice>['getState'],
       ),
-      ...createDashboardSlice(),
+      ...createDashboardSlice(set as StoreApi<DashboardSlice>['setState']),
     }),
   )
   return store

@@ -1,13 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { BitloopsCli, type ApiCheckpointDetailResponse } from '@/api/rest'
+import { BitloopsCli } from '@/api/rest'
 import { requestGraphQL } from '@/api/graphql/client'
-import {
-  type Checkpoint,
-  type CheckpointDetailLoadState,
-  type CommitData,
-  type LoadState,
-  type UserOption,
-} from './types'
+import { rootStoreInstance, useStore } from '@/store'
+import { useShallow } from 'zustand/react/shallow'
+import { type Checkpoint, type LoadState } from './types'
 import {
   DASHBOARD_BRANCHES_QUERY,
   DASHBOARD_REPO_NAME,
@@ -23,6 +19,7 @@ import {
   mapRepoUserStrings,
 } from './graphql/mappers'
 import type { DashboardBranchesQueryData } from './graphql/types'
+import type { DashboardCommitsRequest } from '@/store/slices/dashboard'
 import {
   endOfDayIso,
   mapAgentOptions,
@@ -33,30 +30,68 @@ import {
 
 export function useDashboardData() {
   const cli = useMemo(() => new BitloopsCli(), [])
-
-  const [selectedBranch, setSelectedBranch] = useState<string | null>(null)
-  const [selectedUser, setSelectedUser] = useState<string | null>(null)
-  const [selectedAgent, setSelectedAgent] = useState<string | null>(null)
-  const [fromDate, setFromDate] = useState<Date | undefined>(undefined)
-  const [toDate, setToDate] = useState<Date | undefined>(undefined)
-
-  const [branchOptions, setBranchOptions] = useState<string[]>([])
-  const [userOptions, setUserOptions] = useState<UserOption[]>([])
-  const [agentOptions, setAgentOptions] = useState<string[]>([])
-  const [rows, setRows] = useState<CommitData[]>([])
-  const [commitsPageInfo, setCommitsPageInfo] = useState<{
-    hasNextPage: boolean
-    hasPreviousPage: boolean
-    startCursor: string | null
-    endCursor: string | null
-  } | null>(null)
-  const [selectedCheckpoint, setSelectedCheckpoint] =
-    useState<Checkpoint | null>(null)
+  const {
+    selectedBranch,
+    selectedUser,
+    selectedAgent,
+    fromDate,
+    toDate,
+    branchOptions,
+    userOptions,
+    agentOptions,
+    rows,
+    commitsPageInfo,
+    selectedCheckpointId,
+    checkpointDetail,
+    checkpointDetailSource,
+    setSelectedBranch,
+    setSelectedUser,
+    setSelectedAgent,
+    setFromDate,
+    setToDate,
+    setBranchOptions,
+    setUserOptions,
+    setAgentOptions,
+    setRows,
+    setCommitsPageInfo,
+    setCurrentCommitsRequest,
+    setSelectedCheckpointId,
+    setCheckpointDetail,
+    setCheckpointDetailSource,
+    resetDashboardFilters,
+  } = useStore(
+    useShallow((state) => ({
+      selectedBranch: state.selectedBranch,
+      selectedUser: state.selectedUser,
+      selectedAgent: state.selectedAgent,
+      fromDate: state.fromDate,
+      toDate: state.toDate,
+      branchOptions: state.branchOptions,
+      userOptions: state.userOptions,
+      agentOptions: state.agentOptions,
+      rows: state.rows,
+      commitsPageInfo: state.commitsPageInfo,
+      selectedCheckpointId: state.selectedCheckpointId,
+      checkpointDetail: state.checkpointDetail,
+      checkpointDetailSource: state.checkpointDetailSource,
+      setSelectedBranch: state.setSelectedBranch,
+      setSelectedUser: state.setSelectedUser,
+      setSelectedAgent: state.setSelectedAgent,
+      setFromDate: state.setFromDate,
+      setToDate: state.setToDate,
+      setBranchOptions: state.setBranchOptions,
+      setUserOptions: state.setUserOptions,
+      setAgentOptions: state.setAgentOptions,
+      setRows: state.setRows,
+      setCommitsPageInfo: state.setCommitsPageInfo,
+      setCurrentCommitsRequest: state.setCurrentCommitsRequest,
+      setSelectedCheckpointId: state.setSelectedCheckpointId,
+      setCheckpointDetail: state.setCheckpointDetail,
+      setCheckpointDetailSource: state.setCheckpointDetailSource,
+      resetDashboardFilters: state.resetDashboardFilters,
+    })),
+  )
   const selectedCheckpointRef = useRef<Checkpoint | null>(null)
-  const [checkpointDetail, setCheckpointDetail] =
-    useState<ApiCheckpointDetailResponse | null>(null)
-  const [checkpointDetailSource, setCheckpointDetailSource] =
-    useState<CheckpointDetailLoadState>('idle')
   const [dataSource, setDataSource] = useState<'loading' | 'api' | 'error'>(
     'loading',
   )
@@ -69,6 +104,10 @@ export function useDashboardData() {
   const effectiveBranch = selectedBranch ?? branchOptions[0] ?? null
   const since = fromDate != null ? startOfDayIso(fromDate) : null
   const until = toDate != null ? endOfDayIso(toDate) : null
+  const selectedCheckpoint =
+    rows
+      .flatMap((row) => row.checkpointList)
+      .find((cp) => cp.id === selectedCheckpointId) ?? null
 
   useEffect(() => {
     selectedCheckpointRef.current = selectedCheckpoint
@@ -109,33 +148,24 @@ export function useDashboardData() {
         const nextAgentOptions = mapAgentOptions(agents)
 
         setBranchOptions(nextBranches)
-        setSelectedBranch((current) => {
-          if (!current) {
-            return null
-          }
-
-          return nextBranches.includes(current) ? current : null
-        })
+        if (selectedBranch && !nextBranches.includes(selectedBranch)) {
+          setSelectedBranch(null)
+        }
 
         setUserOptions(nextUserOptions)
-        setSelectedUser((current) => {
-          if (!current) {
-            return null
-          }
-
-          return nextUserOptions.some((option) => option.value === current)
-            ? current
-            : null
-        })
+        if (
+          selectedUser &&
+          !nextUserOptions.some((option) => option.value === selectedUser)
+        ) {
+          setSelectedUser(null)
+          setCurrentCommitsRequest({ after: null })
+        }
 
         setAgentOptions(nextAgentOptions)
-        setSelectedAgent((current) => {
-          if (!current) {
-            return null
-          }
-
-          return nextAgentOptions.includes(current) ? current : null
-        })
+        if (selectedAgent && !nextAgentOptions.includes(selectedAgent)) {
+          setSelectedAgent(null)
+          setCurrentCommitsRequest({ after: null })
+        }
 
         setOptionsSource('api')
       })
@@ -151,22 +181,12 @@ export function useDashboardData() {
   }, [since, until])
 
   const loadCommitsPage = useCallback(
-    async (
-      pagination:
-        | {
-            direction?: 'forward'
-            after: string | null
-            before?: never
-          }
-        | {
-            direction: 'backward'
-            before: string | null
-            after?: never
-          },
-    ) => {
+    async (paginationArg?: DashboardCommitsRequest) => {
       if (!effectiveBranch) {
         return
       }
+      const pagination =
+        paginationArg ?? rootStoreInstance.getState().currentCommitsRequest
 
       commitsAbortRef.current?.abort()
       const ac = new AbortController()
@@ -209,6 +229,7 @@ export function useDashboardData() {
 
         const mappedRows = mapCommitRows(commitRows)
         setRows(mappedRows)
+        setCurrentCommitsRequest(pagination)
 
         const pi = data.repo?.commits.pageInfo
         setCommitsPageInfo(
@@ -225,21 +246,12 @@ export function useDashboardData() {
         const allCheckpoints = mappedRows.flatMap((r) => r.checkpointList)
         const firstCheckpoint = allCheckpoints[0] ?? null
 
-        setSelectedCheckpoint((current) => {
-          if (!current) {
-            return firstCheckpoint
-          }
-          if (allCheckpoints.some((cp) => cp.id === current.id)) {
-            return current
-          }
-          return firstCheckpoint
-        })
-
         const prev = selectedCheckpointRef.current
         const next =
           prev && allCheckpoints.some((cp) => cp.id === prev.id)
             ? prev
             : firstCheckpoint
+        setSelectedCheckpointId(next?.id ?? null)
         if (!next && prev) {
           setCheckpointDetail(null)
           setCheckpointDetailSource('idle')
@@ -260,11 +272,27 @@ export function useDashboardData() {
         setCommitsPageInfo(null)
       }
     },
-    [effectiveBranch, selectedAgent, selectedUser, since, until],
+    [
+      effectiveBranch,
+      selectedAgent,
+      selectedUser,
+      setCheckpointDetail,
+      setCheckpointDetailSource,
+      setCommitsPageInfo,
+      setCurrentCommitsRequest,
+      setRows,
+      setSelectedCheckpointId,
+      since,
+      until,
+    ],
   )
 
   useEffect(() => {
     if (!effectiveBranch) {
+      setRows([])
+      setCommitsPageInfo(null)
+      setCurrentCommitsRequest({ after: null })
+      setSelectedCheckpointId(null)
       return () => {
         commitsAbortRef.current?.abort()
       }
@@ -272,7 +300,7 @@ export function useDashboardData() {
 
     setCommitsPageInfo(null)
     const loadTimer = window.setTimeout(() => {
-      void loadCommitsPage({ after: null })
+      void loadCommitsPage()
     }, 0)
 
     return () => {
@@ -286,6 +314,10 @@ export function useDashboardData() {
     selectedUser,
     selectedAgent,
     loadCommitsPage,
+    setCommitsPageInfo,
+    setCurrentCommitsRequest,
+    setRows,
+    setSelectedCheckpointId,
   ])
 
   const visibleCommitsPageInfo = effectiveBranch ? commitsPageInfo : null
@@ -351,6 +383,7 @@ export function useDashboardData() {
 
   const onFromDateSelect = (date: Date | undefined) => {
     setFromDate(date)
+    setCurrentCommitsRequest({ after: null })
 
     if (date && toDate && date > toDate) {
       setToDate(date)
@@ -359,6 +392,7 @@ export function useDashboardData() {
 
   const onToDateSelect = (date: Date | undefined) => {
     setToDate(date)
+    setCurrentCommitsRequest({ after: null })
 
     if (date && fromDate && date < fromDate) {
       setFromDate(date)
@@ -366,15 +400,26 @@ export function useDashboardData() {
   }
 
   const clearFilters = () => {
-    setSelectedBranch(null)
-    setSelectedUser(null)
-    setSelectedAgent(null)
-    setFromDate(undefined)
-    setToDate(undefined)
+    resetDashboardFilters()
+  }
+
+  const onBranchChange = (value: string | null) => {
+    setSelectedBranch(value)
+    setCurrentCommitsRequest({ after: null })
+  }
+
+  const onUserChange = (value: string | null) => {
+    setSelectedUser(value)
+    setCurrentCommitsRequest({ after: null })
+  }
+
+  const onAgentChange = (value: string | null) => {
+    setSelectedAgent(value)
+    setCurrentCommitsRequest({ after: null })
   }
 
   const onCheckpointSelect = (checkpoint: Checkpoint) => {
-    setSelectedCheckpoint(checkpoint)
+    setSelectedCheckpointId(checkpoint.id)
     setCheckpointDetail(null)
     setCheckpointDetailSource('loading')
   }
@@ -407,9 +452,9 @@ export function useDashboardData() {
     selectedCheckpoint,
     checkpointDetail,
     checkpointDetailSource,
-    onBranchChange: setSelectedBranch,
-    onUserChange: setSelectedUser,
-    onAgentChange: setSelectedAgent,
+    onBranchChange,
+    onUserChange,
+    onAgentChange,
     onFromDateChange: onFromDateSelect,
     onToDateChange: onToDateSelect,
     onClearFilters: clearFilters,

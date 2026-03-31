@@ -2,6 +2,7 @@ import { act, renderHook, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { COMMITS_PAGE_SIZE } from './graphql/fetch-dashboard-data'
 import { useDashboardData } from './use-dashboard-data'
+import { rootStoreInstance } from '@/store'
 
 const mockRequestGraphQL = vi.fn()
 
@@ -72,10 +73,66 @@ function dashboardCommitsResponse() {
   }
 }
 
+function dashboardCommitsPageResponse(params: {
+  shas: string[]
+  messages: string[]
+  pageInfo: {
+    hasNextPage: boolean
+    hasPreviousPage: boolean
+    startCursor: string | null
+    endCursor: string | null
+  }
+}) {
+  return {
+    data: {
+      repo: {
+        commits: {
+          pageInfo: params.pageInfo,
+          edges: params.shas.map((sha, index) => ({
+            node: {
+              sha,
+              parents: [],
+              authorName: 'Dev',
+              authorEmail: 'dev@example.com',
+              commitMessage: params.messages[index] ?? `msg-${index}`,
+              committedAt: `2025-01-1${9 - index}T14:30:00.000Z`,
+              filesChanged: [],
+              checkpoints: {
+                edges: [
+                  {
+                    node: {
+                      id: `cp-${sha}`,
+                      branch: 'main',
+                      agent: 'claude-code',
+                      strategy: 'default',
+                      filesTouched: [],
+                      checkpointsCount: 1,
+                      sessionCount: 1,
+                      sessionId: `session-${sha}`,
+                      agents: ['claude-code'],
+                      firstPromptPreview: '',
+                      createdAt: `2025-01-1${9 - index}T14:30:00.000Z`,
+                      isTask: false,
+                      toolUseId: `tool-${sha}`,
+                      tokenUsage: null,
+                    },
+                  },
+                ],
+              },
+            },
+          })),
+        },
+      },
+    },
+  }
+}
+
 describe('useDashboardData', () => {
   beforeEach(() => {
     mockRequestGraphQL.mockReset()
     mockHandleCheckpoint.mockReset()
+    rootStoreInstance.getState().clearDashboardCache()
+    rootStoreInstance.getState().resetDashboardFilters()
     mockRequestGraphQL.mockImplementation((query: string) => {
       if (query.includes('query DashboardBranches')) {
         return Promise.resolve({
@@ -170,6 +227,34 @@ describe('useDashboardData', () => {
         commitsCalls.some((call) => call[1]?.author === 'dev@example.com'),
       ).toBe(true)
     })
+  })
+
+  it('restores cached dashboard state after remount', async () => {
+    const first = renderHook(() => useDashboardData())
+
+    await waitFor(() => {
+      expect(first.result.current.effectiveBranch).toBe('main')
+      expect(first.result.current.rows.length).toBe(1)
+    })
+
+    act(() => {
+      first.result.current.onBranchChange('main')
+      first.result.current.onAgentChange('claude-code')
+      first.result.current.onFromDateChange(new Date('2025-02-01'))
+    })
+
+    first.unmount()
+
+    mockRequestGraphQL.mockClear()
+
+    const second = renderHook(() => useDashboardData())
+
+    expect(second.result.current.selectedBranch).toBe('main')
+    expect(second.result.current.selectedAgent).toBe('claude-code')
+    expect(second.result.current.fromDate?.toDateString()).toBe(
+      new Date('2025-02-01').toDateString(),
+    )
+    expect(second.result.current.rows.length).toBe(1)
   })
 
   it('uses forward and backward GraphQL pagination variables for next/back', async () => {
@@ -295,6 +380,121 @@ describe('useDashboardData', () => {
         after: undefined,
         commitsFirst: undefined,
       })
+    })
+
+    // After back navigation resolves, the server says hasPreviousPage: false / hasNextPage: true
+    await waitFor(() => {
+      expect(result.current.commitsHasPreviousPage).toBe(false)
+      expect(result.current.commitsHasNextPage).toBe(true)
+    })
+  })
+
+  it('preserves row order after backward pagination', async () => {
+    mockRequestGraphQL.mockImplementation(
+      (query: string, variables: Record<string, unknown>) => {
+        if (query.includes('query DashboardBranches')) {
+          return Promise.resolve({
+            data: {
+              repo: {
+                branches: [{ name: 'main', checkpointCount: 3 }],
+              },
+            },
+          })
+        }
+        if (query.includes('query DashboardRepoOptions')) {
+          return Promise.resolve({
+            data: {
+              repo: {
+                users: ['user-1'],
+                agents: ['claude-code'],
+              },
+            },
+          })
+        }
+        if (query.includes('query DashboardCommits')) {
+          if (variables.before) {
+            return Promise.resolve(
+              dashboardCommitsPageResponse({
+                shas: [
+                  'aaa1111000000000000000000000000000000000',
+                  'bbb2222000000000000000000000000000000000',
+                ],
+                messages: ['page-1-a', 'page-1-b'],
+                pageInfo: {
+                  hasNextPage: true,
+                  hasPreviousPage: false,
+                  startCursor: 'start-1',
+                  endCursor: 'end-1',
+                },
+              }),
+            )
+          }
+          if (variables.after) {
+            return Promise.resolve(
+              dashboardCommitsPageResponse({
+                shas: [
+                  'ccc3333000000000000000000000000000000000',
+                  'ddd4444000000000000000000000000000000000',
+                ],
+                messages: ['page-2-a', 'page-2-b'],
+                pageInfo: {
+                  hasNextPage: false,
+                  hasPreviousPage: true,
+                  startCursor: 'start-2',
+                  endCursor: 'end-2',
+                },
+              }),
+            )
+          }
+          return Promise.resolve(
+            dashboardCommitsPageResponse({
+              shas: [
+                'aaa1111000000000000000000000000000000000',
+                'bbb2222000000000000000000000000000000000',
+              ],
+              messages: ['page-1-a', 'page-1-b'],
+              pageInfo: {
+                hasNextPage: true,
+                hasPreviousPage: false,
+                startCursor: 'start-1',
+                endCursor: 'end-1',
+              },
+            }),
+          )
+        }
+        return Promise.reject(new Error('unexpected GraphQL query'))
+      },
+    )
+
+    const { result } = renderHook(() => useDashboardData())
+
+    await waitFor(() => {
+      expect(result.current.rows.map((row) => row.message)).toEqual([
+        'page-1-a',
+        'page-1-b',
+      ])
+    })
+
+    act(() => {
+      result.current.onCommitsNext()
+    })
+
+    await waitFor(() => {
+      expect(result.current.rows.map((row) => row.message)).toEqual([
+        'page-2-a',
+        'page-2-b',
+      ])
+    })
+
+    act(() => {
+      result.current.onCommitsBack()
+    })
+
+    await waitFor(() => {
+      expect(result.current.rows.map((row) => row.message)).toEqual([
+        'page-1-a',
+        'page-1-b',
+      ])
     })
   })
 

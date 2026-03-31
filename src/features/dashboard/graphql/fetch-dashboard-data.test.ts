@@ -154,4 +154,15 @@ describe('fetchDashboardRepoOptions', () => {
     expect(data.repo?.users).toEqual(['a@b.com'])
     expect(data.repo?.agents).toEqual(['agent-a'])
   })
+
+  it('throws when GraphQL returns errors', async () => {
+    mockRequestGraphQL.mockResolvedValue({
+      errors: [{ message: 'repo not found' }],
+      data: { repo: null },
+    })
+
+    await expect(fetchDashboardRepoOptions({ repo: '' })).rejects.toThrow(
+      'repo not found',
+    )
+  })
 })

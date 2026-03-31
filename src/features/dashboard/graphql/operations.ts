@@ -1,3 +1,5 @@
+// Bitloops `/devql/global` treats `repo(name: "")` as the default repository
+// for the current daemon context; the dashboard relies on that contract.
 export const DASHBOARD_REPO_NAME = ''
 
 export const DASHBOARD_BRANCHES_QUERY = `
@@ -24,6 +26,10 @@ export const DASHBOARD_REPO_OPTIONS_QUERY = `
 /**
  * Commits only — bidirectional cursor pagination via `after`/`before` + `pageInfo`.
  * Pass `author` to narrow commits server-side when a user is selected; **agent** filtering stays client-side.
+ *
+ * Note: `checkpoints(first: 100)` hard-caps checkpoints per commit at 100. Commits with more than
+ * 100 checkpoints will be silently truncated. Raise this limit or add cursor pagination here if
+ * high-checkpoint-count commits become common.
  */
 export const DASHBOARD_COMMITS_QUERY = `
   query DashboardCommits(
