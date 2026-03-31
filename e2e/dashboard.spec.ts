@@ -331,7 +331,7 @@ const STUB_CHECKPOINT_DETAIL = {
 
 /** Stub all API calls so the app works without a real backend. */
 async function stubApiRoutes(page: Page) {
-  await page.route('**/devql', async (route: Route) => {
+  await page.route('**/devql/global', async (route: Route) => {
     const request = route.request()
     const body = request.postDataJSON() as {
       query?: string
@@ -452,7 +452,7 @@ test.describe('App / dashboard load', () => {
   test('dashboard shows API error banner when data endpoints fail', async ({
     page,
   }) => {
-    await page.route('**/devql', async (route: Route) => {
+    await page.route('**/devql/global', async (route: Route) => {
       const body = route.request().postDataJSON() as { query?: string }
       const query = body.query ?? ''
 
@@ -509,7 +509,7 @@ test.describe('App / dashboard load', () => {
   test('shows "No branches" message when dashboard branches query returns empty', async ({
     page,
   }) => {
-    await page.route('**/devql', async (route: Route) => {
+    await page.route('**/devql/global', async (route: Route) => {
       const body = route.request().postDataJSON() as { query?: string }
       const query = body.query ?? ''
 
@@ -744,7 +744,7 @@ test.describe('Checkpoint sheet', () => {
   test('checkpoint sheet shows error state when detail API fails', async ({
     page,
   }) => {
-    await page.route('**/devql', async (route) => {
+    await page.route('**/devql/global', async (route) => {
       const body = route.request().postDataJSON() as { query?: string }
       const query = body.query ?? ''
 

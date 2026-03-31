@@ -29,7 +29,7 @@ async function stubApis(
     schemaStatus?: number
   } = {},
 ) {
-  await page.route('**/devql/sdl', (route) =>
+  await page.route('**/devql/global/sdl', (route) =>
     schemaStatus === 200
       ? route.fulfill({
           status: 200,
@@ -38,7 +38,7 @@ async function stubApis(
         })
       : route.fulfill({ status: schemaStatus, body: '' }),
   )
-  await page.route('**/devql', (route) =>
+  await page.route('**/devql/global', (route) =>
     route.fulfill({ status: 200, json: queryResponse }),
   )
 }
@@ -246,13 +246,13 @@ test.describe('Query execution', () => {
   })
 
   test('loading spinner shown while query is in-flight', async ({ page }) => {
-    // Hold the /devql response until we've observed the spinner.
+    // Hold the /devql/global response until we've observed the spinner.
     let resolveQuery!: () => void
     const queryGate = new Promise<void>((r) => {
       resolveQuery = r
     })
 
-    await page.route('**/devql', async (route) => {
+    await page.route('**/devql/global', async (route) => {
       await queryGate
       await route.fulfill({ status: 200, json: { data: {} } })
     })
@@ -288,7 +288,7 @@ test.describe('Query execution', () => {
   test('network-level error shows error styling in Results panel', async ({
     page,
   }) => {
-    await page.route('**/devql', (route) =>
+    await page.route('**/devql/global', (route) =>
       route.fulfill({ status: 500, body: 'Internal Server Error' }),
     )
     await page.goto('/explorer')

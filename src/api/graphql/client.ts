@@ -1,7 +1,7 @@
 import { GraphQLRequestError } from './errors'
 import type { GraphQLRequestOptions, GraphQLResponseEnvelope } from './types'
 
-const GRAPHQL_ENDPOINT = '/devql'
+const GRAPHQL_ENDPOINT = '/devql/global'
 
 export async function requestGraphQL<
   TData,
@@ -49,7 +49,7 @@ export async function requestGraphQL<
 export async function fetchGraphQLSdl(
   options?: GraphQLRequestOptions,
 ): Promise<string> {
-  const response = await fetch('/devql/sdl', {
+  const response = await fetch('/devql/global/sdl', {
     method: 'GET',
     signal: options?.signal,
   })
