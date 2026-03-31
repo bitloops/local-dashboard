@@ -72,7 +72,7 @@ export function HistoryPanel({
       </Select>
       <p className='text-[11px] leading-snug text-muted-foreground'>
         {historyStorageMode === 'off'
-          ? 'History is kept in memory for this session only.'
+          ? 'History is not retained after each run.'
           : historyStorageMode === 'session'
             ? 'History clears when you close this tab.'
             : 'History is stored locally and pruned after the configured retention period.'}
@@ -83,7 +83,7 @@ export function HistoryPanel({
   if (runHistory.length === 0) {
     return (
       <div className={cn('flex min-h-0 flex-1 flex-col', className)}>
-        <div className='px-3 py-4'>
+        <div className='flex flex-1 px-3 py-4'>
           <p className='text-xs text-muted-foreground'>
             Run a query to see history here.
           </p>

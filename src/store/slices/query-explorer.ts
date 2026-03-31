@@ -236,6 +236,9 @@ export function createQueryExplorerSlice(
 
     addRunToHistory: (query, variables) => {
       const state = get()
+      if (state.historyStorageMode === 'off') {
+        return
+      }
       const entry: HistoryEntry = {
         id: crypto.randomUUID(),
         query,
@@ -279,6 +282,7 @@ export function createQueryExplorerSlice(
         try {
           if (mode === 'off') {
             clearHistoryFromBothStorages()
+            return { historyStorageMode: mode, runHistory: [] }
           } else if (mode === 'local') {
             // Prune stale entries before writing to localStorage so entries
             // that accumulated in memory (e.g. while in session/off mode) don't

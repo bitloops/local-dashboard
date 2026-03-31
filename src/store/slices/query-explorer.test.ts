@@ -302,11 +302,12 @@ describe('query-explorer slice', () => {
       expect(stored[0].query).toBe('query { a }')
     })
 
-    it('does not persist when history storage mode is off', () => {
+    it('does not retain or persist history when history storage mode is off', () => {
       localStorageData[STORAGE_MODE_KEY] = 'off'
       const s = createTestStore()
       vi.mocked(localStorage.setItem).mockClear()
       s.getState().addRunToHistory('query { a }', '{}')
+      expect(s.getState().runHistory).toEqual([])
       expect(localStorageData[RUN_HISTORY_KEY]).toBeUndefined()
       expect(sessionStorageData[RUN_HISTORY_KEY]).toBeUndefined()
     })
@@ -330,21 +331,20 @@ describe('query-explorer slice', () => {
       expect(JSON.parse(sessionStorageData[RUN_HISTORY_KEY])).toHaveLength(1)
     })
 
-    it('migrates in-memory history to localStorage when switching from off to local', () => {
+    it('starts with empty localStorage history when switching from off to local', () => {
       localStorageData[STORAGE_MODE_KEY] = 'off'
       const s = createTestStore()
       s.getState().addRunToHistory('query { a }', '{}')
-      // History exists only in memory while mode is off
       expect(localStorageData[RUN_HISTORY_KEY]).toBeUndefined()
 
       s.getState().setHistoryStorageMode('local')
       expect(localStorageData[STORAGE_MODE_KEY]).toBe('local')
       expect(s.getState().historyStorageMode).toBe('local')
       expect(localStorageData[RUN_HISTORY_KEY]).toBeDefined()
-      expect(JSON.parse(localStorageData[RUN_HISTORY_KEY])).toHaveLength(1)
+      expect(JSON.parse(localStorageData[RUN_HISTORY_KEY])).toEqual([])
     })
 
-    it('migrates in-memory history to sessionStorage when switching from off to session', () => {
+    it('starts with empty sessionStorage history when switching from off to session', () => {
       localStorageData[STORAGE_MODE_KEY] = 'off'
       const s = createTestStore()
       s.getState().addRunToHistory('query { a }', '{}')
@@ -354,7 +354,19 @@ describe('query-explorer slice', () => {
       expect(localStorageData[STORAGE_MODE_KEY]).toBe('session')
       expect(s.getState().historyStorageMode).toBe('session')
       expect(sessionStorageData[RUN_HISTORY_KEY]).toBeDefined()
-      expect(JSON.parse(sessionStorageData[RUN_HISTORY_KEY])).toHaveLength(1)
+      expect(JSON.parse(sessionStorageData[RUN_HISTORY_KEY])).toEqual([])
+    })
+
+    it('clears existing in-memory history when switching to off', () => {
+      store.getState().addRunToHistory('query { a }', '{}')
+      expect(store.getState().runHistory).toHaveLength(1)
+
+      store.getState().setHistoryStorageMode('off')
+
+      expect(store.getState().historyStorageMode).toBe('off')
+      expect(store.getState().runHistory).toEqual([])
+      expect(localStorageData[RUN_HISTORY_KEY]).toBeUndefined()
+      expect(sessionStorageData[RUN_HISTORY_KEY]).toBeUndefined()
     })
 
     it('prunes stale entries when switching to local mode', () => {
