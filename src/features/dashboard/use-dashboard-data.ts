@@ -23,7 +23,6 @@ import {
   mapRepoUserStrings,
 } from './graphql/mappers'
 import type { DashboardBranchesQueryData } from './graphql/types'
-import { rootStoreInstance, useStore } from '@/store'
 import {
   endOfDayIso,
   mapAgentOptions,
@@ -47,6 +46,8 @@ export function useDashboardData() {
   const [rows, setRows] = useState<CommitData[]>([])
   const [commitsPageInfo, setCommitsPageInfo] = useState<{
     hasNextPage: boolean
+    hasPreviousPage: boolean
+    startCursor: string | null
     endCursor: string | null
   } | null>(null)
   const [selectedCheckpoint, setSelectedCheckpoint] =
@@ -149,135 +150,168 @@ export function useDashboardData() {
     }
   }, [since, until])
 
-  const loadCommits = useCallback(async () => {
-    if (!effectiveBranch) {
-      return
-    }
-
-    commitsAbortRef.current?.abort()
-    const ac = new AbortController()
-    commitsAbortRef.current = ac
-
-    const after =
-      rootStoreInstance.getState().dashboardCommitsAfterStack.at(-1) ?? null
-
-    setDataSource('loading')
-
-    try {
-      const data = await fetchDashboardCommitsPage(
-        {
-          repo: DASHBOARD_REPO_NAME,
-          branch: effectiveBranch,
-          since,
-          until,
-          author: selectedUser,
-          after,
-        },
-        { signal: ac.signal },
-      )
-
-      if (ac.signal.aborted) {
+  const loadCommitsPage = useCallback(
+    async (
+      pagination:
+        | {
+            direction?: 'forward'
+            after: string | null
+            before?: never
+          }
+        | {
+            direction: 'backward'
+            before: string | null
+            after?: never
+          },
+    ) => {
+      if (!effectiveBranch) {
         return
       }
 
-      const commitRows = mapDashboardCommitRows(data, {
-        user: selectedUser,
-        agent: selectedAgent,
-        userFilterFromServer: selectedUser != null,
-      })
+      commitsAbortRef.current?.abort()
+      const ac = new AbortController()
+      commitsAbortRef.current = ac
 
-      const mappedRows = mapCommitRows(commitRows)
-      setRows(mappedRows)
+      setDataSource('loading')
 
-      const pi = data.repo?.commits.pageInfo
-      setCommitsPageInfo(
-        pi
-          ? {
-              hasNextPage: pi.hasNextPage === true,
-              endCursor: pi.endCursor ?? null,
-            }
-          : null,
-      )
+      try {
+        const data = await fetchDashboardCommitsPage(
+          pagination.direction === 'backward'
+            ? {
+                direction: 'backward',
+                repo: DASHBOARD_REPO_NAME,
+                branch: effectiveBranch,
+                since,
+                until,
+                author: selectedUser,
+                before: pagination.before,
+              }
+            : {
+                repo: DASHBOARD_REPO_NAME,
+                branch: effectiveBranch,
+                since,
+                until,
+                author: selectedUser,
+                after: pagination.after,
+              },
+          { signal: ac.signal },
+        )
 
-      const allCheckpoints = mappedRows.flatMap((r) => r.checkpointList)
-      const firstCheckpoint = allCheckpoints[0] ?? null
+        if (ac.signal.aborted) {
+          return
+        }
 
-      setSelectedCheckpoint((current) => {
-        if (!current) {
+        const commitRows = mapDashboardCommitRows(data, {
+          user: selectedUser,
+          agent: selectedAgent,
+          userFilterFromServer: selectedUser != null,
+        })
+
+        const mappedRows = mapCommitRows(commitRows)
+        setRows(mappedRows)
+
+        const pi = data.repo?.commits.pageInfo
+        setCommitsPageInfo(
+          pi
+            ? {
+                hasNextPage: pi.hasNextPage === true,
+                hasPreviousPage: pi.hasPreviousPage === true,
+                startCursor: pi.startCursor ?? null,
+                endCursor: pi.endCursor ?? null,
+              }
+            : null,
+        )
+
+        const allCheckpoints = mappedRows.flatMap((r) => r.checkpointList)
+        const firstCheckpoint = allCheckpoints[0] ?? null
+
+        setSelectedCheckpoint((current) => {
+          if (!current) {
+            return firstCheckpoint
+          }
+          if (allCheckpoints.some((cp) => cp.id === current.id)) {
+            return current
+          }
           return firstCheckpoint
-        }
-        if (allCheckpoints.some((cp) => cp.id === current.id)) {
-          return current
-        }
-        return firstCheckpoint
-      })
+        })
 
-      const prev = selectedCheckpointRef.current
-      const next =
-        prev && allCheckpoints.some((cp) => cp.id === prev.id)
-          ? prev
-          : firstCheckpoint
-      if (!next && prev) {
-        setCheckpointDetail(null)
-        setCheckpointDetailSource('idle')
-      } else if (next && next.id !== prev?.id) {
-        setCheckpointDetail(null)
-        setCheckpointDetailSource('loading')
+        const prev = selectedCheckpointRef.current
+        const next =
+          prev && allCheckpoints.some((cp) => cp.id === prev.id)
+            ? prev
+            : firstCheckpoint
+        if (!next && prev) {
+          setCheckpointDetail(null)
+          setCheckpointDetailSource('idle')
+        } else if (next && next.id !== prev?.id) {
+          setCheckpointDetail(null)
+          setCheckpointDetailSource('loading')
+        }
+        setDataSource('api')
+      } catch (error: unknown) {
+        if (
+          (error instanceof DOMException || error instanceof Error) &&
+          error.name === 'AbortError'
+        ) {
+          return
+        }
+        console.error('Failed to load dashboard commits', error)
+        setDataSource('error')
+        setCommitsPageInfo(null)
       }
-      setDataSource('api')
-    } catch (error: unknown) {
-      if (
-        (error instanceof DOMException || error instanceof Error) &&
-        error.name === 'AbortError'
-      ) {
-        return
-      }
-      console.error('Failed to load dashboard commits', error)
-      setDataSource('error')
-      setCommitsPageInfo(null)
-    }
-  }, [effectiveBranch, since, until, selectedUser, selectedAgent])
+    },
+    [effectiveBranch, selectedAgent, selectedUser, since, until],
+  )
 
   useEffect(() => {
     if (!effectiveBranch) {
-      rootStoreInstance.getState().resetDashboardCommitsPagination()
       return () => {
         commitsAbortRef.current?.abort()
       }
     }
 
-    rootStoreInstance.getState().resetDashboardCommitsPagination()
+    setCommitsPageInfo(null)
     const loadTimer = window.setTimeout(() => {
-      void loadCommits()
+      void loadCommitsPage({ after: null })
     }, 0)
 
     return () => {
       window.clearTimeout(loadTimer)
       commitsAbortRef.current?.abort()
     }
-  }, [effectiveBranch, since, until, selectedUser, selectedAgent, loadCommits])
+  }, [
+    effectiveBranch,
+    since,
+    until,
+    selectedUser,
+    selectedAgent,
+    loadCommitsPage,
+  ])
 
-  const stackDepth = useStore((s) => s.dashboardCommitsAfterStack.length)
-
-  const commitsHasNextPage = commitsPageInfo?.hasNextPage === true
-  const commitsHasPreviousPage = stackDepth > 1
+  const visibleCommitsPageInfo = effectiveBranch ? commitsPageInfo : null
+  const commitsHasNextPage = visibleCommitsPageInfo?.hasNextPage === true
+  const commitsHasPreviousPage =
+    visibleCommitsPageInfo?.hasPreviousPage === true
 
   const onCommitsNext = useCallback(() => {
-    const end = commitsPageInfo?.endCursor
+    const end = visibleCommitsPageInfo?.endCursor
     if (!commitsHasNextPage || !end) {
       return
     }
-    rootStoreInstance.getState().pushDashboardCommitsCursor(end)
-    void loadCommits()
-  }, [commitsHasNextPage, commitsPageInfo?.endCursor, loadCommits])
+    void loadCommitsPage({ after: end })
+  }, [commitsHasNextPage, visibleCommitsPageInfo?.endCursor, loadCommitsPage])
 
   const onCommitsBack = useCallback(() => {
-    if (!commitsHasPreviousPage) {
+    const start = visibleCommitsPageInfo?.startCursor
+    if (!commitsHasPreviousPage || !start) {
       return
     }
-    rootStoreInstance.getState().popDashboardCommitsCursor()
-    void loadCommits()
-  }, [commitsHasPreviousPage, loadCommits])
+    void loadCommitsPage({ direction: 'backward', before: start })
+  }, [
+    commitsHasPreviousPage,
+    visibleCommitsPageInfo?.startCursor,
+    loadCommitsPage,
+  ])
 
   useEffect(() => {
     let cancelled = false
@@ -350,7 +384,6 @@ export function useDashboardData() {
   const visibleAgentOptions = effectiveBranch ? agentOptions : []
   const visibleSelectedUser = effectiveBranch ? selectedUser : null
   const visibleSelectedAgent = effectiveBranch ? selectedAgent : null
-  const visibleCommitsPageInfo = effectiveBranch ? commitsPageInfo : null
   const visibleDataSource: LoadState =
     dataSource === 'error' ? 'error' : effectiveBranch ? dataSource : 'api'
 

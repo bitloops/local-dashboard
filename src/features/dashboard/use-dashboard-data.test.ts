@@ -2,7 +2,6 @@ import { act, renderHook, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { COMMITS_PAGE_SIZE } from './graphql/fetch-dashboard-data'
 import { useDashboardData } from './use-dashboard-data'
-import { rootStoreInstance } from '@/store'
 
 const mockRequestGraphQL = vi.fn()
 
@@ -26,7 +25,12 @@ function dashboardCommitsResponse() {
     data: {
       repo: {
         commits: {
-          pageInfo: { hasNextPage: false, endCursor: null },
+          pageInfo: {
+            hasNextPage: false,
+            hasPreviousPage: false,
+            startCursor: null,
+            endCursor: null,
+          },
           edges: [
             {
               node: {
@@ -72,7 +76,6 @@ describe('useDashboardData', () => {
   beforeEach(() => {
     mockRequestGraphQL.mockReset()
     mockHandleCheckpoint.mockReset()
-    rootStoreInstance.getState().resetDashboardCommitsPagination()
     mockRequestGraphQL.mockImplementation((query: string) => {
       if (query.includes('query DashboardBranches')) {
         return Promise.resolve({
@@ -166,6 +169,132 @@ describe('useDashboardData', () => {
       expect(
         commitsCalls.some((call) => call[1]?.author === 'dev@example.com'),
       ).toBe(true)
+    })
+  })
+
+  it('uses forward and backward GraphQL pagination variables for next/back', async () => {
+    mockRequestGraphQL.mockImplementation(
+      (query: string, variables: Record<string, unknown>) => {
+        if (query.includes('query DashboardBranches')) {
+          return Promise.resolve({
+            data: {
+              repo: {
+                branches: [{ name: 'main', checkpointCount: 3 }],
+              },
+            },
+          })
+        }
+        if (query.includes('query DashboardRepoOptions')) {
+          return Promise.resolve({
+            data: {
+              repo: {
+                users: ['user-1'],
+                agents: ['claude-code'],
+              },
+            },
+          })
+        }
+        if (query.includes('query DashboardCommits')) {
+          if (variables.before) {
+            return Promise.resolve({
+              data: {
+                repo: {
+                  commits: {
+                    pageInfo: {
+                      hasNextPage: true,
+                      hasPreviousPage: false,
+                      startCursor: 'start-0',
+                      endCursor: 'end-0',
+                    },
+                    edges: [],
+                  },
+                },
+              },
+            })
+          }
+          if (variables.after) {
+            return Promise.resolve({
+              data: {
+                repo: {
+                  commits: {
+                    pageInfo: {
+                      hasNextPage: false,
+                      hasPreviousPage: true,
+                      startCursor: 'start-2',
+                      endCursor: 'end-2',
+                    },
+                    edges: [],
+                  },
+                },
+              },
+            })
+          }
+          return Promise.resolve({
+            data: {
+              repo: {
+                commits: {
+                  pageInfo: {
+                    hasNextPage: true,
+                    hasPreviousPage: false,
+                    startCursor: 'start-1',
+                    endCursor: 'end-1',
+                  },
+                  edges: [],
+                },
+              },
+            },
+          })
+        }
+        return Promise.reject(new Error('unexpected GraphQL query'))
+      },
+    )
+
+    const { result } = renderHook(() => useDashboardData())
+
+    await waitFor(() => {
+      expect(result.current.effectiveBranch).toBe('main')
+      expect(result.current.commitsHasNextPage).toBe(true)
+      expect(result.current.commitsHasPreviousPage).toBe(false)
+    })
+
+    mockRequestGraphQL.mockClear()
+
+    act(() => {
+      result.current.onCommitsNext()
+    })
+
+    await waitFor(() => {
+      const commitsCalls = mockRequestGraphQL.mock.calls.filter((call) =>
+        String(call[0]).includes('query DashboardCommits'),
+      )
+      expect(commitsCalls[0]?.[1]).toMatchObject({
+        after: 'end-1',
+        commitsFirst: COMMITS_PAGE_SIZE,
+        before: undefined,
+        commitsLast: undefined,
+      })
+    })
+
+    await waitFor(() => {
+      expect(result.current.commitsHasPreviousPage).toBe(true)
+    })
+
+    mockRequestGraphQL.mockClear()
+
+    act(() => {
+      result.current.onCommitsBack()
+    })
+
+    await waitFor(() => {
+      const commitsCalls = mockRequestGraphQL.mock.calls.filter((call) =>
+        String(call[0]).includes('query DashboardCommits'),
+      )
+      expect(commitsCalls[0]?.[1]).toMatchObject({
+        before: 'start-2',
+        commitsLast: COMMITS_PAGE_SIZE,
+        after: undefined,
+        commitsFirst: undefined,
+      })
     })
   })
 
@@ -362,7 +491,12 @@ describe('useDashboardData', () => {
           data: {
             repo: {
               commits: {
-                pageInfo: { hasNextPage: false, endCursor: null },
+                pageInfo: {
+                  hasNextPage: false,
+                  hasPreviousPage: false,
+                  startCursor: null,
+                  endCursor: null,
+                },
                 edges: [
                   {
                     node: {
@@ -459,7 +593,12 @@ describe('useDashboardData', () => {
           data: {
             repo: {
               commits: {
-                pageInfo: { hasNextPage: false, endCursor: null },
+                pageInfo: {
+                  hasNextPage: false,
+                  hasPreviousPage: false,
+                  startCursor: null,
+                  endCursor: null,
+                },
                 edges: [],
               },
             },

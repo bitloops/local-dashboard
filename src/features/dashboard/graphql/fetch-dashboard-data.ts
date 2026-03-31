@@ -18,21 +18,33 @@ export type FetchDashboardCommitsVariables = {
   since: string | null
   until: string | null
   author: string | null
-  after: string | null
-}
+} & (
+  | {
+      direction?: 'forward'
+      after: string | null
+      before?: never
+    }
+  | {
+      direction: 'backward'
+      before: string | null
+      after?: never
+    }
+)
 
 export type FetchDashboardRepoOptionsVariables = {
   repo: string
 }
 
 /**
- * Loads a single page of commits for the dashboard (`after` + `pageInfo`).
+ * Loads a single page of commits for the dashboard using either
+ * forward (`first` + `after`) or backward (`last` + `before`) pagination.
  */
 export async function fetchDashboardCommitsPage(
   variables: FetchDashboardCommitsVariables,
   options?: { signal?: AbortSignal },
 ): Promise<DashboardCommitsQueryData> {
   const { signal } = options ?? {}
+  const isBackward = variables.direction === 'backward'
 
   const response = await requestGraphQL<DashboardCommitsQueryData>(
     DASHBOARD_COMMITS_QUERY,
@@ -42,8 +54,10 @@ export async function fetchDashboardCommitsPage(
       since: variables.since,
       until: variables.until,
       author: variables.author,
-      after: variables.after,
-      commitsFirst: COMMITS_PAGE_SIZE,
+      after: isBackward ? undefined : variables.after,
+      before: isBackward ? variables.before : undefined,
+      commitsFirst: isBackward ? undefined : COMMITS_PAGE_SIZE,
+      commitsLast: isBackward ? COMMITS_PAGE_SIZE : undefined,
     } satisfies DashboardCommitsQueryVariables,
     { signal },
   )

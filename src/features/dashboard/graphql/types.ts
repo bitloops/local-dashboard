@@ -58,6 +58,8 @@ export type DashboardCommitsConnection = {
   edges: DashboardCommitEdge[]
   pageInfo?: {
     hasNextPage: boolean
+    hasPreviousPage: boolean
+    startCursor?: string | null
     endCursor?: string | null
   }
 }
@@ -78,5 +80,7 @@ export type DashboardCommitsQueryVariables = {
   /** When set, server filters commits by author (same key as user picker). */
   author?: string | null
   after?: string | null
-  commitsFirst: number
+  before?: string | null
+  commitsFirst?: number
+  commitsLast?: number
 }

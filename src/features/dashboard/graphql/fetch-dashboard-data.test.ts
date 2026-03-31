@@ -57,8 +57,45 @@ describe('fetchDashboardCommitsPage', () => {
       branch: 'main',
       after: null,
       commitsFirst: COMMITS_PAGE_SIZE,
+      commitsLast: undefined,
     })
     expect(data.repo?.commits.edges).toHaveLength(1)
+  })
+
+  it('requests a previous page with before and commitsLast', async () => {
+    mockRequestGraphQL.mockResolvedValue({
+      data: {
+        repo: {
+          commits: {
+            pageInfo: {
+              hasNextPage: true,
+              hasPreviousPage: false,
+              startCursor: 'cursor-1',
+              endCursor: 'cursor-2',
+            },
+            edges: [{ node: commitNode('bbb') }],
+          },
+        },
+      },
+    })
+
+    await fetchDashboardCommitsPage({
+      direction: 'backward',
+      repo: '',
+      branch: 'main',
+      since: null,
+      until: null,
+      author: null,
+      before: 'cursor-1',
+    })
+
+    expect(mockRequestGraphQL.mock.calls[0]?.[1]).toMatchObject({
+      repo: '',
+      branch: 'main',
+      before: 'cursor-1',
+      commitsLast: COMMITS_PAGE_SIZE,
+      commitsFirst: undefined,
+    })
   })
 
   it('returns repo null when the response has no repo', async () => {

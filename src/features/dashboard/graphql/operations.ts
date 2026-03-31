@@ -22,7 +22,7 @@ export const DASHBOARD_REPO_OPTIONS_QUERY = `
 `
 
 /**
- * Commits only — cursor pagination via `after` + `pageInfo`.
+ * Commits only — bidirectional cursor pagination via `after`/`before` + `pageInfo`.
  * Pass `author` to narrow commits server-side when a user is selected; **agent** filtering stays client-side.
  */
 export const DASHBOARD_COMMITS_QUERY = `
@@ -33,7 +33,9 @@ export const DASHBOARD_COMMITS_QUERY = `
     $until: DateTime,
     $author: String,
     $after: String,
-    $commitsFirst: Int!
+    $commitsFirst: Int,
+    $before: String,
+    $commitsLast: Int
   ) {
     repo(name: $repo) {
       commits(
@@ -42,10 +44,14 @@ export const DASHBOARD_COMMITS_QUERY = `
         until: $until,
         author: $author,
         first: $commitsFirst,
-        after: $after
+        after: $after,
+        last: $commitsLast,
+        before: $before
       ) {
         pageInfo {
           hasNextPage
+          hasPreviousPage
+          startCursor
           endCursor
         }
         edges {
