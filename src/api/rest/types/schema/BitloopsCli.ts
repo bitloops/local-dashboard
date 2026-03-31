@@ -1,14 +1,22 @@
 /* generated using openapi-typescript-codegen -- do not edit */
 /* istanbul ignore file */
 /* tslint:disable */
-
+/* eslint-disable */
 import type { BaseHttpRequest } from './core/BaseHttpRequest'
 import type { OpenAPIConfig } from './core/OpenAPI'
 import { FetchHttpRequest } from './core/FetchHttpRequest'
-import { DefaultService } from './services/DefaultService'
+import { SuperHandlersBundleService } from './services/SuperHandlersBundleService'
+import { SuperHandlersCheckpointService } from './services/SuperHandlersCheckpointService'
+import { SuperHandlersDashboardService } from './services/SuperHandlersDashboardService'
+import { SuperHandlersHealthService } from './services/SuperHandlersHealthService'
+import { SuperHandlersMetaService } from './services/SuperHandlersMetaService'
 type HttpRequestConstructor = new (config: OpenAPIConfig) => BaseHttpRequest
 export class BitloopsCli {
-  public readonly default: DefaultService
+  public readonly superHandlersBundle: SuperHandlersBundleService
+  public readonly superHandlersCheckpoint: SuperHandlersCheckpointService
+  public readonly superHandlersDashboard: SuperHandlersDashboardService
+  public readonly superHandlersHealth: SuperHandlersHealthService
+  public readonly superHandlersMeta: SuperHandlersMetaService
   public readonly request: BaseHttpRequest
   constructor(
     config?: Partial<OpenAPIConfig>,
@@ -16,7 +24,7 @@ export class BitloopsCli {
   ) {
     this.request = new HttpRequest({
       BASE: config?.BASE ?? '',
-      VERSION: config?.VERSION ?? '0.0.3',
+      VERSION: config?.VERSION ?? '0.0.12',
       WITH_CREDENTIALS: config?.WITH_CREDENTIALS ?? false,
       CREDENTIALS: config?.CREDENTIALS ?? 'include',
       TOKEN: config?.TOKEN,
@@ -25,6 +33,14 @@ export class BitloopsCli {
       HEADERS: config?.HEADERS,
       ENCODE_PATH: config?.ENCODE_PATH,
     })
-    this.default = new DefaultService(this.request)
+    this.superHandlersBundle = new SuperHandlersBundleService(this.request)
+    this.superHandlersCheckpoint = new SuperHandlersCheckpointService(
+      this.request,
+    )
+    this.superHandlersDashboard = new SuperHandlersDashboardService(
+      this.request,
+    )
+    this.superHandlersHealth = new SuperHandlersHealthService(this.request)
+    this.superHandlersMeta = new SuperHandlersMetaService(this.request)
   }
 }

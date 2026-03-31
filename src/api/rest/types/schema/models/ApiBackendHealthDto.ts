@@ -2,7 +2,7 @@
 /* istanbul ignore file */
 /* tslint:disable */
 /* eslint-disable */
-export type ApiBranchSummaryDto = {
-  branch: string
-  checkpoint_commits: number
+export type ApiBackendHealthDto = {
+  detail: string
+  status: string
 }

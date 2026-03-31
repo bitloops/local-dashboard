@@ -2,7 +2,11 @@
 /* istanbul ignore file */
 /* tslint:disable */
 /* eslint-disable */
-export type ApiRootResponse = {
+export type ApiRepositoryDto = {
+  defaultBranch?: string | null
+  identity: string
   name: string
-  openapi: string
+  organization: string
+  provider: string
+  repoId: string
 }

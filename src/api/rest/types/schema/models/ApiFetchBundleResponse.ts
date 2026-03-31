@@ -2,7 +2,9 @@
 /* istanbul ignore file */
 /* tslint:disable */
 /* eslint-disable */
-export type ApiBranchSummaryDto = {
-  branch: string
-  checkpoint_commits: number
+export type ApiFetchBundleResponse = {
+  bundleDir: string
+  checksumVerified: boolean
+  installedVersion: string
+  status: string
 }

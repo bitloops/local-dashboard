@@ -4,28 +4,14 @@
 /* eslint-disable */
 import type { ApiAgentDto } from '../models/ApiAgentDto'
 import type { ApiBranchSummaryDto } from '../models/ApiBranchSummaryDto'
-import type { ApiCheckpointDetailResponse } from '../models/ApiCheckpointDetailResponse'
 import type { ApiCommitRowDto } from '../models/ApiCommitRowDto'
 import type { ApiKpisResponse } from '../models/ApiKpisResponse'
-import type { ApiRootResponse } from '../models/ApiRootResponse'
+import type { ApiRepositoryDto } from '../models/ApiRepositoryDto'
 import type { ApiUserDto } from '../models/ApiUserDto'
 import type { CancelablePromise } from '../core/CancelablePromise'
 import type { BaseHttpRequest } from '../core/BaseHttpRequest'
-export class DefaultService {
-  public readonly httpRequest: BaseHttpRequest
-  constructor(httpRequest: BaseHttpRequest) {
-    this.httpRequest = httpRequest
-  }
-  /**
-   * @returns ApiRootResponse Dashboard API root
-   * @throws ApiError
-   */
-  public handleApiRoot(): CancelablePromise<ApiRootResponse> {
-    return this.httpRequest.request({
-      method: 'GET',
-      url: '/api',
-    })
-  }
+export class SuperHandlersDashboardService {
+  constructor(public readonly httpRequest: BaseHttpRequest) {}
   /**
    * @returns ApiAgentDto Agents in filtered checkpoint commits
    * @throws ApiError
@@ -76,31 +62,6 @@ export class DefaultService {
       },
       errors: {
         400: `Bad request`,
-        500: `Internal server error`,
-      },
-    })
-  }
-  /**
-   * @returns ApiCheckpointDetailResponse Checkpoint details with session transcript payloads
-   * @throws ApiError
-   */
-  public handleApiCheckpoint({
-    checkpointId,
-  }: {
-    /**
-     * Checkpoint id (12 hex characters)
-     */
-    checkpointId: string
-  }): CancelablePromise<ApiCheckpointDetailResponse> {
-    return this.httpRequest.request({
-      method: 'GET',
-      url: '/api/checkpoints/{checkpoint_id}',
-      path: {
-        checkpoint_id: checkpointId,
-      },
-      errors: {
-        400: `Bad request`,
-        404: `Not found`,
         500: `Internal server error`,
       },
     })
@@ -178,13 +139,16 @@ export class DefaultService {
     })
   }
   /**
-   * @returns any Generated OpenAPI document
+   * @returns ApiRepositoryDto Known repositories for the dashboard
    * @throws ApiError
    */
-  public handleApiOpenapi(): CancelablePromise<any> {
+  public handleApiRepositories(): CancelablePromise<Array<ApiRepositoryDto>> {
     return this.httpRequest.request({
       method: 'GET',
-      url: '/api/openapi.json',
+      url: '/api/repositories',
+      errors: {
+        500: `Internal server error`,
+      },
     })
   }
   /**
