@@ -47,7 +47,7 @@ function toText(content: unknown): string {
 
 function extractTextBlocks(content: unknown): string[] {
   if (typeof content === 'string') {
-    const stripped = stripUserQueryTags(content)
+    const stripped = stripUserQueryTags(content).trimStart()
     return stripped.trim() ? [stripped] : []
   }
 
@@ -59,7 +59,7 @@ function extractTextBlocks(content: unknown): string[] {
     .map((block) => {
       const item = block as Record<string, unknown>
       if (item.type === 'text' && typeof item.text === 'string') {
-        return stripUserQueryTags(item.text)
+        return stripUserQueryTags(item.text).trimStart()
       }
       return ''
     })

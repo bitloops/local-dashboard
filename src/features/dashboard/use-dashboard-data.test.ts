@@ -779,6 +779,7 @@ describe('useDashboardData', () => {
     await waitFor(() => {
       expect(mockHandleCheckpoint).toHaveBeenCalledWith({
         checkpointId: 'abcd1234abcd',
+        repoId: 'repo-1',
       })
       expect(result.current.checkpointDetailSource).toBe('api')
       expect(result.current.checkpointDetail?.checkpoint_id).toBe(
@@ -805,6 +806,7 @@ describe('useDashboardData', () => {
     await waitFor(() => {
       expect(mockHandleCheckpoint).toHaveBeenCalledWith({
         checkpointId: cp.id,
+        repoId: 'repo-1',
       })
     })
   })

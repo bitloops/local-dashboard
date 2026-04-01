@@ -77,7 +77,7 @@ describe('query-explorer slice', () => {
   describe('initial state', () => {
     it('has default query and variables', () => {
       const state = store.getState()
-      expect(state.query).toContain('query DashboardCommitsSample')
+      expect(state.query).toContain('query Commits(')
       expect(state.variables).toBe(getDefaultQueryExplorerVariables(null))
     })
 
@@ -190,31 +190,39 @@ describe('query-explorer slice', () => {
           'new/repo',
           'main',
         ),
-      ).toBe(
-        '{\n  "repo": "new/repo",\n  "branch": "main",\n  "commitsFirst": 10\n}',
-      )
+      ).toEqual({
+        updated: true,
+        variables:
+          '{\n  "repo": "new/repo",\n  "branch": "main",\n  "commitsFirst": 10\n}',
+      })
     })
 
-    it('does not overwrite custom variable objects', () => {
+    it('treats repo-and-branch-only variable objects as default-shaped', () => {
       expect(
         syncQueryExplorerVariablesWithDashboardSelection(
           '{"repo":"old/repo","branch":"main"}',
           'new/repo',
           'develop',
         ),
-      ).toBe(
-        '{\n  "repo": "new/repo",\n  "branch": "develop",\n  "commitsFirst": 10\n}',
-      )
+      ).toEqual({
+        updated: true,
+        variables:
+          '{\n  "repo": "new/repo",\n  "branch": "develop",\n  "commitsFirst": 10\n}',
+      })
     })
 
-    it('does not overwrite non-default variable objects', () => {
+    it('treats repo-branch-commitsFirst variable objects as default-shaped', () => {
       expect(
         syncQueryExplorerVariablesWithDashboardSelection(
           '{"repo":"old/repo","branch":"main","commitsFirst":20}',
           'new/repo',
           'develop',
         ),
-      ).toBeNull()
+      ).toEqual({
+        updated: true,
+        variables:
+          '{\n  "repo": "new/repo",\n  "branch": "develop",\n  "commitsFirst": 10\n}',
+      })
     })
   })
 
@@ -240,14 +248,14 @@ describe('query-explorer slice', () => {
       )
     })
 
-    it('does not overwrite custom query explorer variables when selectedRepo changes', () => {
+    it('resyncs selectedRepo when variables are still default-shaped', () => {
       const rootStore = createRootStore()
 
       rootStore.getState().setVariables('{"repo":"old/repo","branch":"main"}')
       rootStore.getState().setSelectedRepo('acme/demo')
 
       expect(rootStore.getState().variables).toBe(
-        '{"repo":"old/repo","branch":"main"}',
+        '{\n  "repo": "acme/demo",\n  "branch": null,\n  "commitsFirst": 10\n}',
       )
     })
   })

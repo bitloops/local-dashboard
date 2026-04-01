@@ -1,3 +1,4 @@
+import { useEffect } from 'react'
 import { describe, expect, it, vi } from 'vitest'
 import { fireEvent, render, screen } from '@testing-library/react'
 import { ThemeProvider } from '@/context/theme-provider'
@@ -11,10 +12,44 @@ vi.mock('@monaco-editor/react', () => ({
   default: function MockEditor({
     value,
     onChange,
+    beforeMount,
+    onMount,
   }: {
     value: string
     onChange: (v: string | undefined) => void
+    beforeMount?: (monaco: unknown) => void
+    onMount?: (editor: unknown, monaco: unknown) => void
   }) {
+    const monaco = {
+      editor: {
+        defineTheme: vi.fn(),
+        registerCommand: vi.fn(() => ({ dispose: vi.fn() })),
+      },
+      languages: {
+        registerCompletionItemProvider: vi.fn(() => ({ dispose: vi.fn() })),
+        registerOnTypeFormattingEditProvider: vi.fn(() => ({
+          dispose: vi.fn(),
+        })),
+      },
+      KeyMod: { Shift: 1, Alt: 2 },
+      KeyCode: { KeyF: 3 },
+    }
+    const editor = {
+      getModel: () => ({
+        getValue: () => value,
+        getFullModelRange: vi.fn(),
+      }),
+      addAction: vi.fn(),
+      onDidChangeModelContent: vi.fn(() => ({ dispose: vi.fn() })),
+      onDidDispose: vi.fn(),
+      executeEdits: vi.fn(),
+    }
+
+    useEffect(() => {
+      beforeMount?.(monaco)
+      onMount?.(editor, monaco)
+    }, [beforeMount, onMount])
+
     return (
       <input
         aria-label='GraphQL query'
@@ -80,6 +115,20 @@ describe('QueryEditorPanel', () => {
     expect(screen.getByRole('button', { name: 'Run query' })).toBeDisabled()
   })
 
+  it('shows format icon button when onFormat is provided', () => {
+    renderWithTheme(
+      <QueryEditorPanel
+        value=''
+        onChange={() => {}}
+        onRun={() => {}}
+        onFormat={() => {}}
+      />,
+    )
+    expect(
+      screen.getByRole('button', { name: 'Format query' }),
+    ).toBeInTheDocument()
+  })
+
   it('calls onRun when Run button is clicked', () => {
     const onRun = vi.fn()
     renderWithTheme(
@@ -87,5 +136,19 @@ describe('QueryEditorPanel', () => {
     )
     fireEvent.click(screen.getByRole('button', { name: 'Run query' }))
     expect(onRun).toHaveBeenCalledTimes(1)
+  })
+
+  it('calls onFormat when format icon button is clicked', () => {
+    const onFormat = vi.fn()
+    renderWithTheme(
+      <QueryEditorPanel
+        value=''
+        onChange={() => {}}
+        onRun={() => {}}
+        onFormat={onFormat}
+      />,
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'Format query' }))
+    expect(onFormat).toHaveBeenCalledTimes(1)
   })
 })

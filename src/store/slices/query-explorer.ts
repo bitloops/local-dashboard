@@ -38,11 +38,15 @@ export function getDefaultQueryExplorerVariables(
   )
 }
 
+type SyncVariablesResult =
+  | { updated: true; variables: string }
+  | { updated: false }
+
 export function syncQueryExplorerVariablesWithDashboardSelection(
   variables: string,
   selectedRepo: string | null,
   selectedBranch: string | null,
-): string | null {
+): SyncVariablesResult {
   try {
     const parsed = JSON.parse(variables) as Record<string, unknown>
     if (
@@ -50,7 +54,7 @@ export function syncQueryExplorerVariablesWithDashboardSelection(
       parsed === null ||
       Array.isArray(parsed)
     ) {
-      return null
+      return { updated: false }
     }
 
     const keys = Object.keys(parsed)
@@ -60,12 +64,18 @@ export function syncQueryExplorerVariablesWithDashboardSelection(
         (key) => key === 'repo' || key === 'branch' || key === 'commitsFirst',
       )
     ) {
-      return getDefaultQueryExplorerVariables(selectedRepo, selectedBranch)
+      return {
+        updated: true,
+        variables: getDefaultQueryExplorerVariables(
+          selectedRepo,
+          selectedBranch,
+        ),
+      }
     }
 
-    return null
+    return { updated: false }
   } catch {
-    return null
+    return { updated: false }
   }
 }
 

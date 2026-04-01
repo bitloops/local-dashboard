@@ -97,34 +97,34 @@ export function createDashboardSlice(set: DashboardSet): DashboardSlice {
     checkpointDetailSource: 'idle',
     setSelectedRepo: (value) =>
       set((state) => {
-        const nextVariables =
+        const result =
           typeof state.variables === 'string'
             ? syncQueryExplorerVariablesWithDashboardSelection(
                 state.variables,
                 value,
                 state.selectedBranch,
               )
-            : null
+            : { updated: false as const }
 
         return {
           selectedRepo: value,
-          ...(nextVariables === null ? {} : { variables: nextVariables }),
+          ...(result.updated ? { variables: result.variables } : {}),
         }
       }),
     setSelectedBranch: (value) =>
       set((state) => {
-        const nextVariables =
+        const result =
           typeof state.variables === 'string'
             ? syncQueryExplorerVariablesWithDashboardSelection(
                 state.variables,
                 state.selectedRepo,
                 value,
               )
-            : null
+            : { updated: false as const }
 
         return {
           selectedBranch: value,
-          ...(nextVariables === null ? {} : { variables: nextVariables }),
+          ...(result.updated ? { variables: result.variables } : {}),
         }
       }),
     setSelectedUser: (value) => set({ selectedUser: value }),

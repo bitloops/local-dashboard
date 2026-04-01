@@ -330,8 +330,8 @@ const STUB_CHECKPOINT_DETAIL = {
 // Helpers
 // ---------------------------------------------------------------------------
 
-/** Stub all API calls so the app works without a real backend. */
-async function stubApiRoutes(page: Page) {
+/** Stub /api/repositories with the shared STUB_REPOSITORIES list. */
+async function stubRepositoriesRoute(page: Page) {
   await page.route('**/api/repositories', async (route: Route) => {
     await route.fulfill({
       status: 200,
@@ -351,6 +351,11 @@ async function stubApiRoutes(page: Page) {
       ),
     })
   })
+}
+
+/** Stub all API calls so the app works without a real backend. */
+async function stubApiRoutes(page: Page) {
+  await stubRepositoriesRoute(page)
 
   await page.route('**/devql/global', async (route: Route) => {
     const request = route.request()
@@ -476,25 +481,7 @@ test.describe('App / dashboard load', () => {
   test('dashboard shows API error banner when data endpoints fail', async ({
     page,
   }) => {
-    await page.route('**/api/repositories', async (route: Route) => {
-      await route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify(
-          STUB_REPOSITORIES.map((identity, index) => {
-            const [, name] = identity.split('/')
-            return {
-              identity,
-              name,
-              organization: 'bitloops',
-              provider: 'github',
-              repoId: `repo-${index + 1}`,
-              defaultBranch: 'main',
-            }
-          }),
-        ),
-      })
-    })
+    await stubRepositoriesRoute(page)
     await page.route('**/devql/global', async (route: Route) => {
       const body = route.request().postDataJSON() as { query?: string }
       const query = body.query ?? ''
@@ -552,25 +539,7 @@ test.describe('App / dashboard load', () => {
   test('shows "No branches" message when dashboard branches query returns empty', async ({
     page,
   }) => {
-    await page.route('**/api/repositories', async (route: Route) => {
-      await route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify(
-          STUB_REPOSITORIES.map((identity, index) => {
-            const [, name] = identity.split('/')
-            return {
-              identity,
-              name,
-              organization: 'bitloops',
-              provider: 'github',
-              repoId: `repo-${index + 1}`,
-              defaultBranch: 'main',
-            }
-          }),
-        ),
-      })
-    })
+    await stubRepositoriesRoute(page)
     await page.route('**/devql/global', async (route: Route) => {
       const body = route.request().postDataJSON() as { query?: string }
       const query = body.query ?? ''
@@ -632,7 +601,7 @@ test.describe('Filters', () => {
     await stubApiRoutes(page)
     await page.goto('/')
 
-    const repoTrigger = page.getByRole('combobox').nth(0)
+    const repoTrigger = page.getByTestId('filter-repo')
     await repoTrigger.click()
 
     await expect(page.getByRole('option', { name: /Auto/ })).toBeVisible()
@@ -651,7 +620,7 @@ test.describe('Filters', () => {
     await stubApiRoutes(page)
     await page.goto('/')
 
-    const branchTrigger = page.getByRole('combobox').nth(1)
+    const branchTrigger = page.getByTestId('filter-branch')
     await branchTrigger.click()
 
     await expect(page.getByRole('option', { name: /Auto/ })).toBeVisible()
@@ -667,7 +636,7 @@ test.describe('Filters', () => {
     await stubApiRoutes(page)
     await page.goto('/')
 
-    const branchTrigger = page.getByRole('combobox').nth(1)
+    const branchTrigger = page.getByTestId('filter-branch')
     await branchTrigger.click()
     await page.getByRole('option', { name: 'feat/auth' }).click()
 
@@ -686,7 +655,7 @@ test.describe('Filters', () => {
     await expect(clearBtn).toBeDisabled()
 
     // Activate a filter by selecting a branch
-    const branchTrigger = page.getByRole('combobox').nth(1)
+    const branchTrigger = page.getByTestId('filter-branch')
     await branchTrigger.click()
     await page.getByRole('option', { name: 'feat/auth' }).click()
 
@@ -700,7 +669,7 @@ test.describe('Filters', () => {
     await stubApiRoutes(page)
     await page.goto('/')
 
-    const branchTrigger = page.getByRole('combobox').nth(1)
+    const branchTrigger = page.getByTestId('filter-branch')
     await branchTrigger.click()
     await page.getByRole('option', { name: 'feat/auth' }).click()
     await expect(branchTrigger).toContainText('feat/auth')
@@ -734,25 +703,7 @@ test.describe('Filters', () => {
   }) => {
     const observedRepos: string[] = []
 
-    await page.route('**/api/repositories', async (route: Route) => {
-      await route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify(
-          STUB_REPOSITORIES.map((identity, index) => {
-            const [, name] = identity.split('/')
-            return {
-              identity,
-              name,
-              organization: 'bitloops',
-              provider: 'github',
-              repoId: `repo-${index + 1}`,
-              defaultBranch: 'main',
-            }
-          }),
-        ),
-      })
-    })
+    await stubRepositoriesRoute(page)
     await page.route('**/devql/global', async (route: Route) => {
       const body = route.request().postDataJSON() as {
         query?: string
@@ -832,7 +783,7 @@ test.describe('Filters', () => {
 
     observedRepos.length = 0
 
-    const repoTrigger = page.getByRole('combobox').nth(0)
+    const repoTrigger = page.getByTestId('filter-repo')
     await repoTrigger.click()
     await page.getByRole('option', { name: 'bitloops/another-repo' }).click()
 
@@ -938,25 +889,7 @@ test.describe('Checkpoint sheet', () => {
   test('checkpoint sheet shows error state when detail API fails', async ({
     page,
   }) => {
-    await page.route('**/api/repositories', async (route: Route) => {
-      await route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify(
-          STUB_REPOSITORIES.map((identity, index) => {
-            const [, name] = identity.split('/')
-            return {
-              identity,
-              name,
-              organization: 'bitloops',
-              provider: 'github',
-              repoId: `repo-${index + 1}`,
-              defaultBranch: 'main',
-            }
-          }),
-        ),
-      })
-    })
+    await stubRepositoriesRoute(page)
     await page.route('**/devql/global', async (route) => {
       const body = route.request().postDataJSON() as { query?: string }
       const query = body.query ?? ''

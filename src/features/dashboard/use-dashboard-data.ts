@@ -122,7 +122,9 @@ export function useDashboardData() {
   const since = fromDate != null ? startOfDayIso(fromDate) : null
   const until = toDate != null ? endOfDayIso(toDate) : null
   const branchOptionsRequestKey =
-    effectiveRepo === null ? null : `${effectiveRepo}:${since ?? ''}:${until ?? ''}`
+    effectiveRepo === null
+      ? null
+      : `${effectiveRepo}:${since ?? ''}:${until ?? ''}`
   const visibleBranchOptionsSource: LoadState =
     branchOptionsRequestKey === null ||
     branchOptionsRequestState.key !== branchOptionsRequestKey
@@ -139,14 +141,14 @@ export function useDashboardData() {
 
   useEffect(() => {
     const { variables, setVariables } = rootStoreInstance.getState()
-    const nextVariables = syncQueryExplorerVariablesWithDashboardSelection(
+    const syncResult = syncQueryExplorerVariablesWithDashboardSelection(
       variables,
       effectiveRepo,
       effectiveBranch,
     )
 
-    if (nextVariables !== null && nextVariables !== variables) {
-      setVariables(nextVariables)
+    if (syncResult.updated && syncResult.variables !== variables) {
+      setVariables(syncResult.variables)
     }
   }, [effectiveRepo, effectiveBranch])
 

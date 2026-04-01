@@ -201,7 +201,7 @@ export function DashboardView({
                     onRepoChange(value === repoAutoValue ? null : value)
                   }
                 >
-                  <SelectTrigger className='w-full'>
+                  <SelectTrigger className='w-full' data-testid='filter-repo'>
                     <SelectValue placeholder='Select repository' />
                   </SelectTrigger>
                   <SelectContent>
@@ -228,7 +228,7 @@ export function DashboardView({
                   }
                   disabled={!effectiveRepo}
                 >
-                  <SelectTrigger className='w-full'>
+                  <SelectTrigger className='w-full' data-testid='filter-branch'>
                     <SelectValue placeholder='Select branch' />
                   </SelectTrigger>
                   <SelectContent>

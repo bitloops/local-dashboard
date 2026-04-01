@@ -45,7 +45,7 @@ describe('parseTranscriptEntries', () => {
         timestamp: '',
         actor: 'user',
         variant: 'chat',
-        text: '\nshow me dashboard data\n',
+        text: 'show me dashboard data\n',
       },
       {
         id: 'msg-1-0',
