@@ -220,6 +220,20 @@ test.describe('History panel', () => {
     ).toBeVisible()
   })
 
+  test('empty history view still shows save options footer', async ({
+    page,
+  }) => {
+    await page.goto('/explorer')
+
+    await page.getByRole('button', { name: 'Show history' }).click()
+
+    await expect(page.getByText('Save history')).toBeVisible()
+    await expect(
+      page.getByRole('combobox', { name: 'Where to save query history' }),
+    ).toBeVisible()
+    await expect(page.getByText('This browser (until expired)')).toBeVisible()
+  })
+
   test('clicking editor toggle from history view returns to Editor', async ({
     page,
   }) => {
@@ -307,6 +321,27 @@ test.describe('Query execution', () => {
     await page.getByRole('button', { name: 'Show history' }).click()
 
     await expect(page.getByRole('button', { name: 'Load' })).toBeVisible()
+  })
+
+  test('history is not retained when save mode is set to do not save', async ({
+    page,
+  }) => {
+    await page.goto('/explorer')
+    await page.getByRole('button', { name: 'Show history' }).click()
+
+    await page
+      .getByRole('combobox', { name: 'Where to save query history' })
+      .click()
+    await page.getByRole('option', { name: 'Do not save' }).click()
+
+    await page.getByRole('button', { name: 'Show editor' }).click()
+    await runQueryAndWaitForResult(page)
+    await page.getByRole('button', { name: 'Show history' }).click()
+
+    await expect(
+      page.getByText('Run a query to see history here.'),
+    ).toBeVisible()
+    await expect(page.getByRole('button', { name: 'Load' })).toHaveCount(0)
   })
 })
 
