@@ -59,7 +59,6 @@ function SheetContent({
 }) {
   const [width, setWidth] = React.useState(defaultWidth)
   const canResize = resizable && (side === 'right' || side === 'left')
-
   const onResizeStart = (e: React.PointerEvent) => {
     e.preventDefault()
     const startX = e.clientX

@@ -118,7 +118,7 @@ function FileTreeBranch({
               </>
             )}
             <div
-              className='flex items-center gap-1.5 py-0.5 text-sm'
+              className='flex min-w-0 items-center gap-1.5 py-0.5 text-sm'
               style={{ paddingLeft: `${depth * 20}px` }}
             >
               {child.isFile ? (
@@ -129,8 +129,8 @@ function FileTreeBranch({
               <span
                 className={
                   child.isFile
-                    ? 'text-foreground'
-                    : 'font-medium text-foreground'
+                    ? 'min-w-0 break-all text-foreground'
+                    : 'min-w-0 break-all font-medium text-foreground'
                 }
               >
                 {child.name}

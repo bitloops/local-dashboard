@@ -1,4 +1,5 @@
 import { getQuerySchema } from '@/features/query-explorer/query-client'
+import { QUERY_EXPLORER_DEFAULT_QUERY } from '@/features/query-explorer/graphql/operations'
 import {
   getHistoryStorage,
   getHistoryStorageForMode,
@@ -17,25 +18,56 @@ export type { HistoryStorageMode }
 
 const RUN_HISTORY_MAX = 50
 
-const DEFAULT_QUERY = `# Hold Ctrl/Cmd+Space to see autocomplete suggestions.
-# Sample query in GQL syntax
+type QueryExplorerRootLikeState = QueryExplorerSlice & {
+  selectedRepo?: string | null
+  selectedBranch?: string | null
+}
 
-query GetArtefacts($repo: String!, $ref: String!, $path: String!) {
-  repo(name: $repo) {
-    ref(name: $ref) {
-      file(path: $path) {
-        artefacts {
-          symbolFqn
-          canonicalKind
-          semantics {
-            summary
-          }
-        }
-      }
+export function getDefaultQueryExplorerVariables(
+  selectedRepo: string | null | undefined,
+  selectedBranch?: string | null,
+): string {
+  return JSON.stringify(
+    {
+      repo: selectedRepo ?? '',
+      branch: selectedBranch ?? null,
+      commitsFirst: 10,
+    },
+    null,
+    2,
+  )
+}
+
+export function syncQueryExplorerVariablesWithDashboardSelection(
+  variables: string,
+  selectedRepo: string | null,
+  selectedBranch: string | null,
+): string | null {
+  try {
+    const parsed = JSON.parse(variables) as Record<string, unknown>
+    if (
+      typeof parsed !== 'object' ||
+      parsed === null ||
+      Array.isArray(parsed)
+    ) {
+      return null
     }
+
+    const keys = Object.keys(parsed)
+    if (
+      keys.length === 0 ||
+      keys.every(
+        (key) => key === 'repo' || key === 'branch' || key === 'commitsFirst',
+      )
+    ) {
+      return getDefaultQueryExplorerVariables(selectedRepo, selectedBranch)
+    }
+
+    return null
+  } catch {
+    return null
   }
 }
-`
 
 function isHistoryEntry(value: unknown): value is HistoryEntry {
   return (
@@ -136,16 +168,21 @@ export type QueryExplorerActions = {
 
 export type QueryExplorerSlice = QueryExplorerState & QueryExplorerActions
 
-type GetState = StoreApi<QueryExplorerSlice>['getState']
+type GetState = StoreApi<QueryExplorerRootLikeState>['getState']
 type SetState = StoreApi<QueryExplorerSlice>['setState']
 
 export function createQueryExplorerSlice(
   set: SetState,
   get: GetState,
 ): QueryExplorerSlice {
+  const initialState = get() as QueryExplorerRootLikeState | undefined
+
   return {
-    query: DEFAULT_QUERY,
-    variables: '{}',
+    query: QUERY_EXPLORER_DEFAULT_QUERY,
+    variables: getDefaultQueryExplorerVariables(
+      initialState?.selectedRepo,
+      initialState?.selectedBranch,
+    ),
     result: { status: 'idle' },
     variablesHaveErrors: false,
     schema: null,

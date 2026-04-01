@@ -85,7 +85,7 @@ function ToolMessageContent({ text }: { text: string }) {
   return (
     <span className='text-[11px]'>
       {prefix && (
-        <span className='whitespace-pre-wrap text-muted-foreground'>
+        <span className='whitespace-pre-wrap break-words text-muted-foreground'>
           {prefix}
         </span>
       )}
@@ -98,6 +98,10 @@ function ToolMessageContent({ text }: { text: string }) {
           background: 'transparent',
           fontSize: '11px',
           whiteSpace: 'pre-wrap',
+          wordBreak: 'break-word',
+          overflowWrap: 'anywhere',
+          minWidth: 0,
+          maxWidth: '100%',
         }}
         codeTagProps={{ style: { fontSize: '11px' } }}
         PreTag='span'
@@ -151,7 +155,7 @@ function ToolPairBlock({
   result: TranscriptMessage | null
 }) {
   return (
-    <div className='ms-8 max-w-[85%]'>
+    <div className='ml-8 min-w-0 w-[calc(100%-2rem)]'>
       <div className='min-w-0 overflow-hidden rounded-md border border-border bg-muted/20 pt-1 text-[11px]'>
         <div className='flex w-full items-center gap-1.5 border-b border-border py-1 px-2'>
           <Terminal
@@ -208,7 +212,7 @@ function ChatBubble({ message, agentName, userName }: ChatBubbleProps) {
 
   if (isSystem) {
     return (
-      <div className='ms-8 max-w-[85%]'>
+      <div className='ml-8 min-w-0 w-[calc(100%-2rem)]'>
         <div
           className={`min-w-0 overflow-hidden rounded-md border border-border bg-muted/20 py-1 text-[11px] ${
             message.isError ? 'border-destructive/50 bg-destructive/10' : ''
@@ -234,7 +238,7 @@ function ChatBubble({ message, agentName, userName }: ChatBubbleProps) {
       ? message.text.slice(10)
       : message.text
     return (
-      <div className='ms-8 flex max-w-[85%]'>
+      <div className='ml-8 flex min-w-0 w-[calc(100%-2rem)]'>
         <div className='inline-flex min-w-0 items-start gap-1.5 rounded-lg border border-muted bg-background px-2.5 py-1.5'>
           <AgentIcon agent={agentName} className='mt-0.5 size-3.5 shrink-0' />
           <div className='flex flex-col gap-0.5'>
@@ -254,7 +258,7 @@ function ChatBubble({ message, agentName, userName }: ChatBubbleProps) {
 
   return (
     <div
-      className={`flex items-start gap-2 ${isUser ? 'flex-row-reverse' : 'flex-row'}`}
+      className={`flex w-full min-w-0 items-start gap-2 ${isUser ? 'flex-row-reverse' : 'flex-row'}`}
     >
       <div className='flex size-6 shrink-0 items-center justify-center rounded-full bg-muted'>
         {isUser ? (
@@ -264,7 +268,7 @@ function ChatBubble({ message, agentName, userName }: ChatBubbleProps) {
         )}
       </div>
 
-      <div className='min-w-0 max-w-[80%]'>
+      <div className='min-w-0 max-w-[calc(100%-2rem)]'>
         <p
           className={`mb-0.5 text-[10px] text-muted-foreground ${isUser ? 'text-right' : 'text-left'}`}
         >
@@ -317,7 +321,7 @@ export function ChatTranscript({
   const nodes = groupToolPairs(entries)
 
   return (
-    <div className='space-y-3'>
+    <div className='w-full min-w-0 space-y-3'>
       {nodes.map((node, index) =>
         node.type === 'tool-pair' ? (
           <ToolPairBlock

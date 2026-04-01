@@ -2,7 +2,7 @@ import type {
   ApiAgentDto,
   ApiBranchSummaryDto,
   ApiCommitRowDto,
-  ApiFileChangeStatsDto,
+  ApiCommitFileDiffDto,
   ApiUserDto,
 } from '@/api/rest'
 import type {
@@ -49,7 +49,7 @@ function toUnixTimestamp(value: string): number {
   return Math.floor(ms / 1000)
 }
 
-function toFileStats(paths: string[]): ApiFileChangeStatsDto[] {
+function toFileStats(paths: string[]): ApiCommitFileDiffDto[] {
   return paths.map((filepath) => ({
     filepath,
     additionsCount: 0,
@@ -167,7 +167,6 @@ export function mapDashboardCommitRows(
           checkpoint_id: checkpoint.id,
           strategy: checkpoint.strategy ?? '',
           branch: checkpoint.branch ?? '',
-          agent: checkpointAgents[0] ?? '',
           checkpoints_count: checkpoint.checkpointsCount,
           files_touched: toFileStats(checkpoint.filesTouched),
           session_count: checkpoint.sessionCount,

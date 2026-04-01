@@ -6,6 +6,7 @@ import { rootStoreInstance } from '@/store'
 
 const mockRequestGraphQL = vi.fn()
 
+const mockHandleApiRepositories = vi.fn()
 const mockHandleCheckpoint = vi.fn()
 
 vi.mock('@/api/graphql/client', () => ({
@@ -16,7 +17,10 @@ vi.mock('@/api/graphql/client', () => ({
 vi.mock('@/api/rest', () => ({
   BitloopsCli: vi.fn(function MockBitloopsCli() {
     return {
-      default: { handleApiCheckpoint: mockHandleCheckpoint },
+      superHandlersDashboard: {
+        handleApiRepositories: mockHandleApiRepositories,
+      },
+      superHandlersCheckpoint: { handleApiCheckpoint: mockHandleCheckpoint },
     }
   }),
 }))
@@ -130,9 +134,20 @@ function dashboardCommitsPageResponse(params: {
 describe('useDashboardData', () => {
   beforeEach(() => {
     mockRequestGraphQL.mockReset()
+    mockHandleApiRepositories.mockReset()
     mockHandleCheckpoint.mockReset()
     rootStoreInstance.getState().clearDashboardCache()
     rootStoreInstance.getState().resetDashboardFilters()
+    mockHandleApiRepositories.mockResolvedValue([
+      {
+        identity: 'bitloops/local-dashboard',
+        name: 'local-dashboard',
+        organization: 'bitloops',
+        provider: 'github',
+        repoId: 'repo-1',
+        defaultBranch: 'main',
+      },
+    ])
     mockRequestGraphQL.mockImplementation((query: string) => {
       if (query.includes('query DashboardBranches')) {
         return Promise.resolve({
@@ -173,6 +188,8 @@ describe('useDashboardData', () => {
     const { result } = renderHook(() => useDashboardData())
 
     await waitFor(() => {
+      expect(result.current.repoOptions).toEqual(['bitloops/local-dashboard'])
+      expect(result.current.effectiveRepo).toBe('bitloops/local-dashboard')
       expect(result.current.branchOptions).toEqual(['main'])
       expect(result.current.effectiveBranch).toBe('main')
       expect(result.current.optionsSource).toBe('api')
@@ -182,7 +199,7 @@ describe('useDashboardData', () => {
       String(call[0]).includes('query DashboardBranches'),
     )
     expect(branchCalls[0]?.[1]).toMatchObject({
-      repo: '',
+      repo: 'bitloops/local-dashboard',
       since: null,
       until: null,
     })
@@ -202,6 +219,7 @@ describe('useDashboardData', () => {
       String(call[0]).includes('query DashboardCommits'),
     )
     expect(commitsCalls[0]?.[1]).toMatchObject({
+      repo: 'bitloops/local-dashboard',
       author: null,
       after: null,
       commitsFirst: COMMITS_PAGE_SIZE,
@@ -252,6 +270,102 @@ describe('useDashboardData', () => {
       expect(
         commitsCalls.some((call) => call[1]?.author === 'dev@example.com'),
       ).toBe(true)
+    })
+  })
+
+  it('passes selected repo to dashboard GraphQL queries when repo changes', async () => {
+    mockHandleApiRepositories.mockResolvedValue([
+      {
+        identity: 'bitloops/local-dashboard',
+        name: 'local-dashboard',
+        organization: 'bitloops',
+        provider: 'github',
+        repoId: 'repo-1',
+        defaultBranch: 'main',
+      },
+      {
+        identity: 'bitloops/another-repo',
+        name: 'another-repo',
+        organization: 'bitloops',
+        provider: 'github',
+        repoId: 'repo-2',
+        defaultBranch: 'main',
+      },
+    ])
+
+    const { result } = renderHook(() => useDashboardData())
+
+    await waitFor(() =>
+      expect(result.current.effectiveRepo).toBe('bitloops/local-dashboard'),
+    )
+
+    mockRequestGraphQL.mockClear()
+
+    act(() => {
+      result.current.onRepoChange('bitloops/another-repo')
+    })
+
+    await waitFor(() => {
+      const branchCalls = mockRequestGraphQL.mock.calls.filter((call) =>
+        String(call[0]).includes('query DashboardBranches'),
+      )
+      const optionCalls = mockRequestGraphQL.mock.calls.filter((call) =>
+        String(call[0]).includes('query DashboardRepoOptions'),
+      )
+      const commitCalls = mockRequestGraphQL.mock.calls.filter((call) =>
+        String(call[0]).includes('query DashboardCommits'),
+      )
+
+      expect(
+        branchCalls.some((call) => call[1]?.repo === 'bitloops/another-repo'),
+      ).toBe(true)
+      expect(
+        optionCalls.some((call) => call[1]?.repo === 'bitloops/another-repo'),
+      ).toBe(true)
+      expect(
+        commitCalls.some((call) => call[1]?.repo === 'bitloops/another-repo'),
+      ).toBe(true)
+    })
+  })
+
+  it('clears dependent filters when repo changes', async () => {
+    mockHandleApiRepositories.mockResolvedValue([
+      {
+        identity: 'bitloops/local-dashboard',
+        name: 'local-dashboard',
+        organization: 'bitloops',
+        provider: 'github',
+        repoId: 'repo-1',
+        defaultBranch: 'main',
+      },
+      {
+        identity: 'bitloops/another-repo',
+        name: 'another-repo',
+        organization: 'bitloops',
+        provider: 'github',
+        repoId: 'repo-2',
+        defaultBranch: 'release',
+      },
+    ])
+
+    const { result } = renderHook(() => useDashboardData())
+
+    await waitFor(() => expect(result.current.effectiveBranch).toBe('main'))
+
+    act(() => {
+      result.current.onBranchChange('main')
+      result.current.onUserChange('user-1')
+      result.current.onAgentChange('claude-code')
+    })
+
+    act(() => {
+      result.current.onRepoChange('bitloops/another-repo')
+    })
+
+    await waitFor(() => {
+      expect(result.current.selectedBranch).toBeNull()
+      expect(result.current.selectedUser).toBeNull()
+      expect(result.current.selectedAgent).toBeNull()
     })
   })
 
@@ -597,6 +711,7 @@ describe('useDashboardData', () => {
     await waitFor(() => expect(result.current.effectiveBranch).toBe('main'))
 
     act(() => {
+      result.current.onRepoChange('bitloops/local-dashboard')
       result.current.onBranchChange('main')
       result.current.onUserChange('user-1')
       result.current.onAgentChange('claude-code')
@@ -608,6 +723,7 @@ describe('useDashboardData', () => {
       result.current.onClearFilters()
     })
 
+    expect(result.current.selectedRepo).toBeNull()
     expect(result.current.selectedBranch).toBeNull()
     expect(result.current.selectedUser).toBeNull()
     expect(result.current.selectedAgent).toBeNull()

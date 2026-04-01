@@ -183,7 +183,7 @@ function makeCommitRow(
     message: string
     created_at: string
     checkpoint_id: string
-    agent: string
+    agents: string[]
     branch: string
   }>,
 ): ApiCommitRowDto {
@@ -195,11 +195,12 @@ function makeCommitRow(
       author_name: '',
       author_email: '',
       parents: [],
+      files_touched: [],
     },
     checkpoint: {
       checkpoint_id: overrides.checkpoint_id ?? 'cp1',
       created_at: overrides.created_at ?? '2025-03-04T12:00:00Z',
-      agent: overrides.agent ?? 'claude-code',
+      agents: overrides.agents ?? ['claude-code'],
       branch: overrides.branch ?? 'main',
       strategy: '',
       tool_use_id: '',
@@ -208,6 +209,7 @@ function makeCommitRow(
       session_count: 0,
       checkpoints_count: 0,
       is_task: false,
+      first_prompt_preview: '',
     },
   }
 }

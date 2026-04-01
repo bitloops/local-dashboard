@@ -5,6 +5,7 @@ import { test, expect, type Page, type Route } from '@playwright/test'
 // ---------------------------------------------------------------------------
 
 const STUB_BRANCHES = ['main', 'feat/auth']
+const STUB_REPOSITORIES = ['bitloops/local-dashboard', 'bitloops/another-repo']
 
 const STUB_COMMITS = [
   {
@@ -331,10 +332,33 @@ const STUB_CHECKPOINT_DETAIL = {
 
 /** Stub all API calls so the app works without a real backend. */
 async function stubApiRoutes(page: Page) {
+  await page.route('**/api/repositories', async (route: Route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(
+        STUB_REPOSITORIES.map((identity, index) => {
+          const [, name] = identity.split('/')
+          return {
+            identity,
+            name,
+            organization: 'bitloops',
+            provider: 'github',
+            repoId: `repo-${index + 1}`,
+            defaultBranch: 'main',
+          }
+        }),
+      ),
+    })
+  })
+
   await page.route('**/devql/global', async (route: Route) => {
     const request = route.request()
     const body = request.postDataJSON() as {
       query?: string
+      variables?: {
+        repo?: string
+      }
     }
     const query = body.query ?? ''
 
@@ -452,6 +476,25 @@ test.describe('App / dashboard load', () => {
   test('dashboard shows API error banner when data endpoints fail', async ({
     page,
   }) => {
+    await page.route('**/api/repositories', async (route: Route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify(
+          STUB_REPOSITORIES.map((identity, index) => {
+            const [, name] = identity.split('/')
+            return {
+              identity,
+              name,
+              organization: 'bitloops',
+              provider: 'github',
+              repoId: `repo-${index + 1}`,
+              defaultBranch: 'main',
+            }
+          }),
+        ),
+      })
+    })
     await page.route('**/devql/global', async (route: Route) => {
       const body = route.request().postDataJSON() as { query?: string }
       const query = body.query ?? ''
@@ -509,6 +552,25 @@ test.describe('App / dashboard load', () => {
   test('shows "No branches" message when dashboard branches query returns empty', async ({
     page,
   }) => {
+    await page.route('**/api/repositories', async (route: Route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify(
+          STUB_REPOSITORIES.map((identity, index) => {
+            const [, name] = identity.split('/')
+            return {
+              identity,
+              name,
+              organization: 'bitloops',
+              provider: 'github',
+              repoId: `repo-${index + 1}`,
+              defaultBranch: 'main',
+            }
+          }),
+        ),
+      })
+    })
     await page.route('**/devql/global', async (route: Route) => {
       const body = route.request().postDataJSON() as { query?: string }
       const query = body.query ?? ''
@@ -564,12 +626,32 @@ test.describe('App / dashboard load', () => {
 // ---------------------------------------------------------------------------
 
 test.describe('Filters', () => {
+  test('repo filter dropdown shows repository options from REST', async ({
+    page,
+  }) => {
+    await stubApiRoutes(page)
+    await page.goto('/')
+
+    const repoTrigger = page.getByRole('combobox').nth(0)
+    await repoTrigger.click()
+
+    await expect(page.getByRole('option', { name: /Auto/ })).toBeVisible()
+    await expect(
+      page.getByRole('option', {
+        name: 'bitloops/local-dashboard',
+        exact: true,
+      }),
+    ).toBeVisible()
+    await expect(
+      page.getByRole('option', { name: 'bitloops/another-repo', exact: true }),
+    ).toBeVisible()
+  })
+
   test('branch filter dropdown shows stub branch options', async ({ page }) => {
     await stubApiRoutes(page)
     await page.goto('/')
 
-    // Branch is the first combobox on the page
-    const branchTrigger = page.getByRole('combobox').nth(0)
+    const branchTrigger = page.getByRole('combobox').nth(1)
     await branchTrigger.click()
 
     await expect(page.getByRole('option', { name: /Auto/ })).toBeVisible()
@@ -585,7 +667,7 @@ test.describe('Filters', () => {
     await stubApiRoutes(page)
     await page.goto('/')
 
-    const branchTrigger = page.getByRole('combobox').nth(0)
+    const branchTrigger = page.getByRole('combobox').nth(1)
     await branchTrigger.click()
     await page.getByRole('option', { name: 'feat/auth' }).click()
 
@@ -604,7 +686,7 @@ test.describe('Filters', () => {
     await expect(clearBtn).toBeDisabled()
 
     // Activate a filter by selecting a branch
-    const branchTrigger = page.getByRole('combobox').nth(0)
+    const branchTrigger = page.getByRole('combobox').nth(1)
     await branchTrigger.click()
     await page.getByRole('option', { name: 'feat/auth' }).click()
 
@@ -618,7 +700,7 @@ test.describe('Filters', () => {
     await stubApiRoutes(page)
     await page.goto('/')
 
-    const branchTrigger = page.getByRole('combobox').nth(0)
+    const branchTrigger = page.getByRole('combobox').nth(1)
     await branchTrigger.click()
     await page.getByRole('option', { name: 'feat/auth' }).click()
     await expect(branchTrigger).toContainText('feat/auth')
@@ -645,6 +727,118 @@ test.describe('Filters', () => {
     ).toBeVisible()
     await expect(page.getByText('From', { exact: true })).toBeVisible()
     await expect(page.getByText('To', { exact: true })).toBeVisible()
+  })
+
+  test('selecting a repo passes that repo to downstream GraphQL calls', async ({
+    page,
+  }) => {
+    const observedRepos: string[] = []
+
+    await page.route('**/api/repositories', async (route: Route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify(
+          STUB_REPOSITORIES.map((identity, index) => {
+            const [, name] = identity.split('/')
+            return {
+              identity,
+              name,
+              organization: 'bitloops',
+              provider: 'github',
+              repoId: `repo-${index + 1}`,
+              defaultBranch: 'main',
+            }
+          }),
+        ),
+      })
+    })
+    await page.route('**/devql/global', async (route: Route) => {
+      const body = route.request().postDataJSON() as {
+        query?: string
+        variables?: { repo?: string }
+      }
+      const query = body.query ?? ''
+      const repo = body.variables?.repo
+      if (repo) {
+        observedRepos.push(repo)
+      }
+
+      if (query.includes('query DashboardBranches')) {
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            data: {
+              repo: {
+                branches: STUB_BRANCHES.map((name) => ({
+                  name,
+                  checkpointCount: 1,
+                })),
+              },
+            },
+          }),
+        })
+        return
+      }
+
+      if (query.includes('query DashboardRepoOptions')) {
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            data: {
+              repo: {
+                users: ['wayne@bitloops.com', 'alice@bitloops.com'],
+                agents: ['claude-code', 'gemini-cli'],
+              },
+            },
+          }),
+        })
+        return
+      }
+
+      if (query.includes('query DashboardCommits')) {
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify(buildDashboardCommitsResponse()),
+        })
+        return
+      }
+
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ data: {} }),
+      })
+    })
+    await page.route('**/api/checkpoint*', (route: Route) =>
+      route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify(STUB_CHECKPOINT_DETAIL),
+      }),
+    )
+    await page.route('**/api/checkpoints/**', (route: Route) =>
+      route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify(STUB_CHECKPOINT_DETAIL),
+      }),
+    )
+
+    await page.goto('/')
+
+    observedRepos.length = 0
+
+    const repoTrigger = page.getByRole('combobox').nth(0)
+    await repoTrigger.click()
+    await page.getByRole('option', { name: 'bitloops/another-repo' }).click()
+
+    await expect
+      .poll(() => observedRepos.includes('bitloops/another-repo'))
+      .toBe(true)
   })
 })
 
@@ -744,6 +938,25 @@ test.describe('Checkpoint sheet', () => {
   test('checkpoint sheet shows error state when detail API fails', async ({
     page,
   }) => {
+    await page.route('**/api/repositories', async (route: Route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify(
+          STUB_REPOSITORIES.map((identity, index) => {
+            const [, name] = identity.split('/')
+            return {
+              identity,
+              name,
+              organization: 'bitloops',
+              provider: 'github',
+              repoId: `repo-${index + 1}`,
+              defaultBranch: 'main',
+            }
+          }),
+        ),
+      })
+    })
     await page.route('**/devql/global', async (route) => {
       const body = route.request().postDataJSON() as { query?: string }
       const query = body.query ?? ''
@@ -907,6 +1120,8 @@ test.describe('Navigation', () => {
     await stubApiRoutes(page)
     await page.goto('/')
 
-    await expect(page.getByText('Bitloops')).toBeVisible()
+    await expect(
+      page.getByRole('button', { name: 'Bitloops Local Dashboard' }),
+    ).toBeVisible()
   })
 })

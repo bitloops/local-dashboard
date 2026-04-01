@@ -12,8 +12,13 @@ export class SuperHandlersCheckpointService {
    * @throws ApiError
    */
   public handleApiCheckpoint({
+    repoId,
     checkpointId,
   }: {
+    /**
+     * Repository id
+     */
+    repoId: string
     /**
      * Checkpoint id (12 hex characters)
      */
@@ -21,8 +26,9 @@ export class SuperHandlersCheckpointService {
   }): CancelablePromise<ApiCheckpointDetailResponse> {
     return this.httpRequest.request({
       method: 'GET',
-      url: '/api/checkpoints/{checkpoint_id}',
+      url: '/api/checkpoints/{repo_id}/{checkpoint_id}',
       path: {
+        repo_id: repoId,
         checkpoint_id: checkpointId,
       },
       errors: {

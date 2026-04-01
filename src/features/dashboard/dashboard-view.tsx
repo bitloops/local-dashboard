@@ -46,6 +46,7 @@ const CommitCheckpointChart = lazy(() =>
   })),
 )
 
+const repoAutoValue = '__auto_repo__'
 const branchAutoValue = '__auto_branch__'
 const allFilterValue = '__all__'
 const minDate = new Date('1900-01-01')
@@ -56,17 +57,21 @@ const dottedAlertClassName =
 
 type DashboardViewProps = {
   rows: CommitData[]
+  repoOptions: string[]
   branchOptions: string[]
   userOptions: UserOption[]
   agentOptions: string[]
+  selectedRepo: string | null
   selectedBranch: string | null
   selectedUser: string | null
   selectedAgent: string | null
+  effectiveRepo: string | null
   fromDate: Date | undefined
   toDate: Date | undefined
   effectiveBranch: string | null
   dataSource: LoadState
   optionsSource: LoadState
+  branchOptionsSource: LoadState
   commitsHasNextPage: boolean
   commitsHasPreviousPage: boolean
   onCommitsNext: () => void
@@ -74,6 +79,7 @@ type DashboardViewProps = {
   selectedCheckpoint: Checkpoint | null
   checkpointDetail: ApiCheckpointDetailResponse | null
   checkpointDetailSource: CheckpointDetailLoadState
+  onRepoChange: (value: string | null) => void
   onBranchChange: (value: string | null) => void
   onUserChange: (value: string | null) => void
   onAgentChange: (value: string | null) => void
@@ -85,17 +91,21 @@ type DashboardViewProps = {
 
 export function DashboardView({
   rows,
+  repoOptions,
   branchOptions,
   userOptions,
   agentOptions,
+  selectedRepo,
   selectedBranch,
   selectedUser,
   selectedAgent,
+  effectiveRepo,
   fromDate,
   toDate,
   effectiveBranch,
   dataSource,
   optionsSource,
+  branchOptionsSource,
   commitsHasNextPage,
   commitsHasPreviousPage,
   onCommitsNext,
@@ -103,6 +113,7 @@ export function DashboardView({
   selectedCheckpoint,
   checkpointDetail,
   checkpointDetailSource,
+  onRepoChange,
   onBranchChange,
   onUserChange,
   onAgentChange,
@@ -121,6 +132,7 @@ export function DashboardView({
   }
 
   const hasActiveFilters =
+    Boolean(selectedRepo) ||
     Boolean(selectedBranch) ||
     Boolean(selectedUser) ||
     Boolean(selectedAgent) ||
@@ -156,24 +168,57 @@ export function DashboardView({
         )}
         {optionsSource === 'error' && (
           <p className={dottedAlertClassName}>
-            Could not load branch/user/agent filter options from the API.
+            Could not load repo/branch/user/agent filter options from the API.
           </p>
         )}
-        {!effectiveBranch && optionsSource !== 'loading' && (
+        {!effectiveRepo && optionsSource !== 'loading' && (
           <p className={dottedAlertClassName}>
-            No branches are currently available from the API.
+            No repositories are currently available from the API.
           </p>
         )}
+        {!effectiveBranch &&
+          Boolean(effectiveRepo) &&
+          branchOptionsSource === 'api' && (
+            <p className={dottedAlertClassName}>
+              No branches are currently available from the API.
+            </p>
+          )}
 
         <Card className='mb-4'>
           <CardHeader className='pb-3'>
             <CardTitle className='text-base'>Filters</CardTitle>
             <CardDescription>
-              Filter commits by branch, user, agent, and date range.
+              Filter commits by repository, branch, user, agent, and date range.
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <div className='grid gap-3 md:grid-cols-2 xl:grid-cols-5'>
+            <div className='grid gap-3 md:grid-cols-2 xl:grid-cols-6'>
+              <div className='space-y-1'>
+                <p className='text-xs text-muted-foreground'>Repo</p>
+                <Select
+                  value={selectedRepo ?? repoAutoValue}
+                  onValueChange={(value) =>
+                    onRepoChange(value === repoAutoValue ? null : value)
+                  }
+                >
+                  <SelectTrigger className='w-full'>
+                    <SelectValue placeholder='Select repository' />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value={repoAutoValue}>
+                      {effectiveRepo
+                        ? `Auto (${effectiveRepo})`
+                        : 'Auto (first available)'}
+                    </SelectItem>
+                    {repoOptions.map((repo) => (
+                      <SelectItem key={repo} value={repo}>
+                        {repo}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
               <div className='space-y-1'>
                 <p className='text-xs text-muted-foreground'>Branch</p>
                 <Select
@@ -181,6 +226,7 @@ export function DashboardView({
                   onValueChange={(value) =>
                     onBranchChange(value === branchAutoValue ? null : value)
                   }
+                  disabled={!effectiveRepo}
                 >
                   <SelectTrigger className='w-full'>
                     <SelectValue placeholder='Select branch' />

@@ -5,7 +5,12 @@ import {
   RUN_HISTORY_KEY,
   STORAGE_MODE_KEY,
 } from '@/config/query-history-storage'
-import { createQueryExplorerSlice } from './query-explorer'
+import { createRootStore } from '@/store'
+import {
+  createQueryExplorerSlice,
+  getDefaultQueryExplorerVariables,
+  syncQueryExplorerVariablesWithDashboardSelection,
+} from './query-explorer'
 
 vi.mock('@/features/query-explorer/query-client', () => ({
   getQuerySchema: vi.fn(),
@@ -72,8 +77,8 @@ describe('query-explorer slice', () => {
   describe('initial state', () => {
     it('has default query and variables', () => {
       const state = store.getState()
-      expect(state.query).toContain('query GetArtefacts')
-      expect(state.variables).toBe('{}')
+      expect(state.query).toContain('query DashboardCommitsSample')
+      expect(state.variables).toBe(getDefaultQueryExplorerVariables(null))
     })
 
     it('has idle result', () => {
@@ -162,6 +167,88 @@ describe('query-explorer slice', () => {
     it('updates variables', () => {
       store.getState().setVariables('{"a":1}')
       expect(store.getState().variables).toBe('{"a":1}')
+    })
+  })
+
+  describe('repo variable helpers', () => {
+    it('builds default variables with empty repo and null branch when there is no selection', () => {
+      expect(getDefaultQueryExplorerVariables(null)).toBe(
+        '{\n  "repo": "",\n  "branch": null,\n  "commitsFirst": 10\n}',
+      )
+    })
+
+    it('builds default variables with the selected repo and branch', () => {
+      expect(getDefaultQueryExplorerVariables('acme/demo')).toBe(
+        '{\n  "repo": "acme/demo",\n  "branch": null,\n  "commitsFirst": 10\n}',
+      )
+    })
+
+    it('syncs repo and branch variables when dashboard selection changes', () => {
+      expect(
+        syncQueryExplorerVariablesWithDashboardSelection(
+          '{"repo":"old/repo"}',
+          'new/repo',
+          'main',
+        ),
+      ).toBe(
+        '{\n  "repo": "new/repo",\n  "branch": "main",\n  "commitsFirst": 10\n}',
+      )
+    })
+
+    it('does not overwrite custom variable objects', () => {
+      expect(
+        syncQueryExplorerVariablesWithDashboardSelection(
+          '{"repo":"old/repo","branch":"main"}',
+          'new/repo',
+          'develop',
+        ),
+      ).toBe(
+        '{\n  "repo": "new/repo",\n  "branch": "develop",\n  "commitsFirst": 10\n}',
+      )
+    })
+
+    it('does not overwrite non-default variable objects', () => {
+      expect(
+        syncQueryExplorerVariablesWithDashboardSelection(
+          '{"repo":"old/repo","branch":"main","commitsFirst":20}',
+          'new/repo',
+          'develop',
+        ),
+      ).toBeNull()
+    })
+  })
+
+  describe('dashboard repo sync', () => {
+    it('updates query explorer variables when selectedRepo changes and variables are still default-shaped', () => {
+      const rootStore = createRootStore()
+
+      rootStore.getState().setSelectedRepo('acme/demo')
+
+      expect(rootStore.getState().variables).toBe(
+        '{\n  "repo": "acme/demo",\n  "branch": null,\n  "commitsFirst": 10\n}',
+      )
+    })
+
+    it('updates query explorer variables when selectedBranch changes and variables are still default-shaped', () => {
+      const rootStore = createRootStore()
+
+      rootStore.getState().setSelectedRepo('acme/demo')
+      rootStore.getState().setSelectedBranch('main')
+
+      expect(rootStore.getState().variables).toBe(
+        '{\n  "repo": "acme/demo",\n  "branch": "main",\n  "commitsFirst": 10\n}',
+      )
+    })
+
+    it('does not overwrite custom query explorer variables when selectedRepo changes', () => {
+      const rootStore = createRootStore()
+
+      rootStore.getState().setVariables('{"repo":"old/repo","branch":"main"}')
+      rootStore.getState().setSelectedRepo('acme/demo')
+
+      expect(rootStore.getState().variables).toBe(
+        '{"repo":"old/repo","branch":"main"}',
+      )
     })
   })
 

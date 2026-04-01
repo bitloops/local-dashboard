@@ -7,7 +7,6 @@ import { CopyButton } from '@/components/copy-button'
 import { Badge } from '@/components/ui/badge'
 import { cn } from '@/lib/utils'
 import { Card, CardDescription, CardTitle } from '@/components/ui/card'
-import { ScrollArea } from '@/components/ui/scroll-area'
 import { Separator } from '@/components/ui/separator'
 import { Button } from '@/components/ui/button'
 import { Sheet, SheetContent } from '@/components/ui/sheet'
@@ -101,8 +100,8 @@ function CheckpointDetailContentInner({
     : ''
 
   return (
-    <div className='flex min-h-0 min-w-0 flex-1 flex-col'>
-      <div className='flex items-center justify-between gap-2 border-b pt-4 pb-4 pl-4 text-start'>
+    <div className='flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden'>
+      <div className='flex min-w-0 items-center justify-between gap-2 border-b px-4 py-4 pr-14 text-start'>
         <h2 className='flex items-center gap-1 text-lg font-semibold'>
           {selectedCheckpoint
             ? `Checkpoint ${selectedCheckpoint.id}`
@@ -121,8 +120,8 @@ function CheckpointDetailContentInner({
         )}
       </div>
 
-      <ScrollArea className='h-[calc(100%-88px)]'>
-        <div className='min-w-0 space-y-5 p-4'>
+      <div className='min-h-0 flex-1 overflow-y-auto overflow-x-hidden'>
+        <div className='w-full min-w-0 space-y-5 p-4'>
           {selectedCheckpoint && (
             <>
               <div className='space-y-3'>
@@ -134,7 +133,7 @@ function CheckpointDetailContentInner({
               </div>
 
               <div
-                className='flex w-full rounded-lg border border-border bg-muted/40 p-0.5'
+                className='flex min-w-0 w-full rounded-lg border border-border bg-muted/40 p-0.5'
                 role='tablist'
                 aria-label='View mode'
               >
@@ -144,7 +143,7 @@ function CheckpointDetailContentInner({
                   aria-selected={viewMode === 'session'}
                   onClick={() => setViewMode('session')}
                   className={cn(
-                    'flex-1 rounded-md px-3 py-2 text-sm font-medium transition-colors',
+                    'min-w-0 flex-1 rounded-md px-3 py-2 text-sm font-medium transition-colors',
                     viewMode === 'session'
                       ? 'bg-background text-foreground shadow-sm'
                       : 'text-muted-foreground hover:text-foreground',
@@ -158,7 +157,7 @@ function CheckpointDetailContentInner({
                   aria-selected={viewMode === 'summary'}
                   onClick={() => setViewMode('summary')}
                   className={cn(
-                    'flex-1 rounded-md px-3 py-2 text-sm font-medium transition-colors',
+                    'min-w-0 flex-1 rounded-md px-3 py-2 text-sm font-medium transition-colors',
                     viewMode === 'summary'
                       ? 'bg-background text-foreground shadow-sm'
                       : 'text-muted-foreground hover:text-foreground',
@@ -178,7 +177,8 @@ function CheckpointDetailContentInner({
                   )}
                   {checkpointDetailSource === 'error' && (
                     <p className='text-sm text-muted-foreground'>
-                      Could not load chat data from `/api/checkpoint`.
+                      Could not load chat data from `/api/checkpoints/
+                      {selectedCheckpoint.id}`.
                     </p>
                   )}
                   {checkpointDetailSource !== 'loading' &&
@@ -190,24 +190,33 @@ function CheckpointDetailContentInner({
                     )}
 
                   {detailSessions.length > 0 && (
-                    <Card className='overflow-hidden bg-muted/20 pt-0'>
-                      <Tabs key={selectedCheckpoint.id} defaultValue='0'>
-                        <TabsList
-                          variant='line'
-                          className='h-auto justify-start rounded-none border-0 bg-transparent'
-                        >
-                          {detailSessions.map(
-                            (s: ApiCheckpointSessionDetailDto, idx: number) => (
-                              <TabsTrigger
-                                key={`${s.session_id}-${s.session_index}`}
-                                value={String(idx)}
-                                variant='line'
-                              >
-                                Session {s.session_index + 1}
-                              </TabsTrigger>
-                            ),
-                          )}
-                        </TabsList>
+                    <Card className='min-w-0 overflow-hidden bg-muted/20 pt-0'>
+                      <Tabs
+                        key={selectedCheckpoint.id}
+                        defaultValue='0'
+                        className='min-w-0'
+                      >
+                        <div className='w-full min-w-0 overflow-x-auto border-b'>
+                          <TabsList
+                            variant='line'
+                            className='h-auto min-w-max justify-start rounded-none border-0 bg-transparent'
+                          >
+                            {detailSessions.map(
+                              (
+                                s: ApiCheckpointSessionDetailDto,
+                                idx: number,
+                              ) => (
+                                <TabsTrigger
+                                  key={`${s.session_id}-${s.session_index}`}
+                                  value={String(idx)}
+                                  variant='line'
+                                >
+                                  Session {s.session_index + 1}
+                                </TabsTrigger>
+                              ),
+                            )}
+                          </TabsList>
+                        </div>
                         {detailSessions.map(
                           (
                             session: ApiCheckpointSessionDetailDto,
@@ -220,14 +229,16 @@ function CheckpointDetailContentInner({
                               <TabsContent
                                 key={`${session.session_id}-${session.session_index}`}
                                 value={String(idx)}
-                                className='mt-0 space-y-3 px-6 pt-4 pb-6'
+                                className='mt-0 min-w-0 space-y-3 px-4 pt-4 pb-6 sm:px-6'
                               >
-                                <div className='flex flex-wrap items-center gap-2'>
+                                <div className='min-w-0 flex flex-wrap items-center gap-2'>
                                   <CardTitle className='text-sm'>
                                     Session {session.session_index + 1}
                                   </CardTitle>
-                                  <CardDescription className='flex items-center gap-1 font-mono text-xs'>
-                                    {session.session_id}
+                                  <CardDescription className='min-w-0 flex items-center gap-1 font-mono text-xs'>
+                                    <span className='min-w-0 break-all'>
+                                      {session.session_id}
+                                    </span>
                                     <CopyButton value={session.session_id} />
                                   </CardDescription>
                                 </div>
@@ -305,7 +316,7 @@ function CheckpointDetailContentInner({
                                   <p className='text-xs text-muted-foreground'>
                                     Transcript
                                   </p>
-                                  <div className='max-h-72 overflow-auto rounded-md border bg-background p-2'>
+                                  <div className='max-h-72 min-w-0 overflow-auto rounded-md border bg-background p-2'>
                                     <ChatTranscript
                                       entries={transcriptEntries}
                                       sessionId={session.session_id}
@@ -372,7 +383,7 @@ function CheckpointDetailContentInner({
                         <h3 className='mb-2 text-sm font-semibold'>
                           Commit Message
                         </h3>
-                        <p className='rounded-md border bg-muted/30 p-3 text-sm'>
+                        <p className='rounded-md border bg-muted/30 p-3 text-sm whitespace-pre-wrap break-words'>
                           {selectedCheckpoint.commitMessage}
                         </p>
                       </div>
@@ -447,7 +458,7 @@ function CheckpointDetailContentInner({
             </>
           )}
         </div>
-      </ScrollArea>
+      </div>
     </div>
   )
 }
@@ -470,7 +481,7 @@ export function CheckpointSheet({
     >
       <SheetContent
         side='right'
-        className='p-0'
+        className='w-full max-w-[min(100vw,700px)] overflow-hidden p-0'
         resizable
         defaultWidth={600}
         maxWidth={700}
