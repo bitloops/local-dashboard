@@ -1,8 +1,4 @@
-import type {
-  ApiAgentDto,
-  ApiCommitRowDto,
-  ApiUserDto,
-} from '@/api/types/schema'
+import type { ApiAgentDto, ApiCommitRowDto, ApiUserDto } from '@/api/rest'
 import type { CommitData } from './types'
 import type { UserOption } from './types'
 

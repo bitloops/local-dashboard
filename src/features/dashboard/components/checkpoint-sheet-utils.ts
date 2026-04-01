@@ -45,6 +45,27 @@ function toText(content: unknown): string {
   return JSON.stringify(content ?? '', null, 2)
 }
 
+function extractTextBlocks(content: unknown): string[] {
+  if (typeof content === 'string') {
+    const stripped = stripUserQueryTags(content).trimStart()
+    return stripped.trim() ? [stripped] : []
+  }
+
+  if (!Array.isArray(content)) {
+    return []
+  }
+
+  return content
+    .map((block) => {
+      const item = block as Record<string, unknown>
+      if (item.type === 'text' && typeof item.text === 'string') {
+        return stripUserQueryTags(item.text).trimStart()
+      }
+      return ''
+    })
+    .filter((text) => text.trim().length > 0)
+}
+
 export const parseTranscriptEntries = (jsonl: string): TranscriptMessage[] => {
   const lines = jsonl
     .split('\n')
@@ -56,7 +77,12 @@ export const parseTranscriptEntries = (jsonl: string): TranscriptMessage[] => {
   lines.forEach((line, lineIndex) => {
     try {
       const parsed = JSON.parse(line) as Record<string, unknown>
-      const type = typeof parsed.type === 'string' ? parsed.type : ''
+      const type =
+        typeof parsed.type === 'string'
+          ? parsed.type
+          : typeof parsed.role === 'string'
+            ? parsed.role
+            : ''
       const timestamp =
         typeof parsed.timestamp === 'string' ? parsed.timestamp : ''
       const uuid =
@@ -65,16 +91,18 @@ export const parseTranscriptEntries = (jsonl: string): TranscriptMessage[] => {
       const messageContent = message?.content
 
       if (type === 'user') {
-        if (typeof messageContent === 'string') {
+        const textBlocks = extractTextBlocks(messageContent)
+        textBlocks.forEach((text, i) => {
           collected.push({
-            id: uuid,
+            id: `${uuid}-${i}`,
             timestamp,
             actor: 'user',
             variant: 'chat',
-            text: stripUserQueryTags(messageContent),
+            text,
           })
-          return
-        }
+        })
+        if (textBlocks.length > 0) return
+
         if (Array.isArray(messageContent)) {
           const allToolResult = messageContent.every(
             (b: unknown) =>

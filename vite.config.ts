@@ -33,6 +33,12 @@ export default defineConfig(({ mode }) => {
           changeOrigin: true,
           secure: proxySecure,
         },
+        '/devql/global': {
+          target: apiProxyTarget,
+          changeOrigin: true,
+          secure: proxySecure,
+          ws: true,
+        },
       },
     },
   }

@@ -1,0 +1,16 @@
+{
+  "extends": "../../../../../tsconfig.app.json",
+  "compilerOptions": {
+    "composite": true,
+    "declaration": true,
+    "declarationMap": true,
+    "noEmit": false,
+    "emitDeclarationOnly": true,
+    "outDir": "../../../../../node_modules/.tmp/api-schema",
+    "rootDir": ".",
+    "tsBuildInfoFile": "../../../../../node_modules/.tmp/tsconfig.api-schema.tsbuildinfo",
+    "erasableSyntaxOnly": false
+  },
+  "include": ["./**/*.ts"],
+  "exclude": []
+}

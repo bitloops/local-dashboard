@@ -1,7 +1,8 @@
-import { ApiError } from '@/api/types/schema'
+import { GraphQLRequestError } from '@/api/graphql/errors'
 import { rootStoreInstance } from '@/store'
 import { parse } from 'graphql'
 import { executeQuery } from './query-client'
+import { formatGraphqlDocument } from './graphql/format'
 
 export type ValidateQueryResult = { ok: true } | { ok: false; error: string }
 
@@ -52,13 +53,23 @@ export function validateVariables(variables: string): ValidateVariablesResult {
  * Use current store query/variables when no overrides are passed (e.g. Run button).
  * Pass { query, variables } to run a historical entry without loading it into the store first (e.g. Re-run).
  */
-export function runQueryExplorerQuery(overrides?: {
+export async function runQueryExplorerQuery(overrides?: {
   query: string
   variables: string
-}): void {
+}): Promise<void> {
   const state = rootStoreInstance.getState()
-  const query = overrides?.query ?? state.query
+  const rawQuery = overrides?.query ?? state.query
   const variables = overrides?.variables ?? state.variables
+  let query = rawQuery
+
+  try {
+    query = await formatGraphqlDocument(rawQuery)
+    if (!overrides && query !== state.query) {
+      state.setQuery(query)
+    }
+  } catch {
+    // Fall through to normal validation so parse errors remain user-facing.
+  }
 
   const queryResult = validateQuery(query)
   if (!queryResult.ok) {
@@ -75,7 +86,7 @@ export function runQueryExplorerQuery(overrides?: {
   state.addRunToHistory(query, variables)
   const requestId = ++latestQueryRequestId
 
-  executeQuery(query, variablesResult.parsed)
+  return executeQuery(query, variablesResult.parsed)
     .then((body) => {
       if (requestId !== latestQueryRequestId) return
       const store = rootStoreInstance.getState()
@@ -96,9 +107,10 @@ export function runQueryExplorerQuery(overrides?: {
     .catch((err: unknown) => {
       if (requestId !== latestQueryRequestId) return
       const store = rootStoreInstance.getState()
-      if (err instanceof ApiError) {
-        const firstMessage =
-          err.body?.errors?.[0]?.message ?? err.message ?? err.statusText
+      if (err instanceof GraphQLRequestError) {
+        // err.message is set by the client to `firstGraphQLError ?? 'Request failed (status).'`,
+        // so it already encodes HTTP status context; no statusText fallback needed.
+        const firstMessage = err.graphQLErrors?.[0]?.message ?? err.message
         store.setResult({ status: 'error', error: firstMessage })
         return
       }

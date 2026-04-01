@@ -5,7 +5,11 @@ import userEvent from '@testing-library/user-event'
 import { SidebarProvider } from '@/components/ui/sidebar'
 import { DashboardView } from '@/features/dashboard/dashboard-view'
 import { type Checkpoint, type CommitData } from '@/features/dashboard/types'
-import type { ApiCheckpointDetailResponse } from '@/api/types/schema'
+import type { ApiCheckpointDetailResponse } from '@/api/rest'
+
+vi.mock('@/features/dashboard/components/session-activity-chart', () => ({
+  CommitCheckpointChart: () => <div data-testid='session-activity-chart' />,
+}))
 
 const commitData: CommitData[] = [
   {
@@ -124,6 +128,7 @@ function defaultProps(
     rows: CommitData[]
     dataSource: 'loading' | 'api' | 'error'
     optionsSource: 'loading' | 'api' | 'error'
+    branchOptionsSource: 'loading' | 'api' | 'error'
     selectedCheckpoint: Checkpoint | null
     checkpointDetail: ApiCheckpointDetailResponse | null
     checkpointDetailSource: 'idle' | 'loading' | 'api' | 'error'
@@ -134,20 +139,29 @@ function defaultProps(
   const rows = overrides.rows ?? commitData.slice(0, 3)
   return {
     rows,
+    repoOptions: ['bitloops/local-dashboard'],
     branchOptions: ['main'],
     userOptions: [{ label: 'You', value: 'you' }],
     agentOptions: ['claude-code', 'gemini-cli'],
+    selectedRepo: null,
     selectedBranch: null,
     selectedUser: null,
     selectedAgent: null,
+    effectiveRepo: 'bitloops/local-dashboard',
     fromDate: undefined,
     toDate: undefined,
     effectiveBranch: 'main',
     dataSource: 'api' as const,
     optionsSource: 'api' as const,
+    branchOptionsSource: 'api' as const,
+    commitsHasNextPage: false,
+    commitsHasPreviousPage: false,
+    onCommitsNext: () => {},
+    onCommitsBack: () => {},
     selectedCheckpoint: null,
     checkpointDetail: null,
     checkpointDetailSource: 'idle' as const,
+    onRepoChange: () => {},
     onBranchChange: () => {},
     onUserChange: () => {},
     onAgentChange: () => {},
@@ -308,9 +322,10 @@ describe('Dashboard integration', () => {
     ).toBeInTheDocument()
   })
 
-  it('renders filters section with branch, user, agent, and date controls', () => {
+  it('renders filters section with repo, branch, user, agent, and date controls', () => {
     renderDashboard(<DashboardView {...defaultProps()} />)
     expect(screen.getByText('Filters')).toBeInTheDocument()
+    expect(screen.getByText('Repo')).toBeInTheDocument()
     expect(screen.getByText('Branch')).toBeInTheDocument()
     expect(screen.getByText('User')).toBeInTheDocument()
     expect(screen.getAllByText('Agent').length).toBeGreaterThan(0)

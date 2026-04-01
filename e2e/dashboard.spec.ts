@@ -4,14 +4,8 @@ import { test, expect, type Page, type Route } from '@playwright/test'
 // Shared stub data
 // ---------------------------------------------------------------------------
 
-const STUB_BRANCHES = [{ branch: 'main' }, { branch: 'feat/auth' }]
-
-const STUB_USERS = [
-  { key: 'user-1', name: 'Wayne Omoga', email: 'wayne@bitloops.com' },
-  { key: 'user-2', name: 'Alice Dev', email: 'alice@bitloops.com' },
-]
-
-const STUB_AGENTS = [{ key: 'claude-code' }, { key: 'gemini-cli' }]
+const STUB_BRANCHES = ['main', 'feat/auth']
+const STUB_REPOSITORIES = ['bitloops/local-dashboard', 'bitloops/another-repo']
 
 const STUB_COMMITS = [
   {
@@ -100,6 +94,130 @@ const STUB_COMMITS = [
     },
   },
 ]
+
+function buildDashboardCommitsResponse() {
+  const commitMap = new Map<
+    string,
+    {
+      sha: string
+      commitMessage: string
+      committedAt: string
+      branch: string
+      authorName: string
+      authorEmail: string
+      agents: Set<string>
+      checkpoints: Array<{
+        id: string
+        createdAt: string
+        branch: string
+        agent: string
+        strategy: string
+        sessionId: string
+        toolUseId: string
+        filesTouched: string[]
+        sessionCount: number
+        checkpointsCount: number
+        isTask: boolean
+      }>
+    }
+  >()
+
+  for (const row of STUB_COMMITS) {
+    const existing = commitMap.get(row.commit.sha)
+    if (existing) {
+      existing.agents.add(row.checkpoint.agent)
+      existing.checkpoints.push({
+        id: row.checkpoint.checkpoint_id,
+        createdAt: row.checkpoint.created_at,
+        branch: row.checkpoint.branch,
+        agent: row.checkpoint.agent,
+        strategy: row.checkpoint.strategy,
+        sessionId: row.checkpoint.session_id,
+        toolUseId: row.checkpoint.tool_use_id,
+        filesTouched: row.checkpoint.files_touched.map((file) => file.filepath),
+        sessionCount: row.checkpoint.session_count,
+        checkpointsCount: row.checkpoint.checkpoints_count,
+        isTask: row.checkpoint.is_task,
+      })
+      continue
+    }
+
+    commitMap.set(row.commit.sha, {
+      sha: row.commit.sha,
+      commitMessage: row.commit.message,
+      committedAt: new Date(row.commit.timestamp).toISOString(),
+      branch: row.checkpoint.branch,
+      authorName:
+        row.checkpoint.agent === 'gemini-cli' ? 'Alice Dev' : 'Wayne Omoga',
+      authorEmail:
+        row.checkpoint.agent === 'gemini-cli'
+          ? 'alice@bitloops.com'
+          : 'wayne@bitloops.com',
+      agents: new Set([row.checkpoint.agent]),
+      checkpoints: [
+        {
+          id: row.checkpoint.checkpoint_id,
+          createdAt: row.checkpoint.created_at,
+          branch: row.checkpoint.branch,
+          agent: row.checkpoint.agent,
+          strategy: row.checkpoint.strategy,
+          sessionId: row.checkpoint.session_id,
+          toolUseId: row.checkpoint.tool_use_id,
+          filesTouched: row.checkpoint.files_touched.map(
+            (file) => file.filepath,
+          ),
+          sessionCount: row.checkpoint.session_count,
+          checkpointsCount: row.checkpoint.checkpoints_count,
+          isTask: row.checkpoint.is_task,
+        },
+      ],
+    })
+  }
+
+  return {
+    data: {
+      repo: {
+        commits: {
+          edges: Array.from(commitMap.values()).map((commit) => ({
+            node: {
+              sha: commit.sha,
+              parents: [],
+              authorName: commit.authorName,
+              authorEmail: commit.authorEmail,
+              commitMessage: commit.commitMessage,
+              committedAt: commit.committedAt,
+              filesChanged: commit.checkpoints.flatMap((cp) => cp.filesTouched),
+              checkpoints: {
+                edges: commit.checkpoints.map((checkpoint) => ({
+                  node: {
+                    id: checkpoint.id,
+                    branch: checkpoint.branch,
+                    agent: checkpoint.agent,
+                    strategy: checkpoint.strategy,
+                    filesTouched: checkpoint.filesTouched,
+                    checkpointsCount: checkpoint.checkpointsCount,
+                    sessionCount: checkpoint.sessionCount,
+                    sessionId: checkpoint.sessionId,
+                    agents: [checkpoint.agent],
+                    firstPromptPreview: '',
+                    createdAt: checkpoint.createdAt,
+                    isTask: checkpoint.isTask,
+                    toolUseId: checkpoint.toolUseId,
+                    tokenUsage: null,
+                  },
+                })),
+              },
+            },
+          })),
+          pageInfo: {
+            hasNextPage: false,
+            endCursor: null,
+          },
+        },
+      },
+    },
+  }
+}
 
 const STUB_CHECKPOINT_DETAIL = {
   branch: 'main',
@@ -212,38 +330,90 @@ const STUB_CHECKPOINT_DETAIL = {
 // Helpers
 // ---------------------------------------------------------------------------
 
+/** Stub /api/repositories with the shared STUB_REPOSITORIES list. */
+async function stubRepositoriesRoute(page: Page) {
+  await page.route('**/api/repositories', async (route: Route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(
+        STUB_REPOSITORIES.map((identity, index) => {
+          const [, name] = identity.split('/')
+          return {
+            identity,
+            name,
+            organization: 'bitloops',
+            provider: 'github',
+            repoId: `repo-${index + 1}`,
+            defaultBranch: 'main',
+          }
+        }),
+      ),
+    })
+  })
+}
+
 /** Stub all API calls so the app works without a real backend. */
 async function stubApiRoutes(page: Page) {
-  // Intercept API requests regardless of host/port so tests are deterministic.
-  await page.route('**/api/branches*', (route: Route) => {
-    void route.fulfill({
-      status: 200,
-      contentType: 'application/json',
-      body: JSON.stringify(STUB_BRANCHES),
-    })
-  })
+  await stubRepositoriesRoute(page)
 
-  await page.route('**/api/users*', (route: Route) => {
-    void route.fulfill({
-      status: 200,
-      contentType: 'application/json',
-      body: JSON.stringify(STUB_USERS),
-    })
-  })
+  await page.route('**/devql/global', async (route: Route) => {
+    const request = route.request()
+    const body = request.postDataJSON() as {
+      query?: string
+      variables?: {
+        repo?: string
+      }
+    }
+    const query = body.query ?? ''
 
-  await page.route('**/api/agents*', (route: Route) => {
-    void route.fulfill({
-      status: 200,
-      contentType: 'application/json',
-      body: JSON.stringify(STUB_AGENTS),
-    })
-  })
+    if (query.includes('query DashboardBranches')) {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          data: {
+            repo: {
+              branches: STUB_BRANCHES.map((name) => ({
+                name,
+                checkpointCount: 1,
+              })),
+            },
+          },
+        }),
+      })
+      return
+    }
 
-  await page.route('**/api/commits*', (route: Route) => {
-    void route.fulfill({
+    if (query.includes('query DashboardRepoOptions')) {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          data: {
+            repo: {
+              users: ['wayne@bitloops.com', 'alice@bitloops.com'],
+              agents: ['claude-code', 'gemini-cli'],
+            },
+          },
+        }),
+      })
+      return
+    }
+
+    if (query.includes('query DashboardCommits')) {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify(buildDashboardCommitsResponse()),
+      })
+      return
+    }
+
+    await route.fulfill({
       status: 200,
       contentType: 'application/json',
-      body: JSON.stringify(STUB_COMMITS),
+      body: JSON.stringify({ data: {} }),
     })
   })
 
@@ -311,34 +481,51 @@ test.describe('App / dashboard load', () => {
   test('dashboard shows API error banner when data endpoints fail', async ({
     page,
   }) => {
-    // Keep option endpoints healthy so branch resolution succeeds, but force
-    // commit loading to fail to trigger the dashboard data error banner.
-    await page.route('**/api/branches*', (route: Route) => {
-      void route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify(STUB_BRANCHES),
-      })
-    })
-    await page.route('**/api/users*', (route: Route) => {
-      void route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify(STUB_USERS),
-      })
-    })
-    await page.route('**/api/agents*', (route: Route) => {
-      void route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify(STUB_AGENTS),
-      })
-    })
-    await page.route('**/api/commits*', (route: Route) => {
-      void route.fulfill({
+    await stubRepositoriesRoute(page)
+    await page.route('**/devql/global', async (route: Route) => {
+      const body = route.request().postDataJSON() as { query?: string }
+      const query = body.query ?? ''
+
+      if (query.includes('query DashboardBranches')) {
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            data: {
+              repo: {
+                branches: STUB_BRANCHES.map((name) => ({
+                  name,
+                  checkpointCount: 1,
+                })),
+              },
+            },
+          }),
+        })
+        return
+      }
+
+      if (query.includes('query DashboardRepoOptions')) {
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            data: {
+              repo: {
+                users: ['wayne@bitloops.com', 'alice@bitloops.com'],
+                agents: ['claude-code', 'gemini-cli'],
+              },
+            },
+          }),
+        })
+        return
+      }
+
+      await route.fulfill({
         status: 500,
         contentType: 'application/json',
-        body: JSON.stringify({ error: 'Internal Server Error' }),
+        body: JSON.stringify({
+          errors: [{ message: 'Internal Server Error' }],
+        }),
       })
     })
 
@@ -349,14 +536,49 @@ test.describe('App / dashboard load', () => {
     ).toBeVisible({ timeout: 8000 })
   })
 
-  test('shows "No branches" message when /api/branches returns empty', async ({
+  test('shows "No branches" message when dashboard branches query returns empty', async ({
     page,
   }) => {
-    await page.route('**/api/branches*', (route: Route) => {
-      void route.fulfill({
+    await stubRepositoriesRoute(page)
+    await page.route('**/devql/global', async (route: Route) => {
+      const body = route.request().postDataJSON() as { query?: string }
+      const query = body.query ?? ''
+
+      if (query.includes('query DashboardBranches')) {
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            data: {
+              repo: {
+                branches: [],
+              },
+            },
+          }),
+        })
+        return
+      }
+
+      if (query.includes('query DashboardRepoOptions')) {
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            data: {
+              repo: {
+                users: ['wayne@bitloops.com', 'alice@bitloops.com'],
+                agents: ['claude-code', 'gemini-cli'],
+              },
+            },
+          }),
+        })
+        return
+      }
+
+      await route.fulfill({
         status: 200,
         contentType: 'application/json',
-        body: JSON.stringify([]),
+        body: JSON.stringify(buildDashboardCommitsResponse()),
       })
     })
 
@@ -373,12 +595,32 @@ test.describe('App / dashboard load', () => {
 // ---------------------------------------------------------------------------
 
 test.describe('Filters', () => {
+  test('repo filter dropdown shows repository options from REST', async ({
+    page,
+  }) => {
+    await stubApiRoutes(page)
+    await page.goto('/')
+
+    const repoTrigger = page.getByTestId('filter-repo')
+    await repoTrigger.click()
+
+    await expect(page.getByRole('option', { name: /Auto/ })).toBeVisible()
+    await expect(
+      page.getByRole('option', {
+        name: 'bitloops/local-dashboard',
+        exact: true,
+      }),
+    ).toBeVisible()
+    await expect(
+      page.getByRole('option', { name: 'bitloops/another-repo', exact: true }),
+    ).toBeVisible()
+  })
+
   test('branch filter dropdown shows stub branch options', async ({ page }) => {
     await stubApiRoutes(page)
     await page.goto('/')
 
-    // Branch is the first combobox on the page
-    const branchTrigger = page.getByRole('combobox').nth(0)
+    const branchTrigger = page.getByTestId('filter-branch')
     await branchTrigger.click()
 
     await expect(page.getByRole('option', { name: /Auto/ })).toBeVisible()
@@ -394,7 +636,7 @@ test.describe('Filters', () => {
     await stubApiRoutes(page)
     await page.goto('/')
 
-    const branchTrigger = page.getByRole('combobox').nth(0)
+    const branchTrigger = page.getByTestId('filter-branch')
     await branchTrigger.click()
     await page.getByRole('option', { name: 'feat/auth' }).click()
 
@@ -413,7 +655,7 @@ test.describe('Filters', () => {
     await expect(clearBtn).toBeDisabled()
 
     // Activate a filter by selecting a branch
-    const branchTrigger = page.getByRole('combobox').nth(0)
+    const branchTrigger = page.getByTestId('filter-branch')
     await branchTrigger.click()
     await page.getByRole('option', { name: 'feat/auth' }).click()
 
@@ -427,7 +669,7 @@ test.describe('Filters', () => {
     await stubApiRoutes(page)
     await page.goto('/')
 
-    const branchTrigger = page.getByRole('combobox').nth(0)
+    const branchTrigger = page.getByTestId('filter-branch')
     await branchTrigger.click()
     await page.getByRole('option', { name: 'feat/auth' }).click()
     await expect(branchTrigger).toContainText('feat/auth')
@@ -454,6 +696,100 @@ test.describe('Filters', () => {
     ).toBeVisible()
     await expect(page.getByText('From', { exact: true })).toBeVisible()
     await expect(page.getByText('To', { exact: true })).toBeVisible()
+  })
+
+  test('selecting a repo passes that repo to downstream GraphQL calls', async ({
+    page,
+  }) => {
+    const observedRepos: string[] = []
+
+    await stubRepositoriesRoute(page)
+    await page.route('**/devql/global', async (route: Route) => {
+      const body = route.request().postDataJSON() as {
+        query?: string
+        variables?: { repo?: string }
+      }
+      const query = body.query ?? ''
+      const repo = body.variables?.repo
+      if (repo) {
+        observedRepos.push(repo)
+      }
+
+      if (query.includes('query DashboardBranches')) {
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            data: {
+              repo: {
+                branches: STUB_BRANCHES.map((name) => ({
+                  name,
+                  checkpointCount: 1,
+                })),
+              },
+            },
+          }),
+        })
+        return
+      }
+
+      if (query.includes('query DashboardRepoOptions')) {
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            data: {
+              repo: {
+                users: ['wayne@bitloops.com', 'alice@bitloops.com'],
+                agents: ['claude-code', 'gemini-cli'],
+              },
+            },
+          }),
+        })
+        return
+      }
+
+      if (query.includes('query DashboardCommits')) {
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify(buildDashboardCommitsResponse()),
+        })
+        return
+      }
+
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ data: {} }),
+      })
+    })
+    await page.route('**/api/checkpoint*', (route: Route) =>
+      route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify(STUB_CHECKPOINT_DETAIL),
+      }),
+    )
+    await page.route('**/api/checkpoints/**', (route: Route) =>
+      route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify(STUB_CHECKPOINT_DETAIL),
+      }),
+    )
+
+    await page.goto('/')
+
+    observedRepos.length = 0
+
+    const repoTrigger = page.getByTestId('filter-repo')
+    await repoTrigger.click()
+    await page.getByRole('option', { name: 'bitloops/another-repo' }).click()
+
+    await expect
+      .poll(() => observedRepos.includes('bitloops/another-repo'))
+      .toBe(true)
   })
 })
 
@@ -553,33 +889,49 @@ test.describe('Checkpoint sheet', () => {
   test('checkpoint sheet shows error state when detail API fails', async ({
     page,
   }) => {
-    // All list endpoints succeed
-    await page.route('**/api/branches*', (route) => {
-      void route.fulfill({
+    await stubRepositoriesRoute(page)
+    await page.route('**/devql/global', async (route) => {
+      const body = route.request().postDataJSON() as { query?: string }
+      const query = body.query ?? ''
+
+      if (query.includes('query DashboardBranches')) {
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            data: {
+              repo: {
+                branches: STUB_BRANCHES.map((name) => ({
+                  name,
+                  checkpointCount: 1,
+                })),
+              },
+            },
+          }),
+        })
+        return
+      }
+
+      if (query.includes('query DashboardRepoOptions')) {
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            data: {
+              repo: {
+                users: ['wayne@bitloops.com', 'alice@bitloops.com'],
+                agents: ['claude-code', 'gemini-cli'],
+              },
+            },
+          }),
+        })
+        return
+      }
+
+      await route.fulfill({
         status: 200,
         contentType: 'application/json',
-        body: JSON.stringify(STUB_BRANCHES),
-      })
-    })
-    await page.route('**/api/users*', (route) => {
-      void route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify(STUB_USERS),
-      })
-    })
-    await page.route('**/api/agents*', (route) => {
-      void route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify(STUB_AGENTS),
-      })
-    })
-    await page.route('**/api/commits*', (route) => {
-      void route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify(STUB_COMMITS),
+        body: JSON.stringify(buildDashboardCommitsResponse()),
       })
     })
     // Checkpoint detail endpoint fails
@@ -701,6 +1053,8 @@ test.describe('Navigation', () => {
     await stubApiRoutes(page)
     await page.goto('/')
 
-    await expect(page.getByText('Bitloops')).toBeVisible()
+    await expect(
+      page.getByRole('button', { name: 'Bitloops Local Dashboard' }),
+    ).toBeVisible()
   })
 })

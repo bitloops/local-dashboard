@@ -73,7 +73,7 @@ describe('parseTranscriptEntries', () => {
     expect(entries[0]).toMatchObject({
       actor: 'user',
       variant: 'chat',
-      text: '\nWhat is 2+2?\n',
+      text: 'What is 2+2?\n',
     })
   })
 

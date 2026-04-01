@@ -33,3 +33,8 @@ _tmp_*
 
 # Local mock API data (optional; app falls back to empty when missing)
 public/mock-data
+
+.bitloops/
+.cursor/
+.claude/
+.codex/

@@ -8,6 +8,7 @@ import {
 const mockSetResult = vi.fn()
 const mockAddRunToHistory = vi.fn()
 const mockGetState = vi.fn()
+const mockSetQuery = vi.fn()
 
 vi.mock('@/store', () => ({
   rootStoreInstance: {
@@ -84,22 +85,25 @@ describe('runQueryExplorerQuery', () => {
     query: 'query { __typename }',
     variables: '{}',
     setResult: mockSetResult,
+    setQuery: mockSetQuery,
     addRunToHistory: mockAddRunToHistory,
   })
 
   beforeEach(() => {
+    vi.clearAllMocks()
     mockSetResult.mockClear()
     mockAddRunToHistory.mockClear()
+    mockSetQuery.mockClear()
     mockGetState.mockImplementation(defaultState)
   })
 
-  it('sets error result when query is empty', () => {
+  it('sets error result when query is empty', async () => {
     mockGetState.mockReturnValue({
       ...defaultState(),
       query: '',
     })
 
-    runQueryExplorerQuery()
+    await runQueryExplorerQuery()
 
     expect(mockSetResult).toHaveBeenCalledWith({
       status: 'error',
@@ -108,13 +112,13 @@ describe('runQueryExplorerQuery', () => {
     expect(mockAddRunToHistory).not.toHaveBeenCalled()
   })
 
-  it('sets error result when variables are invalid JSON', () => {
+  it('sets error result when variables are invalid JSON', async () => {
     mockGetState.mockReturnValue({
       ...defaultState(),
       variables: 'not json',
     })
 
-    runQueryExplorerQuery()
+    await runQueryExplorerQuery()
 
     expect(mockSetResult).toHaveBeenCalledWith({
       status: 'error',
@@ -127,14 +131,27 @@ describe('runQueryExplorerQuery', () => {
     const { executeQuery } = await import('./query-client')
     vi.mocked(executeQuery).mockResolvedValue({ data: { __typename: 'Query' } })
 
-    runQueryExplorerQuery()
+    await runQueryExplorerQuery()
 
     expect(mockSetResult).toHaveBeenCalledWith({ status: 'loading' })
+    expect(mockSetQuery).toHaveBeenCalledWith(`query {
+  __typename
+}
+`)
     expect(mockAddRunToHistory).toHaveBeenCalledWith(
-      'query { __typename }',
+      `query {
+  __typename
+}
+`,
       '{}',
     )
-    expect(executeQuery).toHaveBeenCalledWith('query { __typename }', {})
+    expect(executeQuery).toHaveBeenCalledWith(
+      `query {
+  __typename
+}
+`,
+      {},
+    )
 
     await vi.waitFor(() => {
       expect(mockSetResult).toHaveBeenLastCalledWith({
@@ -145,27 +162,67 @@ describe('runQueryExplorerQuery', () => {
     })
   })
 
+  it('formats the query before executing and stores the formatted value', async () => {
+    const { executeQuery } = await import('./query-client')
+    vi.mocked(executeQuery).mockResolvedValue({ data: { __typename: 'Query' } })
+
+    mockGetState.mockReturnValue({
+      ...defaultState(),
+      query: 'query Test{__typename}',
+    })
+
+    await runQueryExplorerQuery()
+
+    expect(mockSetQuery).toHaveBeenCalledWith(`query Test {
+  __typename
+}
+`)
+    expect(mockAddRunToHistory).toHaveBeenCalledWith(
+      `query Test {
+  __typename
+}
+`,
+      '{}',
+    )
+    expect(executeQuery).toHaveBeenCalledWith(
+      `query Test {
+  __typename
+}
+`,
+      {},
+    )
+  })
+
   it('uses overrides when provided (for re-run from history)', async () => {
     const { executeQuery } = await import('./query-client')
     vi.mocked(executeQuery).mockResolvedValue({ data: { x: 1 } })
 
-    runQueryExplorerQuery({
+    await runQueryExplorerQuery({
       query: 'query GetX { x }',
       variables: '{"id":"y"}',
     })
 
     expect(mockAddRunToHistory).toHaveBeenCalledWith(
-      'query GetX { x }',
+      `query GetX {
+  x
+}
+`,
       '{"id":"y"}',
     )
-    expect(executeQuery).toHaveBeenCalledWith('query GetX { x }', { id: 'y' })
+    expect(executeQuery).toHaveBeenCalledWith(
+      `query GetX {
+  x
+}
+`,
+      { id: 'y' },
+    )
   })
 
   it('sets error result when executeQuery rejects with a generic Error', async () => {
     const { executeQuery } = await import('./query-client')
     vi.mocked(executeQuery).mockRejectedValue(new Error('Network failure'))
 
-    runQueryExplorerQuery()
+    await runQueryExplorerQuery()
 
     await vi.waitFor(() => {
       expect(mockSetResult).toHaveBeenLastCalledWith({
@@ -175,23 +232,16 @@ describe('runQueryExplorerQuery', () => {
     })
   })
 
-  it('sets error result when executeQuery rejects with an ApiError', async () => {
-    const { ApiError } = await import('@/api/types/schema')
+  it('sets error result when executeQuery rejects with GraphQLRequestError', async () => {
+    const { GraphQLRequestError } = await import('@/api/graphql/errors')
     const { executeQuery } = await import('./query-client')
-    const apiErr = new ApiError(
-      { method: 'POST', url: '/query' },
-      {
-        url: '/query',
-        ok: false,
-        status: 500,
-        statusText: 'Internal Server Error',
-        body: { errors: [{ message: 'upstream timeout' }] },
-      },
-      'Server error',
-    )
+    const apiErr = new GraphQLRequestError('Server error', {
+      status: 500,
+      graphQLErrors: [{ message: 'upstream timeout' }],
+    })
     vi.mocked(executeQuery).mockRejectedValue(apiErr)
 
-    runQueryExplorerQuery()
+    await runQueryExplorerQuery()
 
     await vi.waitFor(() => {
       expect(mockSetResult).toHaveBeenLastCalledWith({
@@ -208,7 +258,7 @@ describe('runQueryExplorerQuery', () => {
       errors: [{ message: 'Field "x" not found' }],
     })
 
-    runQueryExplorerQuery()
+    await runQueryExplorerQuery()
 
     await vi.waitFor(() => {
       expect(mockSetResult).toHaveBeenLastCalledWith({
@@ -225,7 +275,7 @@ describe('runQueryExplorerQuery', () => {
       errors: [{ message: 'partial failure' }],
     })
 
-    runQueryExplorerQuery()
+    await runQueryExplorerQuery()
 
     await vi.waitFor(() => {
       expect(mockSetResult).toHaveBeenLastCalledWith({
@@ -240,7 +290,7 @@ describe('runQueryExplorerQuery', () => {
     const { executeQuery } = await import('./query-client')
     vi.mocked(executeQuery).mockRejectedValue('string rejection')
 
-    runQueryExplorerQuery()
+    await runQueryExplorerQuery()
 
     await vi.waitFor(() => {
       expect(mockSetResult).toHaveBeenLastCalledWith({
@@ -275,8 +325,18 @@ describe('runQueryExplorerQuery', () => {
           }),
       )
 
-    runQueryExplorerQuery({ query: 'query { first }', variables: '{}' })
-    runQueryExplorerQuery({ query: 'query { second }', variables: '{}' })
+    const firstRun = runQueryExplorerQuery({
+      query: 'query { first }',
+      variables: '{}',
+    })
+    const secondRun = runQueryExplorerQuery({
+      query: 'query { second }',
+      variables: '{}',
+    })
+
+    await vi.waitFor(() => {
+      expect(executeQuery).toHaveBeenCalledTimes(2)
+    })
 
     resolveSecond({ data: { value: 'newer' } })
     await vi.waitFor(() => {
@@ -295,5 +355,7 @@ describe('runQueryExplorerQuery', () => {
         errors: undefined,
       })
     })
+
+    await Promise.all([firstRun, secondRun])
   })
 })

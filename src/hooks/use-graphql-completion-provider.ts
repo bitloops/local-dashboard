@@ -14,6 +14,7 @@ import {
 } from '@/features/query-explorer/autocomplete/format-graphql'
 
 const EDITOR_LANGUAGE = 'graphql'
+export const FORMAT_GRAPHQL_COMMAND_ID = 'query-explorer.format-graphql'
 
 const TRIGGER_CHARACTERS = ['{', ' ', '\n', '(', ':', '$', ',']
 
@@ -88,8 +89,8 @@ export function wrapItemsForSameLineBrace(
 }
 
 /**
- * Registers a GraphQL completion provider and an on-type formatting provider
- * with Monaco when the editor is ready.
+ * Registers the GraphQL completion provider and lightweight on-type indentation
+ * formatting with Monaco when the editor is ready.
  */
 export function useGraphQLCompletionProvider(
   monaco: typeof Monaco | null,
@@ -173,6 +174,10 @@ export function useGraphQLCompletionProvider(
                 ? monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet
                 : undefined,
               range,
+              command: {
+                id: FORMAT_GRAPHQL_COMMAND_ID,
+                title: 'Format GraphQL Query',
+              },
             }),
           )
 

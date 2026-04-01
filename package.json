@@ -1,12 +1,12 @@
 {
   "name": "local-dashboard",
   "private": true,
-  "version": "0.0.3",
+  "version": "0.0.4",
   "license": "Apache-2.0",
   "type": "module",
   "scripts": {
     "generate-openapi-types": "node scripts/generate-openapi-types.mjs",
-    "open-api-codegen": "curl -o ./swagger.json http://127.0.0.1:5667/api/openapi.json && npx openapi-typescript-codegen --input ./swagger.json --output ./src/api/types/schema --name BitloopsCli --useOptions",
+    "open-api-codegen": "curl -o ./swagger.json https://127.0.0.1:5667/api/openapi.json && npx openapi-typescript-codegen --input ./swagger.json --output ./src/api/rest/types/schema --name BitloopsCli --useOptions",
     "dev": "vite",
     "build": "tsc -b && vite build",
     "bundle": "pnpm build && rm -rf ~/.bitloops/dashboard/bundle && mv dist ~/.bitloops/dashboard/bundle ",
