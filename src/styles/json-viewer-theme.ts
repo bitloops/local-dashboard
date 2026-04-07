@@ -1,9 +1,11 @@
 /**
- * Custom themes for @andypf/json-viewer.
+ * Base16 themes for `@microlink/react-json-view`.
  * Transparent background with default Base16 palette for icons, keys, strings, numbers, etc.
  */
 
-export type JsonViewerTheme = Record<string, string>
+import type { ThemeObject } from '@microlink/react-json-view'
+
+export type JsonViewerTheme = ThemeObject
 
 /** Light: transparent bg + default-light palette (grays and accent colors) */
 export const JSON_VIEWER_LIGHT_THEME: JsonViewerTheme = {
@@ -45,6 +47,6 @@ export const JSON_VIEWER_DARK_THEME: JsonViewerTheme = {
   base0F: '#a16946',
 }
 
-export function getJsonViewerTheme(mode: 'light' | 'dark'): JsonViewerTheme {
+export function getJsonViewerTheme(mode: 'light' | 'dark'): ThemeObject {
   return mode === 'dark' ? JSON_VIEWER_DARK_THEME : JSON_VIEWER_LIGHT_THEME
 }

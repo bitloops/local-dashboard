@@ -1,7 +1,7 @@
 /* generated using openapi-typescript-codegen -- do not edit */
 /* istanbul ignore file */
 /* tslint:disable */
-/* eslint-disable */
+
 import type { ApiCommitFileDiffDto } from './ApiCommitFileDiffDto'
 export type ApiCommitDto = {
   author_email: string

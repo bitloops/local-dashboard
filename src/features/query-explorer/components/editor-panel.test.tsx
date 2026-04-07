@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useEffect, useMemo } from 'react'
 import { describe, expect, it, vi } from 'vitest'
 import { fireEvent, render, screen } from '@testing-library/react'
 import { ThemeProvider } from '@/context/theme-provider'
@@ -20,35 +20,41 @@ vi.mock('@monaco-editor/react', () => ({
     beforeMount?: (monaco: unknown) => void
     onMount?: (editor: unknown, monaco: unknown) => void
   }) {
-    const monaco = {
-      editor: {
-        defineTheme: vi.fn(),
-        registerCommand: vi.fn(() => ({ dispose: vi.fn() })),
-      },
-      languages: {
-        registerCompletionItemProvider: vi.fn(() => ({ dispose: vi.fn() })),
-        registerOnTypeFormattingEditProvider: vi.fn(() => ({
-          dispose: vi.fn(),
-        })),
-      },
-      KeyMod: { Shift: 1, Alt: 2 },
-      KeyCode: { KeyF: 3 },
-    }
-    const editor = {
-      getModel: () => ({
-        getValue: () => value,
-        getFullModelRange: vi.fn(),
+    const monaco = useMemo(
+      () => ({
+        editor: {
+          defineTheme: vi.fn(),
+          registerCommand: vi.fn(() => ({ dispose: vi.fn() })),
+        },
+        languages: {
+          registerCompletionItemProvider: vi.fn(() => ({ dispose: vi.fn() })),
+          registerOnTypeFormattingEditProvider: vi.fn(() => ({
+            dispose: vi.fn(),
+          })),
+        },
+        KeyMod: { Shift: 1, Alt: 2 },
+        KeyCode: { KeyF: 3 },
       }),
-      addAction: vi.fn(),
-      onDidChangeModelContent: vi.fn(() => ({ dispose: vi.fn() })),
-      onDidDispose: vi.fn(),
-      executeEdits: vi.fn(),
-    }
+      [],
+    )
+    const editor = useMemo(
+      () => ({
+        getModel: () => ({
+          getValue: () => value,
+          getFullModelRange: vi.fn(),
+        }),
+        addAction: vi.fn(),
+        onDidChangeModelContent: vi.fn(() => ({ dispose: vi.fn() })),
+        onDidDispose: vi.fn(),
+        executeEdits: vi.fn(),
+      }),
+      [value],
+    )
 
     useEffect(() => {
       beforeMount?.(monaco)
       onMount?.(editor, monaco)
-    }, [beforeMount, onMount])
+    }, [beforeMount, editor, monaco, onMount])
 
     return (
       <input

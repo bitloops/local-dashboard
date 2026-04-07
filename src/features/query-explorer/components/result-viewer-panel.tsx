@@ -1,8 +1,12 @@
 import { useFont } from '@/context/font-provider'
-import { AlertCircle, Loader2 } from 'lucide-react'
-import JsonViewer from '@andypf/json-viewer/dist/esm/react/JsonViewer'
-import { getJsonViewerTheme } from '@/styles/json-viewer-theme'
+import { useCallback, useMemo, useState } from 'react'
+import { AlertCircle, Info, Loader2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { payloadHasPreviewableBlobSha } from '../payload-has-previewable-blob-sha'
+import { parseQueryExplorerRepo } from '../parse-query-explorer-repo'
+import type { QueryExplorerResolvedTheme } from '../types'
+import { BlobPreviewDialog } from './blob-preview-dialog'
+import { QueryResultReactJson } from './query-result-react-json'
 
 export type ResultViewerState =
   | { status: 'idle' }
@@ -12,7 +16,9 @@ export type ResultViewerState =
 
 type ResultViewerPanelProps = {
   result: ResultViewerState
-  theme?: 'light' | 'dark'
+  /** Raw variables JSON (same document as the Variables panel) for `repo` lookup. */
+  variables?: string
+  theme?: QueryExplorerResolvedTheme
   className?: string
 }
 
@@ -27,21 +33,55 @@ const errorContentAreaClass =
 
 export function ResultViewerPanel({
   result,
+  variables = '{}',
   theme = 'light',
   className,
 }: ResultViewerPanelProps) {
   const { font } = useFont()
   const fontClass = `font-${font}`
-  const viewerTheme = getJsonViewerTheme(theme)
   const hasError =
     result.status === 'error' ||
     (result.status === 'success' && (result.errors?.length ?? 0) > 0)
 
+  const repoForBlobs = useMemo(
+    () => parseQueryExplorerRepo(variables),
+    [variables],
+  )
+
+  const [blobModalOpen, setBlobModalOpen] = useState(false)
+  const [previewSha, setPreviewSha] = useState<string | null>(null)
+
+  const openBlob = useCallback((sha: string) => {
+    setPreviewSha(sha)
+    setBlobModalOpen(true)
+  }, [])
+
+  const viewerPayload = useMemo((): unknown | null => {
+    if (result.status !== 'success') return null
+    return result.errors?.length
+      ? { data: result.data ?? null, errors: result.errors }
+      : (result.data ?? {})
+  }, [result])
+
+  const showBlobPreviewHint = useMemo(
+    () => viewerPayload !== null && payloadHasPreviewableBlobSha(viewerPayload),
+    [viewerPayload],
+  )
+
   return (
     <div
-      className={`flex min-h-0 flex-1 flex-col ${className ?? ''}`.trim()}
+      className={cn('flex min-h-0 flex-1 flex-col', className)}
       data-panel='results'
     >
+      <BlobPreviewDialog
+        open={blobModalOpen}
+        onOpenChange={(open) => {
+          setBlobModalOpen(open)
+          if (!open) setPreviewSha(null)
+        }}
+        repo={repoForBlobs}
+        blobSha={previewSha}
+      />
       <div className='flex h-12 items-center border-b border-border px-3 py-2'>
         <h2 className='text-sm font-medium'>Results</h2>
       </div>
@@ -65,29 +105,50 @@ export function ResultViewerPanel({
             />
           </div>
         )}
-        {result.status === 'success' && (
+        {result.status === 'success' && viewerPayload !== null && (
           <div
-            className={`${treeContainerClass} ${fontClass} result-viewer-json-tree`}
+            className={cn(treeContainerClass, 'result-viewer-json-tree')}
             data-testid='result-viewer-json-tree'
           >
-            <div className='min-h-0 flex-1 overflow-auto'>
-              <JsonViewer
-                data={
-                  result.errors?.length
-                    ? {
-                        data: result.data ?? null,
-                        errors: result.errors,
-                      }
-                    : (result.data ?? {})
-                }
-                theme={viewerTheme}
-                expanded={4}
-                showDataTypes
-                showToolbar={false}
-                showCopy
-                showSize={false}
-                expandIconType='square'
-                indent={2}
+            {showBlobPreviewHint && (
+              <div
+                className='flex shrink-0 items-start gap-2 border-b border-border px-3 py-2'
+                data-testid='result-blob-preview-hint'
+              >
+                <Info
+                  className='size-3.5 shrink-0 text-muted-foreground mt-0.5'
+                  aria-hidden
+                />
+                <p className='min-w-0 text-xs text-muted-foreground leading-snug'>
+                  {repoForBlobs ? (
+                    <>
+                      <code className='rounded bg-muted px-1 py-0.5 font-mono text-[0.7rem]'>
+                        blobSha
+                      </code>{' '}
+                      values are clickable to preview the blob.
+                    </>
+                  ) : (
+                    <>
+                      Set{' '}
+                      <code className='rounded bg-muted px-1 py-0.5 font-mono text-[0.7rem]'>
+                        repo
+                      </code>{' '}
+                      in Variables to preview blobs, then click a{' '}
+                      <code className='rounded bg-muted px-1 py-0.5 font-mono text-[0.7rem]'>
+                        blobSha
+                      </code>{' '}
+                      value.
+                    </>
+                  )}
+                </p>
+              </div>
+            )}
+            <div className='min-h-0 flex-1 overflow-auto p-3'>
+              <QueryResultReactJson
+                data={viewerPayload}
+                repoForBlobs={repoForBlobs}
+                onOpenBlob={openBlob}
+                theme={theme}
               />
             </div>
           </div>
