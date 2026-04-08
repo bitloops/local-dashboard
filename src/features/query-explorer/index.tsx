@@ -102,7 +102,11 @@ export function QueryExplorer() {
             onResizeStart={onResizeStart}
             leftPanel={<EditorHistoryContainer />}
             rightPanel={
-              <ResultViewerPanel result={result} theme={resolvedTheme} />
+              <ResultViewerPanel
+                result={result}
+                variables={variables}
+                theme={resolvedTheme}
+              />
             }
             bottomPanel={
               <VariablesPanel

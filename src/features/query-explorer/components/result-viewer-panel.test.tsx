@@ -1,20 +1,6 @@
-import { describe, expect, it, vi } from 'vitest'
+import { describe, expect, it } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import { ResultViewerPanel } from './result-viewer-panel'
-
-vi.mock('@andypf/json-viewer/dist/esm/react/JsonViewer', () => ({
-  default: ({ data }: { data: unknown }) => {
-    const obj = data as { errors?: string[] }
-    if (obj?.errors?.length) {
-      return (
-        <pre data-testid='mock-json-viewer-error'>{obj.errors.join(', ')}</pre>
-      )
-    }
-    return (
-      <pre data-testid='mock-json-viewer'>{JSON.stringify(data, null, 2)}</pre>
-    )
-  },
-}))
 
 describe('ResultViewerPanel', () => {
   it('renders Results heading', () => {
@@ -38,9 +24,10 @@ describe('ResultViewerPanel', () => {
         result={{ status: 'success', data: { foo: 'bar' } }}
       />,
     )
+    const tree = screen.getByTestId('query-result-json-tree')
     expect(screen.getByTestId('result-viewer-json-tree')).toBeInTheDocument()
-    expect(screen.getByTestId('mock-json-viewer')).toHaveTextContent('"foo"')
-    expect(screen.getByTestId('mock-json-viewer')).toHaveTextContent('"bar"')
+    expect(tree).toHaveTextContent('"foo"')
+    expect(tree).toHaveTextContent('"bar"')
   })
 
   it('shows errors in same tree with success when errors are present', () => {
@@ -53,13 +40,63 @@ describe('ResultViewerPanel', () => {
         }}
       />,
     )
+    const tree = screen.getByTestId('query-result-json-tree')
     expect(screen.getByTestId('result-viewer-json-tree')).toBeInTheDocument()
-    expect(screen.getByTestId('mock-json-viewer-error')).toHaveTextContent(
-      'First error',
+    expect(tree).toHaveTextContent('First error')
+    expect(tree).toHaveTextContent('Second error')
+  })
+
+  it('shows blob preview hint for success+errors payload when data has previewable blobSha', () => {
+    const sha = `${'c'.repeat(40)}`
+    render(
+      <ResultViewerPanel
+        result={{
+          status: 'success',
+          data: { blobSha: sha },
+          errors: ['Partial error'],
+        }}
+        variables={JSON.stringify({ repo: 'r' })}
+      />,
     )
-    expect(screen.getByTestId('mock-json-viewer-error')).toHaveTextContent(
-      'Second error',
+    expect(screen.getByTestId('result-blob-preview-hint')).toHaveTextContent(
+      'clickable',
     )
+  })
+
+  it('shows blob preview hint when data contains a previewable blobSha', () => {
+    const sha = `${'a'.repeat(40)}`
+    render(
+      <ResultViewerPanel
+        result={{ status: 'success', data: { blobSha: sha } }}
+        variables={JSON.stringify({ repo: 'r' })}
+      />,
+    )
+    expect(screen.getByTestId('result-blob-preview-hint')).toBeInTheDocument()
+    expect(screen.getByTestId('result-blob-preview-hint')).toHaveTextContent(
+      'clickable',
+    )
+  })
+
+  it('shows repo Variables hint when blobSha present but repo is not set', () => {
+    const sha = `${'b'.repeat(40)}`
+    render(
+      <ResultViewerPanel
+        result={{ status: 'success', data: { blobSha: sha } }}
+        variables='{}'
+      />,
+    )
+    expect(screen.getByTestId('result-blob-preview-hint')).toHaveTextContent(
+      'Variables',
+    )
+  })
+
+  it('does not show blob preview hint when no blobSha in data', () => {
+    render(
+      <ResultViewerPanel
+        result={{ status: 'success', data: { foo: 'bar' } }}
+      />,
+    )
+    expect(screen.queryByTestId('result-blob-preview-hint')).toBeNull()
   })
 
   it('shows error message and error-state content area when status is error', () => {

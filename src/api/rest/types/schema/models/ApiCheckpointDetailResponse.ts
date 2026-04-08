@@ -1,7 +1,6 @@
 /* generated using openapi-typescript-codegen -- do not edit */
 /* istanbul ignore file */
 /* tslint:disable */
-/* eslint-disable */
 import type { ApiCheckpointSessionDetailDto } from './ApiCheckpointSessionDetailDto'
 import type { ApiCommitFileDiffDto } from './ApiCommitFileDiffDto'
 import type { ApiTokenUsageDto } from './ApiTokenUsageDto'

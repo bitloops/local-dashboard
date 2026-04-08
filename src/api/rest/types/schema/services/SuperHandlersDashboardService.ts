@@ -1,7 +1,7 @@
 /* generated using openapi-typescript-codegen -- do not edit */
 /* istanbul ignore file */
 /* tslint:disable */
-/* eslint-disable */
+
 import type { ApiAgentDto } from '../models/ApiAgentDto'
 import type { ApiBranchSummaryDto } from '../models/ApiBranchSummaryDto'
 import type { ApiCommitRowDto } from '../models/ApiCommitRowDto'

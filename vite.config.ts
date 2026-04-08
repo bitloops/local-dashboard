@@ -19,7 +19,7 @@ export default defineConfig(({ mode }) => {
       format: 'es',
     },
     optimizeDeps: {
-      include: ['@andypf/json-viewer/dist/esm/react/JsonViewer.js', 'recharts'],
+      include: ['@microlink/react-json-view', 'recharts'],
     },
     resolve: {
       alias: {
