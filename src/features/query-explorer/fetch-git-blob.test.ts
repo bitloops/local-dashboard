@@ -56,14 +56,16 @@ describe('fetchGitBlob', () => {
       },
     ])
 
-    await expect(
-      fetchGitBlob({ repo: 'missing/repo', blobSha: 'abc123' }),
-    ).rejects.toMatchObject<Partial<GitBlobFetchError>>({
+    const expectedError: Partial<GitBlobFetchError> = {
       name: 'GitBlobFetchError',
       status: 404,
       code: 'repo_not_found',
       message: "Repository 'missing/repo' is not available for blob preview.",
-    })
+    }
+
+    await expect(
+      fetchGitBlob({ repo: 'missing/repo', blobSha: 'abc123' }),
+    ).rejects.toMatchObject(expectedError)
 
     expect(mockFetchDashboardBlob).not.toHaveBeenCalled()
   })
@@ -73,12 +75,14 @@ describe('fetchGitBlob', () => {
       new GraphQLRequestError('Dashboard offline', { status: 503 }),
     )
 
-    await expect(
-      fetchGitBlob({ repo: 'acme/demo', blobSha: 'abc123' }),
-    ).rejects.toMatchObject<Partial<GitBlobFetchError>>({
+    const expectedError: Partial<GitBlobFetchError> = {
       name: 'GitBlobFetchError',
       status: 503,
       message: 'Dashboard offline',
-    })
+    }
+
+    await expect(
+      fetchGitBlob({ repo: 'acme/demo', blobSha: 'abc123' }),
+    ).rejects.toMatchObject(expectedError)
   })
 })

@@ -275,6 +275,7 @@ describe('Dashboard integration', () => {
       files_touched: [],
       session_count: 1,
       strategy: '',
+      token_usage: null,
       sessions: [
         {
           agent: 'claude-code',

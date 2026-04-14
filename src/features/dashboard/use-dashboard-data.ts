@@ -108,6 +108,8 @@ export function useDashboardData() {
     null
   const effectiveRepoId = effectiveRepoOption?.repoId ?? null
   const effectiveRepoIdentity = effectiveRepoOption?.identity ?? null
+  const defaultBranchFallback =
+    effectiveRepoOption?.defaultBranch?.trim() || null
   const from = fromDate != null ? String(startOfDayUnixSeconds(fromDate)) : null
   const to = toDate != null ? String(endOfDayUnixSeconds(toDate)) : null
   const branchOptionsRequestKey =
@@ -117,7 +119,9 @@ export function useDashboardData() {
     branchOptionsRequestState.key !== branchOptionsRequestKey
       ? 'loading'
       : branchOptionsRequestState.source
-  const effectiveBranch = selectedBranch ?? branchOptions[0] ?? null
+  // The central daemon catalogue may know the default branch before branch enumeration is wired.
+  const effectiveBranch =
+    selectedBranch ?? branchOptions[0] ?? defaultBranchFallback
   const selectedCheckpoint =
     rows
       .flatMap((row) => row.checkpointList)

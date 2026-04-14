@@ -416,7 +416,7 @@ function buildDashboardCheckpointDetailResponse() {
 // ---------------------------------------------------------------------------
 
 /** Repository options are served through the dashboard GraphQL endpoint. */
-async function stubRepositoriesRoute(_page: Page) {}
+async function stubRepositoriesRoute() {}
 
 /** Stub all dashboard and query-explorer calls so the app works without a real backend. */
 async function stubApiRoutes(page: Page) {
@@ -602,7 +602,7 @@ test.describe('App / dashboard load', () => {
     ).toBeVisible({ timeout: 8000 })
   })
 
-  test('shows "No branches" message when dashboard branches query returns empty', async ({
+  test('falls back to the repository default branch when dashboard branches returns empty', async ({
     page,
   }) => {
     await stubRepositoriesRoute(page)
@@ -655,9 +655,11 @@ test.describe('App / dashboard load', () => {
 
     await page.goto('/')
 
+    await expect(page.getByText('Recent Commits')).toBeVisible()
     await expect(
       page.getByText(/No branches are currently available/),
-    ).toBeVisible()
+    ).toHaveCount(0)
+    await expect(page.getByTestId('filter-branch')).toContainText('Auto (main)')
   })
 })
 

@@ -79,6 +79,8 @@ jobs:
     name: Verify Published Assets
     runs-on: ubuntu-latest
     needs: build_release
+    env:
+      SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
     steps:
       - name: Ensure zstd is available
         run: sudo apt-get update && sudo apt-get install -y zstd
@@ -119,3 +121,12 @@ jobs:
               throw new Error(\`version.json source_url mismatch: expected \${sourceUrl}, got \${json.source_url}\`);
             }
           "
+
+      - name: Send Slack notification
+        if: env.SLACK_WEBHOOK_URL != ''
+        uses: slackapi/slack-github-action@v3.0.1
+        with:
+          webhook: ${{ env.SLACK_WEBHOOK_URL }}
+          webhook-type: incoming-webhook
+          payload: |
+            text: "🚀 local-dashboard ${{ github.ref_name }} has been released!"

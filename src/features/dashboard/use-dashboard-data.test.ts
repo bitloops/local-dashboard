@@ -237,6 +237,48 @@ describe('useDashboardData', () => {
     ).toBe(true)
   })
 
+  it('falls back to the repository defaultBranch when the branches query returns no rows', async () => {
+    mockFetchDashboardBranches.mockResolvedValueOnce([])
+
+    const { result } = renderHook(() => useDashboardData())
+
+    await waitFor(() => {
+      expect(result.current.branchOptions).toEqual([])
+      expect(result.current.effectiveBranch).toBe('main')
+      expect(result.current.rows).toHaveLength(1)
+    })
+
+    expect(mockFetchDashboardUsers).toHaveBeenCalledWith({
+      repoId: 'repo-1',
+      branch: 'main',
+      from: null,
+      to: null,
+      agent: null,
+    })
+    expect(mockFetchDashboardAgents).toHaveBeenCalledWith({
+      repoId: 'repo-1',
+      branch: 'main',
+      from: null,
+      to: null,
+      user: null,
+    })
+    expect(mockFetchDashboardCommitsPage).toHaveBeenCalledWith(
+      {
+        repoId: 'repo-1',
+        branch: 'main',
+        from: null,
+        to: null,
+        user: null,
+        agent: null,
+        offset: 0,
+      },
+      expect.objectContaining({ signal: expect.any(AbortSignal) }),
+    )
+    expect(rootStoreInstance.getState().variables).toBe(
+      getDefaultQueryExplorerVariables('bitloops/local-dashboard', 'main'),
+    )
+  })
+
   it('sends dashboard date filters as Unix-second strings', async () => {
     const { result } = renderHook(() => useDashboardData())
 
