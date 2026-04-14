@@ -46,7 +46,10 @@ export type FetchDashboardCommitsVariables = FetchDashboardFilterVariables & {
   offset: number
 }
 
-function firstGraphQLError(message: string, errors?: Array<{ message: string }>) {
+function firstGraphQLError(
+  message: string,
+  errors?: Array<{ message: string }>,
+) {
   if (errors?.length) {
     throw new GraphQLRequestError(errors[0].message)
   }
@@ -54,14 +57,15 @@ function firstGraphQLError(message: string, errors?: Array<{ message: string }>)
   throw new GraphQLRequestError(message)
 }
 
-export async function fetchDashboardRepositories(
-  options?: { signal?: AbortSignal },
-): Promise<DashboardRepositoryOption[]> {
-  const response = await requestDashboardGraphQL<DashboardRepositoriesQueryData>(
-    DASHBOARD_REPOSITORIES_QUERY,
-    undefined,
-    options,
-  )
+export async function fetchDashboardRepositories(options?: {
+  signal?: AbortSignal
+}): Promise<DashboardRepositoryOption[]> {
+  const response =
+    await requestDashboardGraphQL<DashboardRepositoriesQueryData>(
+      DASHBOARD_REPOSITORIES_QUERY,
+      undefined,
+      options,
+    )
 
   if (response.errors?.length) {
     firstGraphQLError('Failed to load repositories.', response.errors)

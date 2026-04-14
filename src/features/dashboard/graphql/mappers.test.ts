@@ -135,10 +135,9 @@ describe('mapDashboardCommitRows', () => {
 
     expect(commitRows).toHaveLength(1)
     expect(commitRows[0]?.checkpoint.checkpoint_id).toBe('cp-1')
-    expect(commitRows[0]?.checkpoints?.map((checkpoint) => checkpoint.checkpoint_id)).toEqual([
-      'cp-1',
-      'cp-2',
-    ])
+    expect(
+      commitRows[0]?.checkpoints?.map((checkpoint) => checkpoint.checkpoint_id),
+    ).toEqual(['cp-1', 'cp-2'])
   })
 
   it('falls back to the singular checkpoint field when checkpoints is empty', () => {
@@ -163,9 +162,9 @@ describe('mapDashboardCommitRows', () => {
     const commitRows = mapDashboardCommitRows(data)
 
     expect(commitRows[0]?.checkpoint.checkpoint_id).toBe('cp-fallback')
-    expect(commitRows[0]?.checkpoints?.map((checkpoint) => checkpoint.checkpoint_id)).toEqual([
-      'cp-fallback',
-    ])
+    expect(
+      commitRows[0]?.checkpoints?.map((checkpoint) => checkpoint.checkpoint_id),
+    ).toEqual(['cp-fallback'])
   })
 })
 

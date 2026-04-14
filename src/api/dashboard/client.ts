@@ -50,9 +50,12 @@ export async function requestDashboardGraphQL<
   try {
     payload = (await response.json()) as GraphQLResponseEnvelope<TData>
   } catch {
-    throw new GraphQLRequestError('Invalid dashboard GraphQL response payload.', {
-      status: response.status,
-    })
+    throw new GraphQLRequestError(
+      'Invalid dashboard GraphQL response payload.',
+      {
+        status: response.status,
+      },
+    )
   }
 
   if (!response.ok) {

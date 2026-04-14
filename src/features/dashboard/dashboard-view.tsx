@@ -171,7 +171,8 @@ export function DashboardView({
         )}
         {optionsSource === 'error' && (
           <p className={dottedAlertClassName}>
-            Could not load repo/branch/user/agent filter options from the dashboard API.
+            Could not load repo/branch/user/agent filter options from the
+            dashboard API.
           </p>
         )}
         {!effectiveRepoIdentity && optionsSource !== 'loading' && (

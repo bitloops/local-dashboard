@@ -21,7 +21,9 @@ import type {
   DashboardUsersQueryData,
 } from './types'
 
-function mapFileDiff(node: DashboardCommitFileDiffNode): DashboardCommitFileDiffDto {
+function mapFileDiff(
+  node: DashboardCommitFileDiffNode,
+): DashboardCommitFileDiffDto {
   return {
     filepath: node.filepath,
     additionsCount: node.additionsCount,

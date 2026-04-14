@@ -1,8 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import type {
-  DashboardCheckpointDto,
-  DashboardCommitRowDto,
-} from './api-types'
+import type { DashboardCheckpointDto, DashboardCommitRowDto } from './api-types'
 import {
   endOfDayIso,
   endOfDayUnixSeconds,

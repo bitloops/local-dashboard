@@ -79,7 +79,9 @@ function repoIdentityFromId(
     return null
   }
 
-  return repoOptions.find((option) => option.repoId === repoId)?.identity ?? null
+  return (
+    repoOptions.find((option) => option.repoId === repoId)?.identity ?? null
+  )
 }
 
 export function createDashboardSlice(set: DashboardSet): DashboardSlice {

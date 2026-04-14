@@ -47,30 +47,30 @@ This runs a production build and moves `dist` to `~/.bitloops/dashboard/bundle`.
 
 ## Scripts
 
-| Command                 | Description                                                   |
-| ----------------------- | ------------------------------------------------------------- |
-| `pnpm dev`              | Start the Vite dev server                                     |
-| `pnpm build`            | TypeScript project build + production bundle to `dist/`       |
-| `pnpm preview`          | Preview the production build                                  |
-| `pnpm bundle`           | Build and install output under `~/.bitloops/dashboard/bundle` |
-| `pnpm lint`             | Run ESLint                                                    |
-| `pnpm format`           | Format with Prettier                                          |
-| `pnpm format:check`     | Check formatting without writing files                        |
-| `pnpm test`             | Run all Vitest unit and integration tests once                |
-| `pnpm test:coverage`    | Run Vitest with coverage and enforce configured thresholds    |
-| `pnpm test:watch`       | Run Vitest in watch mode                                      |
-| `pnpm test:e2e`         | Playwright end-to-end tests (headless)                        |
-| `pnpm test:e2e:headed`  | E2E tests in a visible browser                                |
-| `pnpm test:e2e:ui`      | E2E tests with Playwright's interactive UI                    |
+| Command                | Description                                                   |
+| ---------------------- | ------------------------------------------------------------- |
+| `pnpm dev`             | Start the Vite dev server                                     |
+| `pnpm build`           | TypeScript project build + production bundle to `dist/`       |
+| `pnpm preview`         | Preview the production build                                  |
+| `pnpm bundle`          | Build and install output under `~/.bitloops/dashboard/bundle` |
+| `pnpm lint`            | Run ESLint                                                    |
+| `pnpm format`          | Format with Prettier                                          |
+| `pnpm format:check`    | Check formatting without writing files                        |
+| `pnpm test`            | Run all Vitest unit and integration tests once                |
+| `pnpm test:coverage`   | Run Vitest with coverage and enforce configured thresholds    |
+| `pnpm test:watch`      | Run Vitest in watch mode                                      |
+| `pnpm test:e2e`        | Playwright end-to-end tests (headless)                        |
+| `pnpm test:e2e:headed` | E2E tests in a visible browser                                |
+| `pnpm test:e2e:ui`     | E2E tests with Playwright's interactive UI                    |
 
 ## Environment
 
 You do not need a `.env` file for typical local use if your API is already at the default proxy target.
 
-| Variable                    | Purpose                                                                                                                         |
-| --------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| Variable                    | Purpose                                                                                                                                                           |
+| --------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `VITE_API_PROXY_TARGET`     | Origin for the dev-server `/devql/dashboard` and `/devql/global` proxies (default `http://bitloops.local:5667`). Use `https://...` if your API is TLS-terminated. |
-| `VITE_QUERY_HISTORY_TTL_MS` | Max age (ms) for persisted query-explorer run history in the browser (default 30 days).                                         |
+| `VITE_QUERY_HISTORY_TTL_MS` | Max age (ms) for persisted query-explorer run history in the browser (default 30 days).                                                                           |
 
 See [.env.example](.env.example) for commented templates.
 

@@ -13,7 +13,13 @@ import {
   fetchDashboardUsers,
 } from './graphql/fetch-dashboard-data'
 import type { DashboardCommitsRequest } from '@/store/slices/dashboard'
-import { endOfDayUnixSeconds, mapAgentOptions, mapCommitRows, mapUserOptions, startOfDayUnixSeconds } from './utils'
+import {
+  endOfDayUnixSeconds,
+  mapAgentOptions,
+  mapCommitRows,
+  mapUserOptions,
+  startOfDayUnixSeconds,
+} from './utils'
 
 export function useDashboardData() {
   const {
@@ -113,7 +119,9 @@ export function useDashboardData() {
   const from = fromDate != null ? String(startOfDayUnixSeconds(fromDate)) : null
   const to = toDate != null ? String(endOfDayUnixSeconds(toDate)) : null
   const branchOptionsRequestKey =
-    effectiveRepoId === null ? null : `${effectiveRepoId}:${from ?? ''}:${to ?? ''}`
+    effectiveRepoId === null
+      ? null
+      : `${effectiveRepoId}:${from ?? ''}:${to ?? ''}`
   const visibleBranchOptionsSource: LoadState =
     branchOptionsRequestKey === null ||
     branchOptionsRequestState.key !== branchOptionsRequestKey
@@ -422,7 +430,8 @@ export function useDashboardData() {
 
   const visibleCommitsPageInfo = effectiveBranch ? commitsPageInfo : null
   const commitsHasNextPage = visibleCommitsPageInfo?.hasNextPage === true
-  const commitsHasPreviousPage = visibleCommitsPageInfo?.hasPreviousPage === true
+  const commitsHasPreviousPage =
+    visibleCommitsPageInfo?.hasPreviousPage === true
 
   const onCommitsNext = useCallback(() => {
     const offset = visibleCommitsPageInfo?.offset ?? 0

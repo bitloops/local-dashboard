@@ -32,7 +32,9 @@ export async function fetchGitBlob({
 }: FetchGitBlobParams): Promise<ArrayBuffer> {
   try {
     const repositories = await fetchDashboardRepositoriesCached({ signal })
-    const repoId = repositories.find((repository) => repository.identity === repo)?.repoId
+    const repoId = repositories.find(
+      (repository) => repository.identity === repo,
+    )?.repoId
 
     if (!repoId) {
       throw new GitBlobFetchError(
@@ -48,10 +50,7 @@ export async function fetchGitBlob({
       throw error
     }
     if (error instanceof GraphQLRequestError) {
-      throw new GitBlobFetchError(
-        error.message,
-        error.status ?? 500,
-      )
+      throw new GitBlobFetchError(error.message, error.status ?? 500)
     }
     throw error
   }

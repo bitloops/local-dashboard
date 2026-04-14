@@ -147,8 +147,8 @@ describe('useDashboardData', () => {
       ],
       hasNextPage: offset === 0,
     }))
-    mockFetchDashboardCheckpointDetail.mockImplementation(async ({ checkpointId }) =>
-      makeCheckpointDetail(checkpointId),
+    mockFetchDashboardCheckpointDetail.mockImplementation(
+      async ({ checkpointId }) => makeCheckpointDetail(checkpointId),
     )
   })
 
@@ -385,7 +385,9 @@ describe('useDashboardData', () => {
     mockFetchDashboardCheckpointDetail.mockClear()
 
     act(() => {
-      result.current.onCheckpointSelect(result.current.rows[0]!.checkpointList[1]!)
+      result.current.onCheckpointSelect(
+        result.current.rows[0]!.checkpointList[1]!,
+      )
     })
 
     expect(result.current.checkpointDetailSource).toBe('loading')
