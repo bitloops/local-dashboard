@@ -64,15 +64,16 @@ describe('requestDashboardGraphQL', () => {
         503,
       ),
     )
-
-    await expect(
-      requestDashboardGraphQL('query Dashboard { repositories { repoId } }'),
-    ).rejects.toMatchObject<Partial<GraphQLRequestError>>({
+    const expectedError: Partial<GraphQLRequestError> = {
       name: 'GraphQLRequestError',
       message: 'Dashboard unavailable',
       status: 503,
       graphQLErrors: [{ message: 'Dashboard unavailable' }],
-    })
+    }
+
+    await expect(
+      requestDashboardGraphQL('query Dashboard { repositories { repoId } }'),
+    ).rejects.toMatchObject(expectedError)
   })
 
   it('falls back to the HTTP status when a dashboard error response has no GraphQL errors', async () => {
@@ -84,13 +85,14 @@ describe('requestDashboardGraphQL', () => {
         500,
       ),
     )
+    const expectedError: Partial<GraphQLRequestError> = {
+      message: 'Request failed (500).',
+      status: 500,
+    }
 
     await expect(
       requestDashboardGraphQL('query Dashboard { repositories { repoId } }'),
-    ).rejects.toMatchObject<Partial<GraphQLRequestError>>({
-      message: 'Request failed (500).',
-      status: 500,
-    })
+    ).rejects.toMatchObject(expectedError)
   })
 
   it('throws a clear error when the dashboard response body is not JSON', async () => {
@@ -102,13 +104,14 @@ describe('requestDashboardGraphQL', () => {
         },
       }),
     )
+    const expectedError: Partial<GraphQLRequestError> = {
+      message: 'Invalid dashboard GraphQL response payload.',
+      status: 502,
+    }
 
     await expect(
       requestDashboardGraphQL('query Dashboard { repositories { repoId } }'),
-    ).rejects.toMatchObject<Partial<GraphQLRequestError>>({
-      message: 'Invalid dashboard GraphQL response payload.',
-      status: 502,
-    })
+    ).rejects.toMatchObject(expectedError)
   })
 })
 
@@ -151,13 +154,14 @@ describe('fetchDashboardBlob', () => {
         404,
       ),
     )
-
-    await expect(fetchDashboardBlob('repo-1', 'blob-1')).rejects.toMatchObject<
-      Partial<GraphQLRequestError>
-    >({
+    const expectedError: Partial<GraphQLRequestError> = {
       message: 'Blob not found',
       status: 404,
-    })
+    }
+
+    await expect(fetchDashboardBlob('repo-1', 'blob-1')).rejects.toMatchObject(
+      expectedError,
+    )
   })
 
   it('falls back to the HTTP status when blob errors are not JSON', async () => {
@@ -166,13 +170,14 @@ describe('fetchDashboardBlob', () => {
         status: 502,
       }),
     )
-
-    await expect(fetchDashboardBlob('repo-1', 'blob-1')).rejects.toMatchObject<
-      Partial<GraphQLRequestError>
-    >({
+    const expectedError: Partial<GraphQLRequestError> = {
       message: 'Request failed (502).',
       status: 502,
-    })
+    }
+
+    await expect(fetchDashboardBlob('repo-1', 'blob-1')).rejects.toMatchObject(
+      expectedError,
+    )
   })
 })
 
@@ -267,13 +272,14 @@ describe('fetchDashboardRepositoriesCached', () => {
           },
         }),
       )
-
-    await expect(fetchDashboardRepositoriesCached()).rejects.toMatchObject<
-      Partial<GraphQLRequestError>
-    >({
+    const expectedError: Partial<GraphQLRequestError> = {
       message: 'Repositories failed to load',
       graphQLErrors: [{ message: 'Repositories failed to load' }],
-    })
+    }
+
+    await expect(fetchDashboardRepositoriesCached()).rejects.toMatchObject(
+      expectedError,
+    )
 
     await expect(fetchDashboardRepositoriesCached()).resolves.toEqual([
       {

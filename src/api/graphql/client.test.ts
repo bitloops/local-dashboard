@@ -66,18 +66,19 @@ describe('requestGraphQL', () => {
         503,
       ),
     )
+    const expectedError: Partial<GraphQLRequestError> = {
+      name: 'GraphQLRequestError',
+      message: 'Schema unavailable',
+      status: 503,
+      graphQLErrors: [{ message: 'Schema unavailable' }],
+    }
 
     await expect(
       requestGraphQL<{ viewer: { id: string } }, { repoId: string }>(
         'query Viewer($repoId: ID!) { viewer(repoId: $repoId) { id } }',
         { repoId: 'repo-1' },
       ),
-    ).rejects.toMatchObject<Partial<GraphQLRequestError>>({
-      name: 'GraphQLRequestError',
-      message: 'Schema unavailable',
-      status: 503,
-      graphQLErrors: [{ message: 'Schema unavailable' }],
-    })
+    ).rejects.toMatchObject(expectedError)
   })
 
   it('falls back to the HTTP status when a failed response has no GraphQL errors', async () => {
@@ -89,13 +90,14 @@ describe('requestGraphQL', () => {
         502,
       ),
     )
+    const expectedError: Partial<GraphQLRequestError> = {
+      message: 'Request failed (502).',
+      status: 502,
+    }
 
     await expect(
       requestGraphQL('query Viewer { viewer { id } }'),
-    ).rejects.toMatchObject<Partial<GraphQLRequestError>>({
-      message: 'Request failed (502).',
-      status: 502,
-    })
+    ).rejects.toMatchObject(expectedError)
   })
 
   it('throws a clear error when the response body is not valid JSON', async () => {
@@ -107,13 +109,14 @@ describe('requestGraphQL', () => {
         },
       }),
     )
+    const expectedError: Partial<GraphQLRequestError> = {
+      message: 'Invalid GraphQL response payload.',
+      status: 500,
+    }
 
     await expect(
       requestGraphQL('query Viewer { viewer { id } }'),
-    ).rejects.toMatchObject<Partial<GraphQLRequestError>>({
-      message: 'Invalid GraphQL response payload.',
-      status: 500,
-    })
+    ).rejects.toMatchObject(expectedError)
   })
 })
 
@@ -145,12 +148,11 @@ describe('fetchGraphQLSdl', () => {
         status: 503,
       }),
     )
-
-    await expect(fetchGraphQLSdl()).rejects.toMatchObject<
-      Partial<GraphQLRequestError>
-    >({
+    const expectedError: Partial<GraphQLRequestError> = {
       message: 'Failed to load schema SDL (503).',
       status: 503,
-    })
+    }
+
+    await expect(fetchGraphQLSdl()).rejects.toMatchObject(expectedError)
   })
 })
