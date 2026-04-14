@@ -187,7 +187,8 @@ describe('fetchDashboardRepositoriesCached', () => {
   })
 
   it('caches repository lookups until the cache is cleared', async () => {
-    const fetchSpy = vi.spyOn(globalThis, 'fetch')
+    const fetchSpy = vi
+      .spyOn(globalThis, 'fetch')
       .mockResolvedValueOnce(
         jsonResponse({
           data: {
@@ -243,7 +244,8 @@ describe('fetchDashboardRepositoriesCached', () => {
   })
 
   it('clears failed cache entries so the next call retries', async () => {
-    const fetchSpy = vi.spyOn(globalThis, 'fetch')
+    const fetchSpy = vi
+      .spyOn(globalThis, 'fetch')
       .mockResolvedValueOnce(
         jsonResponse({
           errors: [{ message: 'Repositories failed to load' }],

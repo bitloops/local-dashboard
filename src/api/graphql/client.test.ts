@@ -90,9 +90,9 @@ describe('requestGraphQL', () => {
       ),
     )
 
-    await expect(requestGraphQL('query Viewer { viewer { id } }')).rejects.toMatchObject<
-      Partial<GraphQLRequestError>
-    >({
+    await expect(
+      requestGraphQL('query Viewer { viewer { id } }'),
+    ).rejects.toMatchObject<Partial<GraphQLRequestError>>({
       message: 'Request failed (502).',
       status: 502,
     })
@@ -108,9 +108,9 @@ describe('requestGraphQL', () => {
       }),
     )
 
-    await expect(requestGraphQL('query Viewer { viewer { id } }')).rejects.toMatchObject<
-      Partial<GraphQLRequestError>
-    >({
+    await expect(
+      requestGraphQL('query Viewer { viewer { id } }'),
+    ).rejects.toMatchObject<Partial<GraphQLRequestError>>({
       message: 'Invalid GraphQL response payload.',
       status: 500,
     })
