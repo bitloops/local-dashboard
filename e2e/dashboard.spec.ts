@@ -771,7 +771,7 @@ test.describe('Filters', () => {
     await expect(page.getByText('To', { exact: true })).toBeVisible()
   })
 
-  test('selecting a repo passes that repo to downstream GraphQL calls', async ({
+  test('selecting a repo passes that repoId to downstream GraphQL calls', async ({
     page,
   }) => {
     const observedRepos: string[] = []
@@ -848,9 +848,7 @@ test.describe('Filters', () => {
     await repoTrigger.click()
     await page.getByRole('option', { name: 'bitloops/another-repo' }).click()
 
-    await expect
-      .poll(() => observedRepos.includes('bitloops/another-repo'))
-      .toBe(true)
+    await expect.poll(() => observedRepos.includes('repo-2')).toBe(true)
   })
 })
 
