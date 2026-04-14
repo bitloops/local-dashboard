@@ -227,10 +227,22 @@ describe('query-explorer slice', () => {
   })
 
   describe('dashboard repo sync', () => {
-    it('updates query explorer variables when selectedRepo changes and variables are still default-shaped', () => {
+    const repoOptions = [
+      {
+        repoId: 'repo-1',
+        identity: 'acme/demo',
+        name: 'demo',
+        provider: 'github',
+        organization: 'acme',
+        defaultBranch: 'main',
+      },
+    ]
+
+    it('updates query explorer variables when selectedRepoId changes and variables are still default-shaped', () => {
       const rootStore = createRootStore()
 
-      rootStore.getState().setSelectedRepo('acme/demo')
+      rootStore.getState().setRepoOptions(repoOptions)
+      rootStore.getState().setSelectedRepoId('repo-1')
 
       expect(rootStore.getState().variables).toBe(
         '{\n  "repo": "acme/demo",\n  "branch": null,\n  "commitsFirst": 10\n}',
@@ -240,7 +252,8 @@ describe('query-explorer slice', () => {
     it('updates query explorer variables when selectedBranch changes and variables are still default-shaped', () => {
       const rootStore = createRootStore()
 
-      rootStore.getState().setSelectedRepo('acme/demo')
+      rootStore.getState().setRepoOptions(repoOptions)
+      rootStore.getState().setSelectedRepoId('repo-1')
       rootStore.getState().setSelectedBranch('main')
 
       expect(rootStore.getState().variables).toBe(
@@ -248,11 +261,12 @@ describe('query-explorer slice', () => {
       )
     })
 
-    it('resyncs selectedRepo when variables are still default-shaped', () => {
+    it('resyncs selectedRepoId using the repo identity when variables are still default-shaped', () => {
       const rootStore = createRootStore()
 
       rootStore.getState().setVariables('{"repo":"old/repo","branch":"main"}')
-      rootStore.getState().setSelectedRepo('acme/demo')
+      rootStore.getState().setRepoOptions(repoOptions)
+      rootStore.getState().setSelectedRepoId('repo-1')
 
       expect(rootStore.getState().variables).toBe(
         '{\n  "repo": "acme/demo",\n  "branch": null,\n  "commitsFirst": 10\n}',

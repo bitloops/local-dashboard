@@ -1,4 +1,7 @@
-import type { ApiCheckpointDetailResponse } from '@/api/rest'
+import type {
+  DashboardCheckpointDetailResponse,
+  DashboardRepositoryOption,
+} from '@/features/dashboard/api-types'
 import type {
   CheckpointDetailLoadState,
   CommitData,
@@ -9,30 +12,21 @@ import { syncQueryExplorerVariablesWithDashboardSelection } from './query-explor
 export type DashboardCommitsPageInfo = {
   hasNextPage: boolean
   hasPreviousPage: boolean
-  startCursor: string | null
-  endCursor: string | null
+  offset: number
 }
 
-export type DashboardCommitsRequest =
-  | {
-      direction?: 'forward'
-      after: string | null
-      before?: never
-    }
-  | {
-      direction: 'backward'
-      before: string | null
-      after?: never
-    }
+export type DashboardCommitsRequest = {
+  offset: number
+}
 
 export type DashboardSliceState = {
-  selectedRepo: string | null
+  selectedRepoId: string | null
   selectedBranch: string | null
   selectedUser: string | null
   selectedAgent: string | null
   fromDate: Date | undefined
   toDate: Date | undefined
-  repoOptions: string[]
+  repoOptions: DashboardRepositoryOption[]
   branchOptions: string[]
   userOptions: UserOption[]
   agentOptions: string[]
@@ -40,18 +34,18 @@ export type DashboardSliceState = {
   commitsPageInfo: DashboardCommitsPageInfo | null
   currentCommitsRequest: DashboardCommitsRequest
   selectedCheckpointId: string | null
-  checkpointDetail: ApiCheckpointDetailResponse | null
+  checkpointDetail: DashboardCheckpointDetailResponse | null
   checkpointDetailSource: CheckpointDetailLoadState
 }
 
 export type DashboardSliceActions = {
-  setSelectedRepo: (value: string | null) => void
+  setSelectedRepoId: (value: string | null) => void
   setSelectedBranch: (value: string | null) => void
   setSelectedUser: (value: string | null) => void
   setSelectedAgent: (value: string | null) => void
   setFromDate: (value: Date | undefined) => void
   setToDate: (value: Date | undefined) => void
-  setRepoOptions: (value: string[]) => void
+  setRepoOptions: (value: DashboardRepositoryOption[]) => void
   setBranchOptions: (value: string[]) => void
   setUserOptions: (value: UserOption[]) => void
   setAgentOptions: (value: string[]) => void
@@ -59,7 +53,7 @@ export type DashboardSliceActions = {
   setCommitsPageInfo: (value: DashboardCommitsPageInfo | null) => void
   setCurrentCommitsRequest: (value: DashboardCommitsRequest) => void
   setSelectedCheckpointId: (value: string | null) => void
-  setCheckpointDetail: (value: ApiCheckpointDetailResponse | null) => void
+  setCheckpointDetail: (value: DashboardCheckpointDetailResponse | null) => void
   setCheckpointDetailSource: (value: CheckpointDetailLoadState) => void
   resetDashboardFilters: () => void
   clearDashboardCache: () => void
@@ -75,11 +69,22 @@ type DashboardSet = (
       ) => Partial<DashboardSlice>),
 ) => void
 
-const INITIAL_COMMITS_REQUEST: DashboardCommitsRequest = { after: null }
+const INITIAL_COMMITS_REQUEST: DashboardCommitsRequest = { offset: 0 }
+
+function repoIdentityFromId(
+  repoOptions: DashboardRepositoryOption[],
+  repoId: string | null,
+): string | null {
+  if (repoId == null) {
+    return null
+  }
+
+  return repoOptions.find((option) => option.repoId === repoId)?.identity ?? null
+}
 
 export function createDashboardSlice(set: DashboardSet): DashboardSlice {
   return {
-    selectedRepo: null,
+    selectedRepoId: null,
     selectedBranch: null,
     selectedUser: null,
     selectedAgent: null,
@@ -95,19 +100,19 @@ export function createDashboardSlice(set: DashboardSet): DashboardSlice {
     selectedCheckpointId: null,
     checkpointDetail: null,
     checkpointDetailSource: 'idle',
-    setSelectedRepo: (value) =>
+    setSelectedRepoId: (value) =>
       set((state) => {
         const result =
           typeof state.variables === 'string'
             ? syncQueryExplorerVariablesWithDashboardSelection(
                 state.variables,
-                value,
+                repoIdentityFromId(state.repoOptions, value),
                 state.selectedBranch,
               )
             : { updated: false as const }
 
         return {
-          selectedRepo: value,
+          selectedRepoId: value,
           ...(result.updated ? { variables: result.variables } : {}),
         }
       }),
@@ -117,7 +122,7 @@ export function createDashboardSlice(set: DashboardSet): DashboardSlice {
           typeof state.variables === 'string'
             ? syncQueryExplorerVariablesWithDashboardSelection(
                 state.variables,
-                state.selectedRepo,
+                repoIdentityFromId(state.repoOptions, state.selectedRepoId),
                 value,
               )
             : { updated: false as const }
@@ -144,7 +149,7 @@ export function createDashboardSlice(set: DashboardSet): DashboardSlice {
       set({ checkpointDetailSource: value }),
     resetDashboardFilters: () =>
       set({
-        selectedRepo: null,
+        selectedRepoId: null,
         selectedBranch: null,
         selectedUser: null,
         selectedAgent: null,

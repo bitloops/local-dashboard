@@ -1,8 +1,8 @@
 import { lazy, Suspense, useState } from 'react'
 import {
-  type ApiCheckpointDetailResponse,
-  type ApiCheckpointSessionDetailDto,
-} from '@/api/rest'
+  type DashboardCheckpointDetailResponse,
+  type DashboardCheckpointSessionDetailDto,
+} from '../api-types'
 import { CopyButton } from '@/components/copy-button'
 import { Badge } from '@/components/ui/badge'
 import { cn } from '@/lib/utils'
@@ -35,7 +35,7 @@ const TokenUsageChart = lazy(() =>
 
 export type CheckpointDetailContentProps = {
   selectedCheckpoint: Checkpoint | null
-  checkpointDetail: ApiCheckpointDetailResponse | null
+  checkpointDetail: DashboardCheckpointDetailResponse | null
   checkpointDetailSource: CheckpointDetailLoadState
   userName: string
   /** When provided, a close button is shown in the header (e.g. when used inside Sidebar). */
@@ -177,8 +177,8 @@ function CheckpointDetailContentInner({
                   )}
                   {checkpointDetailSource === 'error' && (
                     <p className='text-sm text-muted-foreground'>
-                      Could not load chat data from `/api/checkpoints/
-                      {selectedCheckpoint.id}`.
+                      Could not load chat data from `/devql/dashboard` for
+                      checkpoint {` ${selectedCheckpoint.id}`}.
                     </p>
                   )}
                   {checkpointDetailSource !== 'loading' &&
@@ -203,7 +203,7 @@ function CheckpointDetailContentInner({
                           >
                             {detailSessions.map(
                               (
-                                s: ApiCheckpointSessionDetailDto,
+                                s: DashboardCheckpointSessionDetailDto,
                                 idx: number,
                               ) => (
                                 <TabsTrigger
@@ -219,7 +219,7 @@ function CheckpointDetailContentInner({
                         </div>
                         {detailSessions.map(
                           (
-                            session: ApiCheckpointSessionDetailDto,
+                            session: DashboardCheckpointSessionDetailDto,
                             idx: number,
                           ) => {
                             const transcriptEntries = parseTranscriptEntries(

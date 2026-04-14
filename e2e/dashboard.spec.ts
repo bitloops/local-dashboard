@@ -101,20 +101,22 @@ function buildDashboardCommitsResponse() {
     {
       sha: string
       commitMessage: string
-      committedAt: string
-      branch: string
+      timestamp: number
       authorName: string
       authorEmail: string
-      agents: Set<string>
       checkpoints: Array<{
-        id: string
+        checkpointId: string
         createdAt: string
         branch: string
         agent: string
         strategy: string
         sessionId: string
         toolUseId: string
-        filesTouched: string[]
+        filesTouched: Array<{
+          filepath: string
+          additionsCount: number
+          deletionsCount: number
+        }>
         sessionCount: number
         checkpointsCount: number
         isTask: boolean
@@ -125,16 +127,15 @@ function buildDashboardCommitsResponse() {
   for (const row of STUB_COMMITS) {
     const existing = commitMap.get(row.commit.sha)
     if (existing) {
-      existing.agents.add(row.checkpoint.agent)
       existing.checkpoints.push({
-        id: row.checkpoint.checkpoint_id,
+        checkpointId: row.checkpoint.checkpoint_id,
         createdAt: row.checkpoint.created_at,
         branch: row.checkpoint.branch,
         agent: row.checkpoint.agent,
         strategy: row.checkpoint.strategy,
         sessionId: row.checkpoint.session_id,
         toolUseId: row.checkpoint.tool_use_id,
-        filesTouched: row.checkpoint.files_touched.map((file) => file.filepath),
+        filesTouched: row.checkpoint.files_touched,
         sessionCount: row.checkpoint.session_count,
         checkpointsCount: row.checkpoint.checkpoints_count,
         isTask: row.checkpoint.is_task,
@@ -145,27 +146,23 @@ function buildDashboardCommitsResponse() {
     commitMap.set(row.commit.sha, {
       sha: row.commit.sha,
       commitMessage: row.commit.message,
-      committedAt: new Date(row.commit.timestamp).toISOString(),
-      branch: row.checkpoint.branch,
+      timestamp: row.commit.timestamp,
       authorName:
         row.checkpoint.agent === 'gemini-cli' ? 'Alice Dev' : 'Wayne Omoga',
       authorEmail:
         row.checkpoint.agent === 'gemini-cli'
           ? 'alice@bitloops.com'
           : 'wayne@bitloops.com',
-      agents: new Set([row.checkpoint.agent]),
       checkpoints: [
         {
-          id: row.checkpoint.checkpoint_id,
+          checkpointId: row.checkpoint.checkpoint_id,
           createdAt: row.checkpoint.created_at,
           branch: row.checkpoint.branch,
           agent: row.checkpoint.agent,
           strategy: row.checkpoint.strategy,
           sessionId: row.checkpoint.session_id,
           toolUseId: row.checkpoint.tool_use_id,
-          filesTouched: row.checkpoint.files_touched.map(
-            (file) => file.filepath,
-          ),
+          filesTouched: row.checkpoint.files_touched,
           sessionCount: row.checkpoint.session_count,
           checkpointsCount: row.checkpoint.checkpoints_count,
           isTask: row.checkpoint.is_task,
@@ -176,45 +173,95 @@ function buildDashboardCommitsResponse() {
 
   return {
     data: {
-      repo: {
-        commits: {
-          edges: Array.from(commitMap.values()).map((commit) => ({
-            node: {
-              sha: commit.sha,
-              parents: [],
-              authorName: commit.authorName,
-              authorEmail: commit.authorEmail,
-              commitMessage: commit.commitMessage,
-              committedAt: commit.committedAt,
-              filesChanged: commit.checkpoints.flatMap((cp) => cp.filesTouched),
-              checkpoints: {
-                edges: commit.checkpoints.map((checkpoint) => ({
-                  node: {
-                    id: checkpoint.id,
-                    branch: checkpoint.branch,
-                    agent: checkpoint.agent,
-                    strategy: checkpoint.strategy,
-                    filesTouched: checkpoint.filesTouched,
-                    checkpointsCount: checkpoint.checkpointsCount,
-                    sessionCount: checkpoint.sessionCount,
-                    sessionId: checkpoint.sessionId,
-                    agents: [checkpoint.agent],
-                    firstPromptPreview: '',
-                    createdAt: checkpoint.createdAt,
-                    isTask: checkpoint.isTask,
-                    toolUseId: checkpoint.toolUseId,
-                    tokenUsage: null,
-                  },
-                })),
-              },
-            },
-          })),
-          pageInfo: {
-            hasNextPage: false,
-            endCursor: null,
+      commits: Array.from(commitMap.values()).map((commit) => {
+        const checkpoints = commit.checkpoints.map((checkpoint) => ({
+          checkpointId: checkpoint.checkpointId,
+          branch: checkpoint.branch,
+          strategy: checkpoint.strategy,
+          filesTouched: checkpoint.filesTouched,
+          checkpointsCount: checkpoint.checkpointsCount,
+          sessionCount: checkpoint.sessionCount,
+          sessionId: checkpoint.sessionId,
+          agents: [checkpoint.agent],
+          firstPromptPreview: '',
+          createdAt: checkpoint.createdAt,
+          isTask: checkpoint.isTask,
+          toolUseId: checkpoint.toolUseId,
+          tokenUsage: null,
+        }))
+
+        return {
+          commit: {
+            sha: commit.sha,
+            parents: [],
+            authorName: commit.authorName,
+            authorEmail: commit.authorEmail,
+            timestamp: commit.timestamp,
+            message: commit.commitMessage,
+            filesTouched: commit.checkpoints.flatMap(
+              (checkpoint) => checkpoint.filesTouched,
+            ),
           },
+          checkpoint: checkpoints[0],
+          checkpoints,
+        }
+      }),
+    },
+  }
+}
+
+function buildDashboardRepositoriesResponse() {
+  return {
+    data: {
+      repositories: STUB_REPOSITORIES.map((identity, index) => {
+        const [, name] = identity.split('/')
+        return {
+          repoId: `repo-${index + 1}`,
+          identity,
+          name,
+          organization: 'bitloops',
+          provider: 'github',
+          defaultBranch: 'main',
+        }
+      }),
+    },
+  }
+}
+
+function buildDashboardBranchesResponse(branches = STUB_BRANCHES) {
+  return {
+    data: {
+      branches: branches.map((branch) => ({
+        branch,
+        checkpointCommits: 1,
+      })),
+    },
+  }
+}
+
+function buildDashboardUsersResponse() {
+  return {
+    data: {
+      users: [
+        {
+          key: 'wayne@bitloops.com',
+          name: 'Wayne Omoga',
+          email: 'wayne@bitloops.com',
         },
-      },
+        {
+          key: 'alice@bitloops.com',
+          name: 'Alice Dev',
+          email: 'alice@bitloops.com',
+        },
+      ],
+    },
+  }
+}
+
+function buildDashboardAgentsResponse() {
+  return {
+    data: {
+      agents: [{ key: 'claude-code' }, { key: 'gemini-cli' }],
     },
   }
 }
@@ -326,77 +373,92 @@ const STUB_CHECKPOINT_DETAIL = {
   ],
 }
 
+function buildDashboardCheckpointDetailResponse() {
+  return {
+    data: {
+      checkpoint: {
+        checkpointId: STUB_CHECKPOINT_DETAIL.checkpoint_id,
+        strategy: STUB_CHECKPOINT_DETAIL.strategy,
+        branch: STUB_CHECKPOINT_DETAIL.branch,
+        checkpointsCount: STUB_CHECKPOINT_DETAIL.checkpoints_count,
+        filesTouched: STUB_CHECKPOINT_DETAIL.files_touched,
+        sessionCount: STUB_CHECKPOINT_DETAIL.session_count,
+        tokenUsage: STUB_CHECKPOINT_DETAIL.token_usage
+          ? {
+              inputTokens: STUB_CHECKPOINT_DETAIL.token_usage.input_tokens,
+              outputTokens: STUB_CHECKPOINT_DETAIL.token_usage.output_tokens,
+              cacheCreationTokens:
+                STUB_CHECKPOINT_DETAIL.token_usage.cache_creation_tokens,
+              cacheReadTokens:
+                STUB_CHECKPOINT_DETAIL.token_usage.cache_read_tokens,
+              apiCallCount: STUB_CHECKPOINT_DETAIL.token_usage.api_call_count,
+            }
+          : null,
+        sessions: STUB_CHECKPOINT_DETAIL.sessions.map((session) => ({
+          sessionIndex: session.session_index,
+          sessionId: session.session_id,
+          agent: session.agent,
+          createdAt: session.created_at,
+          isTask: session.is_task,
+          toolUseId: session.tool_use_id,
+          metadataJson: session.metadata_json,
+          transcriptJsonl: session.transcript_jsonl,
+          promptsText: session.prompts_text,
+          contextText: session.context_text,
+        })),
+      },
+    },
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
-/** Stub /api/repositories with the shared STUB_REPOSITORIES list. */
-async function stubRepositoriesRoute(page: Page) {
-  await page.route('**/api/repositories', async (route: Route) => {
-    await route.fulfill({
-      status: 200,
-      contentType: 'application/json',
-      body: JSON.stringify(
-        STUB_REPOSITORIES.map((identity, index) => {
-          const [, name] = identity.split('/')
-          return {
-            identity,
-            name,
-            organization: 'bitloops',
-            provider: 'github',
-            repoId: `repo-${index + 1}`,
-            defaultBranch: 'main',
-          }
-        }),
-      ),
-    })
-  })
-}
+/** Repository options are served through the dashboard GraphQL endpoint. */
+async function stubRepositoriesRoute(_page: Page) {}
 
-/** Stub all API calls so the app works without a real backend. */
+/** Stub all dashboard and query-explorer calls so the app works without a real backend. */
 async function stubApiRoutes(page: Page) {
-  await stubRepositoriesRoute(page)
-
-  await page.route('**/devql/global', async (route: Route) => {
+  await page.route('**/devql/dashboard', async (route: Route) => {
     const request = route.request()
     const body = request.postDataJSON() as {
       query?: string
-      variables?: {
-        repo?: string
-      }
     }
     const query = body.query ?? ''
+
+    if (query.includes('query DashboardRepositories')) {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify(buildDashboardRepositoriesResponse()),
+      })
+      return
+    }
 
     if (query.includes('query DashboardBranches')) {
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
-        body: JSON.stringify({
-          data: {
-            repo: {
-              branches: STUB_BRANCHES.map((name) => ({
-                name,
-                checkpointCount: 1,
-              })),
-            },
-          },
-        }),
+        body: JSON.stringify(buildDashboardBranchesResponse()),
       })
       return
     }
 
-    if (query.includes('query DashboardRepoOptions')) {
+    if (query.includes('query DashboardUsers')) {
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
-        body: JSON.stringify({
-          data: {
-            repo: {
-              users: ['wayne@bitloops.com', 'alice@bitloops.com'],
-              agents: ['claude-code', 'gemini-cli'],
-            },
-          },
-        }),
+        body: JSON.stringify(buildDashboardUsersResponse()),
+      })
+      return
+    }
+
+    if (query.includes('query DashboardAgents')) {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify(buildDashboardAgentsResponse()),
       })
       return
     }
@@ -410,6 +472,15 @@ async function stubApiRoutes(page: Page) {
       return
     }
 
+    if (query.includes('query DashboardCheckpointDetail')) {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify(buildDashboardCheckpointDetailResponse()),
+      })
+      return
+    }
+
     await route.fulfill({
       status: 200,
       contentType: 'application/json',
@@ -417,18 +488,11 @@ async function stubApiRoutes(page: Page) {
     })
   })
 
-  await page.route('**/api/checkpoint*', (route: Route) => {
-    void route.fulfill({
+  await page.route('**/devql/global', async (route: Route) => {
+    await route.fulfill({
       status: 200,
       contentType: 'application/json',
-      body: JSON.stringify(STUB_CHECKPOINT_DETAIL),
-    })
-  })
-  await page.route('**/api/checkpoints/**', (route: Route) => {
-    void route.fulfill({
-      status: 200,
-      contentType: 'application/json',
-      body: JSON.stringify(STUB_CHECKPOINT_DETAIL),
+      body: JSON.stringify({ data: {} }),
     })
   })
 }
@@ -482,40 +546,42 @@ test.describe('App / dashboard load', () => {
     page,
   }) => {
     await stubRepositoriesRoute(page)
-    await page.route('**/devql/global', async (route: Route) => {
+    await page.route('**/devql/dashboard', async (route: Route) => {
       const body = route.request().postDataJSON() as { query?: string }
       const query = body.query ?? ''
+
+      if (query.includes('query DashboardRepositories')) {
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify(buildDashboardRepositoriesResponse()),
+        })
+        return
+      }
 
       if (query.includes('query DashboardBranches')) {
         await route.fulfill({
           status: 200,
           contentType: 'application/json',
-          body: JSON.stringify({
-            data: {
-              repo: {
-                branches: STUB_BRANCHES.map((name) => ({
-                  name,
-                  checkpointCount: 1,
-                })),
-              },
-            },
-          }),
+          body: JSON.stringify(buildDashboardBranchesResponse()),
         })
         return
       }
 
-      if (query.includes('query DashboardRepoOptions')) {
+      if (query.includes('query DashboardUsers')) {
         await route.fulfill({
           status: 200,
           contentType: 'application/json',
-          body: JSON.stringify({
-            data: {
-              repo: {
-                users: ['wayne@bitloops.com', 'alice@bitloops.com'],
-                agents: ['claude-code', 'gemini-cli'],
-              },
-            },
-          }),
+          body: JSON.stringify(buildDashboardUsersResponse()),
+        })
+        return
+      }
+
+      if (query.includes('query DashboardAgents')) {
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify(buildDashboardAgentsResponse()),
         })
         return
       }
@@ -532,7 +598,7 @@ test.describe('App / dashboard load', () => {
     await page.goto('/')
 
     await expect(
-      page.getByText(/Could not load dashboard data from the API/),
+      page.getByText(/Could not load dashboard data from the dashboard API/),
     ).toBeVisible({ timeout: 8000 })
   })
 
@@ -540,37 +606,42 @@ test.describe('App / dashboard load', () => {
     page,
   }) => {
     await stubRepositoriesRoute(page)
-    await page.route('**/devql/global', async (route: Route) => {
+    await page.route('**/devql/dashboard', async (route: Route) => {
       const body = route.request().postDataJSON() as { query?: string }
       const query = body.query ?? ''
+
+      if (query.includes('query DashboardRepositories')) {
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify(buildDashboardRepositoriesResponse()),
+        })
+        return
+      }
 
       if (query.includes('query DashboardBranches')) {
         await route.fulfill({
           status: 200,
           contentType: 'application/json',
-          body: JSON.stringify({
-            data: {
-              repo: {
-                branches: [],
-              },
-            },
-          }),
+          body: JSON.stringify(buildDashboardBranchesResponse([])),
         })
         return
       }
 
-      if (query.includes('query DashboardRepoOptions')) {
+      if (query.includes('query DashboardUsers')) {
         await route.fulfill({
           status: 200,
           contentType: 'application/json',
-          body: JSON.stringify({
-            data: {
-              repo: {
-                users: ['wayne@bitloops.com', 'alice@bitloops.com'],
-                agents: ['claude-code', 'gemini-cli'],
-              },
-            },
-          }),
+          body: JSON.stringify(buildDashboardUsersResponse()),
+        })
+        return
+      }
+
+      if (query.includes('query DashboardAgents')) {
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify(buildDashboardAgentsResponse()),
         })
         return
       }
@@ -704,47 +775,49 @@ test.describe('Filters', () => {
     const observedRepos: string[] = []
 
     await stubRepositoriesRoute(page)
-    await page.route('**/devql/global', async (route: Route) => {
+    await page.route('**/devql/dashboard', async (route: Route) => {
       const body = route.request().postDataJSON() as {
         query?: string
-        variables?: { repo?: string }
+        variables?: { repoId?: string }
       }
       const query = body.query ?? ''
-      const repo = body.variables?.repo
+      const repo = body.variables?.repoId
       if (repo) {
         observedRepos.push(repo)
+      }
+
+      if (query.includes('query DashboardRepositories')) {
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify(buildDashboardRepositoriesResponse()),
+        })
+        return
       }
 
       if (query.includes('query DashboardBranches')) {
         await route.fulfill({
           status: 200,
           contentType: 'application/json',
-          body: JSON.stringify({
-            data: {
-              repo: {
-                branches: STUB_BRANCHES.map((name) => ({
-                  name,
-                  checkpointCount: 1,
-                })),
-              },
-            },
-          }),
+          body: JSON.stringify(buildDashboardBranchesResponse()),
         })
         return
       }
 
-      if (query.includes('query DashboardRepoOptions')) {
+      if (query.includes('query DashboardUsers')) {
         await route.fulfill({
           status: 200,
           contentType: 'application/json',
-          body: JSON.stringify({
-            data: {
-              repo: {
-                users: ['wayne@bitloops.com', 'alice@bitloops.com'],
-                agents: ['claude-code', 'gemini-cli'],
-              },
-            },
-          }),
+          body: JSON.stringify(buildDashboardUsersResponse()),
+        })
+        return
+      }
+
+      if (query.includes('query DashboardAgents')) {
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify(buildDashboardAgentsResponse()),
         })
         return
       }
@@ -764,20 +837,6 @@ test.describe('Filters', () => {
         body: JSON.stringify({ data: {} }),
       })
     })
-    await page.route('**/api/checkpoint*', (route: Route) =>
-      route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify(STUB_CHECKPOINT_DETAIL),
-      }),
-    )
-    await page.route('**/api/checkpoints/**', (route: Route) =>
-      route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify(STUB_CHECKPOINT_DETAIL),
-      }),
-    )
 
     await page.goto('/')
 
@@ -890,40 +949,51 @@ test.describe('Checkpoint sheet', () => {
     page,
   }) => {
     await stubRepositoriesRoute(page)
-    await page.route('**/devql/global', async (route) => {
+    await page.route('**/devql/dashboard', async (route) => {
       const body = route.request().postDataJSON() as { query?: string }
       const query = body.query ?? ''
+
+      if (query.includes('query DashboardRepositories')) {
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify(buildDashboardRepositoriesResponse()),
+        })
+        return
+      }
 
       if (query.includes('query DashboardBranches')) {
         await route.fulfill({
           status: 200,
           contentType: 'application/json',
-          body: JSON.stringify({
-            data: {
-              repo: {
-                branches: STUB_BRANCHES.map((name) => ({
-                  name,
-                  checkpointCount: 1,
-                })),
-              },
-            },
-          }),
+          body: JSON.stringify(buildDashboardBranchesResponse()),
         })
         return
       }
 
-      if (query.includes('query DashboardRepoOptions')) {
+      if (query.includes('query DashboardUsers')) {
         await route.fulfill({
           status: 200,
           contentType: 'application/json',
-          body: JSON.stringify({
-            data: {
-              repo: {
-                users: ['wayne@bitloops.com', 'alice@bitloops.com'],
-                agents: ['claude-code', 'gemini-cli'],
-              },
-            },
-          }),
+          body: JSON.stringify(buildDashboardUsersResponse()),
+        })
+        return
+      }
+
+      if (query.includes('query DashboardAgents')) {
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify(buildDashboardAgentsResponse()),
+        })
+        return
+      }
+
+      if (query.includes('query DashboardCheckpointDetail')) {
+        await route.fulfill({
+          status: 500,
+          contentType: 'application/json',
+          body: JSON.stringify({ errors: [{ message: 'error' }] }),
         })
         return
       }
@@ -932,21 +1002,6 @@ test.describe('Checkpoint sheet', () => {
         status: 200,
         contentType: 'application/json',
         body: JSON.stringify(buildDashboardCommitsResponse()),
-      })
-    })
-    // Checkpoint detail endpoint fails
-    await page.route('**/api/checkpoint*', (route) => {
-      void route.fulfill({
-        status: 500,
-        contentType: 'application/json',
-        body: JSON.stringify({ error: 'error' }),
-      })
-    })
-    await page.route('**/api/checkpoints/**', (route) => {
-      void route.fulfill({
-        status: 500,
-        contentType: 'application/json',
-        body: JSON.stringify({ error: 'error' }),
       })
     })
 

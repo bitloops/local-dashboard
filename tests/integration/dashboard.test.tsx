@@ -4,8 +4,11 @@ import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { SidebarProvider } from '@/components/ui/sidebar'
 import { DashboardView } from '@/features/dashboard/dashboard-view'
+import type {
+  DashboardCheckpointDetailResponse,
+  DashboardRepositoryOption,
+} from '@/features/dashboard/api-types'
 import { type Checkpoint, type CommitData } from '@/features/dashboard/types'
-import type { ApiCheckpointDetailResponse } from '@/api/rest'
 
 vi.mock('@/features/dashboard/components/session-activity-chart', () => ({
   CommitCheckpointChart: () => <div data-testid='session-activity-chart' />,
@@ -130,24 +133,33 @@ function defaultProps(
     optionsSource: 'loading' | 'api' | 'error'
     branchOptionsSource: 'loading' | 'api' | 'error'
     selectedCheckpoint: Checkpoint | null
-    checkpointDetail: ApiCheckpointDetailResponse | null
+    checkpointDetail: DashboardCheckpointDetailResponse | null
     checkpointDetailSource: 'idle' | 'loading' | 'api' | 'error'
     onCheckpointSelect: (checkpoint: Checkpoint) => void
-    onCheckpointClose: () => void
   }> = {},
 ) {
   const rows = overrides.rows ?? commitData.slice(0, 3)
+  const repoOptions: DashboardRepositoryOption[] = [
+    {
+      repoId: 'repo-1',
+      identity: 'bitloops/local-dashboard',
+      name: 'local-dashboard',
+      organization: 'bitloops',
+      provider: 'github',
+      defaultBranch: 'main',
+    },
+  ]
   return {
     rows,
-    repoOptions: ['bitloops/local-dashboard'],
+    repoOptions,
     branchOptions: ['main'],
     userOptions: [{ label: 'You', value: 'you' }],
     agentOptions: ['claude-code', 'gemini-cli'],
-    selectedRepo: null,
+    selectedRepoId: null,
     selectedBranch: null,
     selectedUser: null,
     selectedAgent: null,
-    effectiveRepo: 'bitloops/local-dashboard',
+    effectiveRepoIdentity: 'bitloops/local-dashboard',
     fromDate: undefined,
     toDate: undefined,
     effectiveBranch: 'main',
@@ -190,7 +202,7 @@ describe('Dashboard integration', () => {
       <DashboardView {...defaultProps({ dataSource: 'error' })} />,
     )
     expect(
-      screen.getByText(/Could not load dashboard data from the API/),
+      screen.getByText(/Could not load dashboard data from the dashboard API/),
     ).toBeInTheDocument()
   })
 
@@ -256,7 +268,7 @@ describe('Dashboard integration', () => {
   it('shows transcript entries when checkpoint detail has sessions with transcript', () => {
     const rows = commitData.slice(0, 1)
     const cp = rows[0].checkpointList[0]
-    const checkpointDetail: ApiCheckpointDetailResponse = {
+    const checkpointDetail: DashboardCheckpointDetailResponse = {
       branch: 'main',
       checkpoint_id: cp.id,
       checkpoints_count: 1,

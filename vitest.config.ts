@@ -26,7 +26,6 @@ export default defineConfig({
       exclude: [
         '**/*.test.{ts,tsx}',
         '**/node_modules/**',
-        'src/api/types/schema/**',
       ],
       // ~4–5 pts below current totals; raise when coverage improves.
       thresholds: {

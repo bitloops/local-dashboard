@@ -6,7 +6,7 @@ A local-first web UI for the [Bitloops](https://bitloops.com) CLI. Use it to see
 
 - **Node.js** `>= 20.19` or `>= 22.12` (required by Vite 8)
 - **pnpm** (this repo uses pnpm; CI uses pnpm 9)
-- A reachable Bitloops CLI HTTP API. By default the dev server proxies `/api` to `http://bitloops.local:5667` (see [Environment](#environment)).
+- A reachable Bitloops CLI HTTP API. By default the dev server proxies `/devql/dashboard` and `/devql/global` to `http://bitloops.local:5667` (see [Environment](#environment)).
 
 ## Setup
 
@@ -26,7 +26,7 @@ cp .env.example .env
 pnpm dev
 ```
 
-Open the URL shown in the terminal (typically [http://localhost:5173](http://localhost:5173)). API requests from the browser go to `/api/...` on the same origin; Vite forwards them to the backend you configure with `VITE_API_PROXY_TARGET`.
+Open the URL shown in the terminal (typically [http://localhost:5173](http://localhost:5173)). Dashboard requests from the browser go to `/devql/dashboard/...` and Query Explorer requests go to `/devql/global/...` on the same origin; Vite forwards both to the backend you configure with `VITE_API_PROXY_TARGET`.
 
 ## Production build and preview
 
@@ -62,7 +62,6 @@ This runs a production build and moves `dist` to `~/.bitloops/dashboard/bundle`.
 | `pnpm test:e2e`         | Playwright end-to-end tests (headless)                        |
 | `pnpm test:e2e:headed`  | E2E tests in a visible browser                                |
 | `pnpm test:e2e:ui`      | E2E tests with Playwright's interactive UI                    |
-| `pnpm open-api-codegen` | Regenerate the OpenAPI client under `src/api/types/schema`    |
 
 ## Environment
 
@@ -70,16 +69,16 @@ You do not need a `.env` file for typical local use if your API is already at th
 
 | Variable                    | Purpose                                                                                                                         |
 | --------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
-| `VITE_API_PROXY_TARGET`     | Origin for the dev-server `/api` proxy (default `http://bitloops.local:5667`). Use `https://...` if your API is TLS-terminated. |
+| `VITE_API_PROXY_TARGET`     | Origin for the dev-server `/devql/dashboard` and `/devql/global` proxies (default `http://bitloops.local:5667`). Use `https://...` if your API is TLS-terminated. |
 | `VITE_QUERY_HISTORY_TTL_MS` | Max age (ms) for persisted query-explorer run history in the browser (default 30 days).                                         |
 
 See [.env.example](.env.example) for commented templates.
 
 ## Query explorer
 
-The query explorer is a **read-only DevQL workspace** for exploring your Bitloops code-intelligence data. The editor speaks **GraphQL syntax**: you write operations with `query`, fields, arguments and variables and the UI uses your live schema (`GET /api/query-schema`) for autocomplete and validation of that syntax.
+The query explorer is a **read-only DevQL workspace** for exploring your Bitloops code-intelligence data. The editor speaks **GraphQL syntax**: you write operations with `query`, fields, arguments and variables and the UI uses your live schema (`GET /devql/global/sdl`) for autocomplete and validation of that syntax.
 
-**What it is not:** this is not a full GraphQL client. **Only queries are supported** for execution against `POST /api/query`. **Mutations and subscriptions are not supported**—the backend and explorer are built for ad hoc reads, not for changing server state or streaming updates. If you paste a mutation or subscription document, it may parse as valid GraphQL text, but it is outside what the explorer and API are meant to run.
+**What it is not:** this is not a full GraphQL client. **Only queries are supported** for execution against `POST /devql/global`. **Mutations and subscriptions are not supported**—the backend and explorer are built for ad hoc reads, not for changing server state or streaming updates. If you paste a mutation or subscription document, it may parse as valid GraphQL text, but it is outside what the explorer and API are meant to run.
 
 Results render in a JSON viewer. Recent runs are stored in the browser (subject to `VITE_QUERY_HISTORY_TTL_MS`).
 

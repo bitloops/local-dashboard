@@ -1,195 +1,159 @@
 import type {
-  ApiAgentDto,
-  ApiBranchSummaryDto,
-  ApiCommitRowDto,
-  ApiCommitFileDiffDto,
-  ApiUserDto,
-} from '@/api/rest'
+  DashboardAgentDto,
+  DashboardBranchSummaryDto,
+  DashboardCheckpointDetailResponse,
+  DashboardCheckpointDto,
+  DashboardCommitFileDiffDto,
+  DashboardCommitRowDto,
+  DashboardRepositoryOption,
+  DashboardTokenUsageDto,
+  DashboardUserDto,
+} from '../api-types'
 import type {
+  DashboardAgentsQueryData,
   DashboardBranchesQueryData,
+  DashboardCheckpointDetailQueryData,
+  DashboardCheckpointNode,
+  DashboardCommitFileDiffNode,
   DashboardCommitsQueryData,
+  DashboardRepositoriesQueryData,
+  DashboardTokenUsageNode,
+  DashboardUsersQueryData,
 } from './types'
 
-function canonicalUserKey(name: string, email: string): string {
-  const emailNormalized = email.trim().toLowerCase()
-  if (emailNormalized.length > 0) {
-    return emailNormalized
+function mapFileDiff(node: DashboardCommitFileDiffNode): DashboardCommitFileDiffDto {
+  return {
+    filepath: node.filepath,
+    additionsCount: node.additionsCount,
+    deletionsCount: node.deletionsCount,
+    changeKind: node.changeKind ?? null,
+    copiedFromPath: node.copiedFromPath ?? null,
+    copiedFromBlobSha: node.copiedFromBlobSha ?? null,
   }
-  const nameNormalized = name.trim().toLowerCase()
-  if (nameNormalized.length === 0) {
-    return ''
-  }
-  return `name:${nameNormalized}`
 }
 
-export function canonicalAgentKey(agent: string): string {
-  const trimmed = agent.trim()
-  if (!trimmed) return ''
-
-  let key = ''
-  let lastWasDash = false
-  for (const ch of trimmed) {
-    if (/[a-z0-9]/i.test(ch)) {
-      key += ch.toLowerCase()
-      lastWasDash = false
-      continue
-    }
-    if (key && !lastWasDash) {
-      key += '-'
-      lastWasDash = true
-    }
+function mapTokenUsage(
+  node: DashboardTokenUsageNode | null | undefined,
+): DashboardTokenUsageDto | null {
+  if (node == null) {
+    return null
   }
 
-  return key.replace(/-+$/g, '')
+  return {
+    input_tokens: node.inputTokens,
+    output_tokens: node.outputTokens,
+    cache_creation_tokens: node.cacheCreationTokens,
+    cache_read_tokens: node.cacheReadTokens,
+    api_call_count: node.apiCallCount,
+  }
 }
 
-function toUnixTimestamp(value: string): number {
-  const ms = new Date(value).getTime()
-  if (Number.isNaN(ms)) return 0
-  return Math.floor(ms / 1000)
+function mapCheckpoint(node: DashboardCheckpointNode): DashboardCheckpointDto {
+  return {
+    checkpoint_id: node.checkpointId,
+    strategy: node.strategy,
+    branch: node.branch,
+    checkpoints_count: node.checkpointsCount,
+    files_touched: node.filesTouched.map(mapFileDiff),
+    session_count: node.sessionCount,
+    token_usage: mapTokenUsage(node.tokenUsage),
+    session_id: node.sessionId,
+    agents: node.agents,
+    first_prompt_preview: node.firstPromptPreview,
+    created_at: node.createdAt,
+    is_task: node.isTask,
+    tool_use_id: node.toolUseId,
+  }
 }
 
-function toFileStats(paths: string[]): ApiCommitFileDiffDto[] {
-  return paths.map((filepath) => ({
-    filepath,
-    additionsCount: 0,
-    deletionsCount: 0,
+export function mapDashboardRepositories(
+  data: DashboardRepositoriesQueryData,
+): DashboardRepositoryOption[] {
+  return data.repositories.map((repository) => ({
+    repoId: repository.repoId,
+    identity: repository.identity,
+    name: repository.name,
+    provider: repository.provider,
+    organization: repository.organization,
+    defaultBranch: repository.defaultBranch ?? null,
   }))
-}
-
-function checkpointAgentKeys(checkpoint: {
-  agents: string[]
-  agent: string | null
-}): string[] {
-  return Array.from(
-    new Set(
-      (checkpoint.agents.length > 0
-        ? checkpoint.agents
-        : [checkpoint.agent ?? '']
-      )
-        .map(canonicalAgentKey)
-        .filter((value) => value.length > 0),
-    ),
-  )
 }
 
 export function mapDashboardBranches(
   data: DashboardBranchesQueryData,
-): ApiBranchSummaryDto[] {
-  return (data.repo?.branches ?? []).map((branch) => ({
-    branch: branch.name,
-    checkpoint_commits: branch.checkpointCount,
+): DashboardBranchSummaryDto[] {
+  return data.branches.map((branch) => ({
+    branch: branch.branch,
+    checkpoint_commits: branch.checkpointCommits,
   }))
 }
 
-/** Map `repo.users` string keys to DTOs for filter dropdowns. */
-export function mapRepoUserStrings(keys: string[]): ApiUserDto[] {
-  const out: ApiUserDto[] = []
-  const seen = new Set<string>()
-  for (const raw of keys) {
-    const trimmed = raw.trim()
-    if (!trimmed) continue
-    const looksLikeEmail = trimmed.includes('@')
-    const key = canonicalUserKey(trimmed, looksLikeEmail ? trimmed : '')
-    if (seen.has(key)) continue
-    seen.add(key)
-    out.push({
-      key,
-      name: looksLikeEmail ? '' : trimmed,
-      email: looksLikeEmail ? trimmed.toLowerCase() : '',
-    })
-  }
-  return out
+export function mapDashboardUsers(
+  data: DashboardUsersQueryData,
+): DashboardUserDto[] {
+  return data.users.map((user) => ({
+    key: user.key,
+    name: user.name,
+    email: user.email,
+  }))
 }
 
-/** Map `repo.agents` string keys to DTOs for filter dropdowns. */
-export function mapRepoAgentStrings(keys: string[]): ApiAgentDto[] {
-  const out: ApiAgentDto[] = []
-  const seen = new Set<string>()
-  for (const raw of keys) {
-    const trimmed = raw.trim()
-    if (!trimmed) continue
-    const key = canonicalAgentKey(trimmed) || trimmed.toLowerCase()
-    if (seen.has(key)) continue
-    seen.add(key)
-    out.push({ key })
-  }
-  return out
+export function mapDashboardAgents(
+  data: DashboardAgentsQueryData,
+): DashboardAgentDto[] {
+  return data.agents.map((agent) => ({
+    key: agent.key,
+  }))
 }
 
 export function mapDashboardCommitRows(
   data: DashboardCommitsQueryData,
-  filters: {
-    user: string | null
-    agent: string | null
-    /** When true, `commits` were already filtered by author on the server — skip client user skip. */
-    userFilterFromServer?: boolean
-  },
-): ApiCommitRowDto[] {
-  const commits = data.repo?.commits.edges ?? []
-  const commitRows: ApiCommitRowDto[] = []
+): DashboardCommitRowDto[] {
+  return data.commits.map((row) => {
+    const checkpoints =
+      row.checkpoints.length > 0
+        ? row.checkpoints.map(mapCheckpoint)
+        : [mapCheckpoint(row.checkpoint)]
+    const firstCheckpoint = checkpoints[0]
 
-  for (const edge of commits) {
-    const commit = edge.node
-    const userKey = canonicalUserKey(commit.authorName, commit.authorEmail)
-
-    if (
-      !filters.userFilterFromServer &&
-      filters.user &&
-      filters.user !== userKey
-    ) {
-      continue
+    return {
+      commit: {
+        sha: row.commit.sha,
+        parents: row.commit.parents,
+        author_name: row.commit.authorName,
+        author_email: row.commit.authorEmail,
+        timestamp: row.commit.timestamp,
+        message: row.commit.message,
+        files_touched: row.commit.filesTouched.map(mapFileDiff),
+      },
+      checkpoint: firstCheckpoint,
+      checkpoints,
     }
+  })
+}
 
-    const checkpoints = commit.checkpoints.edges
-    for (const checkpointEdge of checkpoints) {
-      const checkpoint = checkpointEdge.node
-      const checkpointAgents = checkpointAgentKeys(checkpoint)
-
-      if (
-        filters.agent &&
-        !checkpointAgents.some((agent) => agent === filters.agent)
-      ) {
-        continue
-      }
-
-      commitRows.push({
-        commit: {
-          sha: commit.sha,
-          parents: commit.parents,
-          author_name: commit.authorName,
-          author_email: commit.authorEmail.trim().toLowerCase(),
-          message: commit.commitMessage,
-          timestamp: toUnixTimestamp(commit.committedAt),
-          files_touched: toFileStats(commit.filesChanged),
-        },
-        checkpoint: {
-          checkpoint_id: checkpoint.id,
-          strategy: checkpoint.strategy ?? '',
-          branch: checkpoint.branch ?? '',
-          checkpoints_count: checkpoint.checkpointsCount,
-          files_touched: toFileStats(checkpoint.filesTouched),
-          session_count: checkpoint.sessionCount,
-          token_usage: checkpoint.tokenUsage
-            ? {
-                input_tokens: checkpoint.tokenUsage.inputTokens,
-                output_tokens: checkpoint.tokenUsage.outputTokens,
-                cache_creation_tokens:
-                  checkpoint.tokenUsage.cacheCreationTokens,
-                cache_read_tokens: checkpoint.tokenUsage.cacheReadTokens,
-                api_call_count: checkpoint.tokenUsage.apiCallCount,
-              }
-            : null,
-          session_id: checkpoint.sessionId,
-          agents: checkpointAgents,
-          first_prompt_preview: checkpoint.firstPromptPreview ?? '',
-          created_at: checkpoint.createdAt ?? '',
-          is_task: checkpoint.isTask,
-          tool_use_id: checkpoint.toolUseId ?? '',
-        },
-      })
-    }
+export function mapDashboardCheckpointDetail(
+  data: DashboardCheckpointDetailQueryData,
+): DashboardCheckpointDetailResponse {
+  return {
+    checkpoint_id: data.checkpoint.checkpointId,
+    strategy: data.checkpoint.strategy,
+    branch: data.checkpoint.branch,
+    checkpoints_count: data.checkpoint.checkpointsCount,
+    files_touched: data.checkpoint.filesTouched.map(mapFileDiff),
+    session_count: data.checkpoint.sessionCount,
+    token_usage: mapTokenUsage(data.checkpoint.tokenUsage),
+    sessions: data.checkpoint.sessions.map((session) => ({
+      session_index: session.sessionIndex,
+      session_id: session.sessionId,
+      agent: session.agent,
+      created_at: session.createdAt,
+      is_task: session.isTask,
+      tool_use_id: session.toolUseId,
+      metadata_json: session.metadataJson,
+      transcript_jsonl: session.transcriptJsonl,
+      prompts_text: session.promptsText,
+      context_text: session.contextText,
+    })),
   }
-
-  return commitRows
 }

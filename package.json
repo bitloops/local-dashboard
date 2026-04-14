@@ -1,12 +1,10 @@
 {
   "name": "local-dashboard",
   "private": true,
-  "version": "0.0.5",
+  "version": "0.0.6",
   "license": "Apache-2.0",
   "type": "module",
   "scripts": {
-    "generate-openapi-types": "node scripts/generate-openapi-types.mjs",
-    "open-api-codegen": "curl -o ./swagger.json https://127.0.0.1:5667/api/openapi.json && npx openapi-typescript-codegen --input ./swagger.json --output ./src/api/rest/types/schema --name BitloopsCli --useOptions",
     "dev": "vite",
     "build": "tsc -b && vite build",
     "bundle": "pnpm build && rm -rf ~/.bitloops/dashboard/bundle && mv dist ~/.bitloops/dashboard/bundle ",
@@ -84,7 +82,6 @@
     "eslint-plugin-react-refresh": "^0.4.25",
     "globals": "^16.5.0",
     "jsdom": "^25.0.1",
-    "openapi-typescript": "^7.13.0",
     "prettier": "^3.8.1",
     "react-syntax-highlighter": "^16.1.1",
     "typescript": "~5.9.3",

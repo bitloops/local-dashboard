@@ -28,7 +28,5 @@
     "noFallthroughCasesInSwitch": true,
     "noUncheckedSideEffectImports": true
   },
-  "include": ["src", "tests"],
-  "exclude": ["src/api/rest/types/schema"],
-  "references": [{ "path": "src/api/rest/types/schema" }]
+  "include": ["src", "tests"]
 }

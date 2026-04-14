@@ -1,3 +1,9 @@
+import {
+  fetchDashboardBlob,
+  fetchDashboardRepositoriesCached,
+} from '@/api/dashboard/client'
+import { GraphQLRequestError } from '@/api/graphql/errors'
+
 export class GitBlobFetchError extends Error {
   readonly status: number
   readonly code?: string
@@ -24,28 +30,29 @@ export async function fetchGitBlob({
   blobSha,
   signal,
 }: FetchGitBlobParams): Promise<ArrayBuffer> {
-  const url = `/api/blobs/${encodeURIComponent(repo)}/${encodeURIComponent(blobSha)}`
-  const response = await fetch(url, { method: 'GET', signal })
-
-  if (response.ok) {
-    return response.arrayBuffer()
-  }
-
-  let message = `Request failed (${response.status}).`
-  let code: string | undefined
   try {
-    const payload = (await response.json()) as {
-      error?: { code?: string; message?: string }
-    }
-    if (payload?.error?.message) {
-      message = payload.error.message
-    }
-    if (payload?.error?.code) {
-      code = payload.error.code
-    }
-  } catch {
-    // ignore JSON parse errors
-  }
+    const repositories = await fetchDashboardRepositoriesCached({ signal })
+    const repoId = repositories.find((repository) => repository.identity === repo)?.repoId
 
-  throw new GitBlobFetchError(message, response.status, code)
+    if (!repoId) {
+      throw new GitBlobFetchError(
+        `Repository '${repo}' is not available for blob preview.`,
+        404,
+        'repo_not_found',
+      )
+    }
+
+    return await fetchDashboardBlob(repoId, blobSha, { signal })
+  } catch (error) {
+    if (error instanceof GitBlobFetchError) {
+      throw error
+    }
+    if (error instanceof GraphQLRequestError) {
+      throw new GitBlobFetchError(
+        error.message,
+        error.status ?? 500,
+      )
+    }
+    throw error
+  }
 }

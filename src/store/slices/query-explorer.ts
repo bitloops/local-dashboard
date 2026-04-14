@@ -19,17 +19,17 @@ export type { HistoryStorageMode }
 const RUN_HISTORY_MAX = 50
 
 type QueryExplorerRootLikeState = QueryExplorerSlice & {
-  selectedRepo?: string | null
+  selectedRepoId?: string | null
   selectedBranch?: string | null
 }
 
 export function getDefaultQueryExplorerVariables(
-  selectedRepo: string | null | undefined,
+  selectedRepoIdentity: string | null | undefined,
   selectedBranch?: string | null,
 ): string {
   return JSON.stringify(
     {
-      repo: selectedRepo ?? '',
+      repo: selectedRepoIdentity ?? '',
       branch: selectedBranch ?? null,
       commitsFirst: 10,
     },
@@ -44,7 +44,7 @@ type SyncVariablesResult =
 
 export function syncQueryExplorerVariablesWithDashboardSelection(
   variables: string,
-  selectedRepo: string | null,
+  selectedRepoIdentity: string | null,
   selectedBranch: string | null,
 ): SyncVariablesResult {
   try {
@@ -67,7 +67,7 @@ export function syncQueryExplorerVariablesWithDashboardSelection(
       return {
         updated: true,
         variables: getDefaultQueryExplorerVariables(
-          selectedRepo,
+          selectedRepoIdentity,
           selectedBranch,
         ),
       }
@@ -190,7 +190,7 @@ export function createQueryExplorerSlice(
   return {
     query: QUERY_EXPLORER_DEFAULT_QUERY,
     variables: getDefaultQueryExplorerVariables(
-      initialState?.selectedRepo,
+      null,
       initialState?.selectedBranch,
     ),
     result: { status: 'idle' },

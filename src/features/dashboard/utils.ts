@@ -1,6 +1,9 @@
-import type { ApiAgentDto, ApiCommitRowDto, ApiUserDto } from '@/api/rest'
-import type { CommitData } from './types'
-import type { UserOption } from './types'
+import type {
+  DashboardAgentDto,
+  DashboardCommitRowDto,
+  DashboardUserDto,
+} from './api-types'
+import type { CommitData, UserOption } from './types'
 
 export const startOfDayIso = (date: Date): string => {
   const normalized = new Date(date)
@@ -60,7 +63,7 @@ export const formatCheckpointTime = (value: string): string => {
   })
 }
 
-export const mapUserOptions = (users: ApiUserDto[]): UserOption[] => {
+export const mapUserOptions = (users: DashboardUserDto[]): UserOption[] => {
   const uniqueUsers = new Map<string, UserOption>()
 
   for (const user of users) {
@@ -92,7 +95,7 @@ export function formatAgentLabel(agentKey: string): string {
     .join(' ')
 }
 
-export const mapAgentOptions = (agents: ApiAgentDto[]): string[] =>
+export const mapAgentOptions = (agents: DashboardAgentDto[]): string[] =>
   Array.from(
     new Set(
       agents
@@ -101,43 +104,47 @@ export const mapAgentOptions = (agents: ApiAgentDto[]): string[] =>
     ),
   ).sort((a, b) => a.localeCompare(b))
 
-export const mapCommitRows = (rows: ApiCommitRowDto[]): CommitData[] => {
+export const mapCommitRows = (rows: DashboardCommitRowDto[]): CommitData[] => {
   const commits = new Map<string, CommitData & { timestamp: number }>()
 
   for (const row of rows) {
     const sha = row.commit.sha
     const commitDate = formatCommitDate(row.commit.timestamp)
+    const checkpoints =
+      row.checkpoints != null && row.checkpoints.length > 0
+        ? row.checkpoints
+        : [row.checkpoint]
+    const commitCheckpointList = checkpoints.map((checkpoint) => ({
+      id: checkpoint.checkpoint_id,
+      firstPromptPreview: checkpoint.first_prompt_preview ?? '',
+      timestamp: formatCheckpointTime(checkpoint.created_at),
+      createdAt: checkpoint.created_at,
+      branch: checkpoint.branch,
+      strategy: checkpoint.strategy,
+      sessionId: checkpoint.session_id,
+      toolUseId: checkpoint.tool_use_id,
+      filesTouched:
+        checkpoint.files_touched.length > 0
+          ? checkpoint.files_touched
+          : (row.commit.files_touched ?? []),
+      sessionCount: checkpoint.session_count,
+      checkpointsCount: checkpoint.checkpoints_count,
+      isTask: checkpoint.is_task,
+      commit: row.commit.sha.slice(0, 7),
+      commitMessage: row.commit.message,
+    }))
     const checkpointAgents = Array.from(
       new Set(
-        (row.checkpoint.agents ?? [])
+        checkpoints
+          .flatMap((checkpoint) => checkpoint.agents ?? [])
           .map((agent) => agent.trim())
           .filter((agent): agent is string => agent.length > 0),
       ),
     )
 
-    const checkpoint = {
-      id: row.checkpoint.checkpoint_id,
-      firstPromptPreview: row.checkpoint.first_prompt_preview ?? '',
-      timestamp: formatCheckpointTime(row.checkpoint.created_at),
-      createdAt: row.checkpoint.created_at,
-      branch: row.checkpoint.branch,
-      strategy: row.checkpoint.strategy,
-      sessionId: row.checkpoint.session_id,
-      toolUseId: row.checkpoint.tool_use_id,
-      filesTouched:
-        row.checkpoint.files_touched.length > 0
-          ? row.checkpoint.files_touched
-          : (row.commit.files_touched ?? []),
-      sessionCount: row.checkpoint.session_count,
-      checkpointsCount: row.checkpoint.checkpoints_count,
-      isTask: row.checkpoint.is_task,
-      commit: row.commit.sha.slice(0, 7),
-      commitMessage: row.commit.message,
-    }
-
     const existing = commits.get(sha)
     if (existing) {
-      existing.checkpointList.push(checkpoint)
+      existing.checkpointList.push(...commitCheckpointList)
       existing.checkpoints = existing.checkpointList.length
       existing.agents = Array.from(
         new Set([...(existing.agents ?? []), ...checkpointAgents]),
@@ -148,12 +155,12 @@ export const mapCommitRows = (rows: ApiCommitRowDto[]): CommitData[] => {
     commits.set(sha, {
       date: commitDate.label,
       commit: sha.slice(0, 7),
-      checkpoints: 1,
+      checkpoints: commitCheckpointList.length,
       message: row.commit.message,
       author: row.commit.author_name?.trim() ?? '',
       agent: checkpointAgents[0] ?? '',
       agents: checkpointAgents,
-      checkpointList: [checkpoint],
+      checkpointList: commitCheckpointList,
       timestamp: commitDate.ms,
     })
   }

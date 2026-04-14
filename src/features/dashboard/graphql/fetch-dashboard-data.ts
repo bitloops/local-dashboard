@@ -1,91 +1,180 @@
-import { requestGraphQL } from '@/api/graphql/client'
-import {
-  DASHBOARD_COMMITS_QUERY,
-  DASHBOARD_REPO_OPTIONS_QUERY,
-} from './operations'
+import { requestDashboardGraphQL } from '@/api/dashboard/client'
+import { GraphQLRequestError } from '@/api/graphql/errors'
 import type {
+  DashboardCheckpointDetailResponse,
+  DashboardCommitRowDto,
+  DashboardRepositoryOption,
+} from '../api-types'
+import {
+  DASHBOARD_AGENTS_QUERY,
+  DASHBOARD_BRANCHES_QUERY,
+  DASHBOARD_CHECKPOINT_DETAIL_QUERY,
+  DASHBOARD_COMMITS_QUERY,
+  DASHBOARD_REPOSITORIES_QUERY,
+  DASHBOARD_USERS_QUERY,
+} from './operations'
+import {
+  mapDashboardAgents,
+  mapDashboardBranches,
+  mapDashboardCheckpointDetail,
+  mapDashboardCommitRows,
+  mapDashboardRepositories,
+  mapDashboardUsers,
+} from './mappers'
+import type {
+  DashboardAgentsQueryData,
+  DashboardBranchesQueryData,
+  DashboardCheckpointDetailQueryData,
   DashboardCommitsQueryData,
-  DashboardCommitsQueryVariables,
-  DashboardRepoOptionsQueryData,
+  DashboardRepositoriesQueryData,
+  DashboardUsersQueryData,
 } from './types'
 
-/** Page size for `Repository.commits` cursor pagination. */
+/** Display page size; requests fetch one extra row to detect a next page. */
 export const COMMITS_PAGE_SIZE = 100
 
-export type FetchDashboardCommitsVariables = {
-  repo: string
+export type FetchDashboardFilterVariables = {
+  repoId: string | null
   branch: string
-  since: string | null
-  until: string | null
-  author: string | null
-} & (
-  | {
-      direction?: 'forward'
-      after: string | null
-      before?: never
-    }
-  | {
-      direction: 'backward'
-      before: string | null
-      after?: never
-    }
-)
-
-export type FetchDashboardRepoOptionsVariables = {
-  repo: string
+  from: string | null
+  to: string | null
 }
 
-/**
- * Loads a single page of commits for the dashboard using either
- * forward (`first` + `after`) or backward (`last` + `before`) pagination.
- */
+export type FetchDashboardCommitsVariables = FetchDashboardFilterVariables & {
+  user: string | null
+  agent: string | null
+  offset: number
+}
+
+function firstGraphQLError(message: string, errors?: Array<{ message: string }>) {
+  if (errors?.length) {
+    throw new GraphQLRequestError(errors[0].message)
+  }
+
+  throw new GraphQLRequestError(message)
+}
+
+export async function fetchDashboardRepositories(
+  options?: { signal?: AbortSignal },
+): Promise<DashboardRepositoryOption[]> {
+  const response = await requestDashboardGraphQL<DashboardRepositoriesQueryData>(
+    DASHBOARD_REPOSITORIES_QUERY,
+    undefined,
+    options,
+  )
+
+  if (response.errors?.length) {
+    firstGraphQLError('Failed to load repositories.', response.errors)
+  }
+
+  return mapDashboardRepositories({
+    repositories: response.data?.repositories ?? [],
+  })
+}
+
+export async function fetchDashboardBranches(
+  variables: Pick<FetchDashboardFilterVariables, 'repoId' | 'from' | 'to'>,
+  options?: { signal?: AbortSignal },
+) {
+  const response = await requestDashboardGraphQL<DashboardBranchesQueryData>(
+    DASHBOARD_BRANCHES_QUERY,
+    variables,
+    options,
+  )
+
+  if (response.errors?.length) {
+    firstGraphQLError('Failed to load branches.', response.errors)
+  }
+
+  return mapDashboardBranches({
+    branches: response.data?.branches ?? [],
+  })
+}
+
+export async function fetchDashboardUsers(
+  variables: FetchDashboardFilterVariables & { agent: string | null },
+  options?: { signal?: AbortSignal },
+) {
+  const response = await requestDashboardGraphQL<DashboardUsersQueryData>(
+    DASHBOARD_USERS_QUERY,
+    variables,
+    options,
+  )
+
+  if (response.errors?.length) {
+    firstGraphQLError('Failed to load users.', response.errors)
+  }
+
+  return mapDashboardUsers({
+    users: response.data?.users ?? [],
+  })
+}
+
+export async function fetchDashboardAgents(
+  variables: FetchDashboardFilterVariables & { user: string | null },
+  options?: { signal?: AbortSignal },
+) {
+  const response = await requestDashboardGraphQL<DashboardAgentsQueryData>(
+    DASHBOARD_AGENTS_QUERY,
+    variables,
+    options,
+  )
+
+  if (response.errors?.length) {
+    firstGraphQLError('Failed to load agents.', response.errors)
+  }
+
+  return mapDashboardAgents({
+    agents: response.data?.agents ?? [],
+  })
+}
+
 export async function fetchDashboardCommitsPage(
   variables: FetchDashboardCommitsVariables,
   options?: { signal?: AbortSignal },
-): Promise<DashboardCommitsQueryData> {
-  const { signal } = options ?? {}
-  const isBackward = variables.direction === 'backward'
-
-  const response = await requestGraphQL<DashboardCommitsQueryData>(
+): Promise<{ rows: DashboardCommitRowDto[]; hasNextPage: boolean }> {
+  const response = await requestDashboardGraphQL<DashboardCommitsQueryData>(
     DASHBOARD_COMMITS_QUERY,
     {
-      repo: variables.repo,
-      branch: variables.branch,
-      since: variables.since,
-      until: variables.until,
-      author: variables.author,
-      after: isBackward ? undefined : variables.after,
-      before: isBackward ? variables.before : undefined,
-      commitsFirst: isBackward ? undefined : COMMITS_PAGE_SIZE,
-      commitsLast: isBackward ? COMMITS_PAGE_SIZE : undefined,
-    } satisfies DashboardCommitsQueryVariables,
-    { signal },
+      ...variables,
+      limit: COMMITS_PAGE_SIZE + 1,
+    },
+    options,
   )
 
   if (response.errors?.length) {
-    throw new Error(response.errors[0].message)
+    firstGraphQLError('Failed to load commits.', response.errors)
   }
 
-  return { repo: response.data?.repo ?? null }
+  const rows = mapDashboardCommitRows({
+    commits: response.data?.commits ?? [],
+  })
+
+  return {
+    rows: rows.slice(0, COMMITS_PAGE_SIZE),
+    hasNextPage: rows.length > COMMITS_PAGE_SIZE,
+  }
 }
 
-export async function fetchDashboardRepoOptions(
-  variables: FetchDashboardRepoOptionsVariables,
+export async function fetchDashboardCheckpointDetail(
+  variables: { repoId: string | null; checkpointId: string },
   options?: { signal?: AbortSignal },
-): Promise<DashboardRepoOptionsQueryData> {
-  const { signal } = options ?? {}
-
-  const response = await requestGraphQL<DashboardRepoOptionsQueryData>(
-    DASHBOARD_REPO_OPTIONS_QUERY,
-    {
-      repo: variables.repo,
-    },
-    { signal },
-  )
+): Promise<DashboardCheckpointDetailResponse> {
+  const response =
+    await requestDashboardGraphQL<DashboardCheckpointDetailQueryData>(
+      DASHBOARD_CHECKPOINT_DETAIL_QUERY,
+      variables,
+      options,
+    )
 
   if (response.errors?.length) {
-    throw new Error(response.errors[0].message)
+    firstGraphQLError('Failed to load checkpoint detail.', response.errors)
   }
 
-  return { repo: response.data?.repo ?? null }
+  const checkpoint = response.data?.checkpoint
+  if (checkpoint == null) {
+    throw new GraphQLRequestError('Checkpoint detail was not returned.')
+  }
+
+  return mapDashboardCheckpointDetail({ checkpoint })
 }

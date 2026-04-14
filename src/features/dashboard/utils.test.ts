@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest'
-import type { ApiCommitRowDto } from '@/api/rest'
+import type {
+  DashboardCheckpointDto,
+  DashboardCommitRowDto,
+} from './api-types'
 import {
   endOfDayIso,
   endOfDayUnixSeconds,
@@ -176,17 +179,40 @@ describe('formatAgentLabel', () => {
   })
 })
 
+function makeCheckpoint(
+  overrides: Partial<{
+    checkpoint_id: string
+    created_at: string
+    agents: string[]
+    branch: string
+  }> = {},
+): DashboardCheckpointDto {
+  return {
+    checkpoint_id: overrides.checkpoint_id ?? 'cp1',
+    created_at: overrides.created_at ?? '2025-03-04T12:00:00Z',
+    agents: overrides.agents ?? ['claude-code'],
+    branch: overrides.branch ?? 'main',
+    strategy: '',
+    tool_use_id: '',
+    files_touched: [],
+    session_id: '',
+    session_count: 0,
+    checkpoints_count: 0,
+    is_task: false,
+    first_prompt_preview: '',
+    token_usage: null,
+  }
+}
+
 function makeCommitRow(
   overrides: Partial<{
     sha: string
     timestamp: number
     message: string
-    created_at: string
-    checkpoint_id: string
-    agents: string[]
-    branch: string
+    checkpoints: DashboardCheckpointDto[]
   }>,
-): ApiCommitRowDto {
+): DashboardCommitRowDto {
+  const checkpoints = overrides.checkpoints ?? [makeCheckpoint()]
   return {
     commit: {
       sha: overrides.sha ?? 'abc1234567890',
@@ -197,20 +223,8 @@ function makeCommitRow(
       parents: [],
       files_touched: [],
     },
-    checkpoint: {
-      checkpoint_id: overrides.checkpoint_id ?? 'cp1',
-      created_at: overrides.created_at ?? '2025-03-04T12:00:00Z',
-      agents: overrides.agents ?? ['claude-code'],
-      branch: overrides.branch ?? 'main',
-      strategy: '',
-      tool_use_id: '',
-      files_touched: [],
-      session_id: '',
-      session_count: 0,
-      checkpoints_count: 0,
-      is_task: false,
-      first_prompt_preview: '',
-    },
+    checkpoint: checkpoints[0]!,
+    checkpoints,
   }
 }
 
@@ -242,10 +256,32 @@ describe('mapCommitRows', () => {
     expect(result[0].author).toBe('Jane Doe')
   })
 
-  it('dedupes by commit SHA and aggregates checkpoints', () => {
+  it('counts every checkpoint already present on a single commit row', () => {
     const rows = [
-      makeCommitRow({ sha: 'same123456789', checkpoint_id: 'cp1' }),
-      makeCommitRow({ sha: 'same123456789', checkpoint_id: 'cp2' }),
+      makeCommitRow({
+        sha: 'same123456789',
+        checkpoints: [
+          makeCheckpoint({ checkpoint_id: 'cp1' }),
+          makeCheckpoint({ checkpoint_id: 'cp2' }),
+        ],
+      }),
+    ]
+    const result = mapCommitRows(rows)
+    expect(result).toHaveLength(1)
+    expect(result[0].checkpoints).toBe(2)
+    expect(result[0].checkpointList).toHaveLength(2)
+  })
+
+  it('dedupes by commit SHA and aggregates checkpoints across rows', () => {
+    const rows = [
+      makeCommitRow({
+        sha: 'same123456789',
+        checkpoints: [makeCheckpoint({ checkpoint_id: 'cp1' })],
+      }),
+      makeCommitRow({
+        sha: 'same123456789',
+        checkpoints: [makeCheckpoint({ checkpoint_id: 'cp2' })],
+      }),
     ]
     const result = mapCommitRows(rows)
     expect(result).toHaveLength(1)

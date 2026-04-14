@@ -1,5 +1,5 @@
 import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from 'recharts'
-import type { ApiTokenUsageDto } from '@/api/rest'
+import type { DashboardTokenUsageDto } from '../api-types'
 
 const COLORS = {
   input: '#7c3aed',
@@ -33,7 +33,7 @@ const ALL_SEGMENTS = [
 ]
 
 type TokenUsageChartProps = {
-  usage?: ApiTokenUsageDto | null
+  usage?: DashboardTokenUsageDto | null
 }
 
 export function TokenUsageChart({ usage }: TokenUsageChartProps) {

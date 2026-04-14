@@ -1,86 +1,104 @@
-export type DashboardBranchesQueryData = {
-  repo: {
-    branches: Array<{
-      name: string
-      checkpointCount: number
-    }>
-  } | null
+export type DashboardRepositoriesQueryData = {
+  repositories: Array<{
+    repoId: string
+    identity: string
+    name: string
+    provider: string
+    organization: string
+    defaultBranch: string | null
+  }>
 }
 
-export type DashboardRepoOptionsQueryData = {
-  repo: {
-    users: string[]
-    agents: string[]
-  } | null
+export type DashboardBranchesQueryData = {
+  branches: Array<{
+    branch: string
+    checkpointCommits: number
+  }>
+}
+
+export type DashboardUsersQueryData = {
+  users: Array<{
+    key: string
+    name: string
+    email: string
+  }>
+}
+
+export type DashboardAgentsQueryData = {
+  agents: Array<{
+    key: string
+  }>
+}
+
+export type DashboardCommitFileDiffNode = {
+  filepath: string
+  additionsCount: number
+  deletionsCount: number
+  changeKind?: string | null
+  copiedFromPath?: string | null
+  copiedFromBlobSha?: string | null
+}
+
+export type DashboardTokenUsageNode = {
+  inputTokens: number
+  outputTokens: number
+  cacheCreationTokens: number
+  cacheReadTokens: number
+  apiCallCount: number
 }
 
 export type DashboardCheckpointNode = {
-  id: string
-  branch: string | null
-  agent: string | null
-  strategy: string | null
-  filesTouched: string[]
+  checkpointId: string
+  strategy: string
+  branch: string
   checkpointsCount: number
+  filesTouched: DashboardCommitFileDiffNode[]
   sessionCount: number
+  tokenUsage: DashboardTokenUsageNode | null
   sessionId: string
   agents: string[]
-  firstPromptPreview: string | null
-  createdAt: string | null
+  firstPromptPreview: string
+  createdAt: string
   isTask: boolean
-  toolUseId: string | null
-  tokenUsage: {
-    inputTokens: number
-    outputTokens: number
-    cacheCreationTokens: number
-    cacheReadTokens: number
-    apiCallCount: number
-  } | null
+  toolUseId: string
 }
 
-export type DashboardCommitEdge = {
-  node: {
-    sha: string
-    parents: string[]
-    authorName: string
-    authorEmail: string
-    commitMessage: string
-    committedAt: string
-    filesChanged: string[]
-    checkpoints: {
-      edges: Array<{
-        node: DashboardCheckpointNode
-      }>
-    }
-  }
-}
-
-export type DashboardCommitsConnection = {
-  edges: DashboardCommitEdge[]
-  pageInfo?: {
-    hasNextPage: boolean
-    hasPreviousPage: boolean
-    startCursor?: string | null
-    endCursor?: string | null
-  }
-}
-
-/** Result shape for `DASHBOARD_COMMITS_QUERY` only. */
 export type DashboardCommitsQueryData = {
-  repo: {
-    commits: DashboardCommitsConnection
-  } | null
+  commits: Array<{
+    commit: {
+      sha: string
+      parents: string[]
+      authorName: string
+      authorEmail: string
+      timestamp: number
+      message: string
+      filesTouched: DashboardCommitFileDiffNode[]
+    }
+    checkpoint: DashboardCheckpointNode
+    checkpoints: DashboardCheckpointNode[]
+  }>
 }
 
-/** Variables for `DASHBOARD_COMMITS_QUERY` (matches `$commitsFirst: Int!`, etc.). */
-export type DashboardCommitsQueryVariables = {
-  repo: string
-  branch?: string | null
-  since?: string | null
-  until?: string | null
-  /** When set, server filters commits by author (same key as user picker). */
-  author?: string | null
-  after?: string | null
-  before?: string | null
-  commitsFirst?: number
-  commitsLast?: number
+export type DashboardCheckpointDetailQueryData = {
+  checkpoint: {
+    checkpointId: string
+    strategy: string
+    branch: string
+    checkpointsCount: number
+    filesTouched: DashboardCommitFileDiffNode[]
+    sessionCount: number
+    tokenUsage: DashboardTokenUsageNode | null
+    sessions: Array<{
+      sessionIndex: number
+      sessionId: string
+      agent: string
+      createdAt: string
+      isTask: boolean
+      toolUseId: string
+      metadataJson: string
+      transcriptJsonl: string
+      promptsText: string
+      contextText: string
+    }>
+  }
 }
