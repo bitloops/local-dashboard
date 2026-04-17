@@ -1,5 +1,6 @@
-import { useEffect, useState } from 'react'
+import { startTransition, useEffect, useState } from 'react'
 import {
+  type DashboardCheckpointDetailResponse,
   type DashboardInteractionCommitAuthorDto,
   type DashboardInteractionSessionDetailResponse,
   type DashboardInteractionSessionDto,
@@ -9,15 +10,25 @@ import {
 import { CopyButton } from '@/components/copy-button'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Card, CardDescription, CardTitle } from '@/components/ui/card'
+import { CardDescription, CardTitle } from '@/components/ui/card'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from '@/components/ui/accordion'
 import { XIcon } from 'lucide-react'
-import { fetchDashboardInteractionSessionDetail } from '../graphql/fetch-dashboard-data'
+import {
+  fetchDashboardCheckpointDetail,
+  fetchDashboardInteractionSessionDetail,
+} from '../graphql/fetch-dashboard-data'
 import { type Checkpoint } from '../types'
 import { formatAgentLabel } from '../utils'
 import { formatDateTime } from './checkpoint-sheet-utils'
-import { TurnDetailModal } from './checkpoint-sheet'
-import { CheckpointSummaryDialog } from './checkpoint-summary-dialog'
+import { FileTree } from './file-tree'
+import { CheckpointSummaryPanel } from './checkpoint-summary-panel'
+import { TurnDetailContent } from './checkpoint-sheet'
 
 function checkpointStubFromLinked(
   c: DashboardInteractionCommitAuthorDto,
@@ -30,7 +41,80 @@ function checkpointStubFromLinked(
   }
 }
 
+function LinkedCheckpointAccordionBody({
+  repoId,
+  linked,
+  isActive,
+}: {
+  repoId: string | null
+  linked: DashboardInteractionCommitAuthorDto
+  isActive: boolean
+}) {
+  const [detail, setDetail] = useState<DashboardCheckpointDetailResponse | null>(
+    null,
+  )
+  const [source, setSource] = useState<'idle' | 'loading' | 'api' | 'error'>(
+    'idle',
+  )
+
+  useEffect(() => {
+    if (!isActive || !repoId?.trim()) {
+      return
+    }
+    let cancelled = false
+
+    fetchDashboardCheckpointDetail({
+      repoId,
+      checkpointId: linked.checkpoint_id,
+    })
+      .then((response) => {
+        if (cancelled) return
+        setDetail(response)
+        setSource('api')
+      })
+      .catch((err: unknown) => {
+        if (cancelled) return
+        console.error('Checkpoint summary load failed', err)
+        setDetail(null)
+        setSource('error')
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [isActive, repoId, linked.checkpoint_id])
+
+  const selected: Checkpoint = {
+    ...checkpointStubFromLinked(linked),
+    id: linked.checkpoint_id,
+  }
+
+  if (!isActive) {
+    return null
+  }
+  if (source !== 'api' && source !== 'error') {
+    return (
+      <p className='text-sm text-muted-foreground'>Loading checkpoint…</p>
+    )
+  }
+  if (source === 'error') {
+    return (
+      <p className='text-sm text-muted-foreground'>
+        Could not load checkpoint detail.
+      </p>
+    )
+  }
+  return (
+    <CheckpointSummaryPanel
+      selectedCheckpoint={selected}
+      checkpointDetail={detail}
+    />
+  )
+}
+
 function SessionSummaryView({ summary }: { summary: DashboardInteractionSessionDto }) {
+  const toolCallCount = summary.tool_uses.length
+
   return (
     <div className='space-y-4'>
       <div className='flex flex-wrap items-center gap-2'>
@@ -47,33 +131,49 @@ function SessionSummaryView({ summary }: { summary: DashboardInteractionSessionD
           <Badge variant='outline'>branch:{summary.branch}</Badge>
         )}
       </div>
-      <div className='grid gap-2 text-sm'>
+
+      <div className='rounded-lg border bg-card p-3'>
+        <div className='grid grid-cols-2 gap-3 sm:grid-cols-4 sm:divide-x sm:divide-border sm:gap-0'>
+          <div className='sm:px-3 sm:first:ps-0 sm:last:pe-0'>
+            <p className='text-xs text-muted-foreground'>Files</p>
+            <p className='text-lg font-bold text-primary'>
+              {summary.file_paths.length}
+            </p>
+          </div>
+          <div className='sm:px-3 sm:first:ps-0 sm:last:pe-0'>
+            <p className='text-xs text-muted-foreground'>Turns</p>
+            <p className='text-lg font-bold text-primary'>{summary.turn_count}</p>
+          </div>
+          <div className='sm:px-3 sm:first:ps-0 sm:last:pe-0'>
+            <p className='text-xs text-muted-foreground'>Checkpoints</p>
+            <p className='text-lg font-bold text-primary'>
+              {summary.checkpoint_count}
+            </p>
+          </div>
+          <div className='sm:px-3 sm:first:ps-0 sm:last:pe-0'>
+            <p className='text-xs text-muted-foreground'>Tool calls</p>
+            <p className='text-lg font-bold text-primary'>{toolCallCount}</p>
+          </div>
+        </div>
+      </div>
+
+      <div className='grid gap-3 text-sm sm:grid-cols-3'>
         <div>
           <p className='text-xs text-muted-foreground'>Started</p>
-          <p>{summary.started_at}</p>
+          <p>{formatDateTime(summary.started_at)}</p>
         </div>
         {summary.ended_at && (
           <div>
             <p className='text-xs text-muted-foreground'>Ended</p>
-            <p>{summary.ended_at}</p>
+            <p>{formatDateTime(summary.ended_at)}</p>
           </div>
         )}
         {summary.last_event_at && (
           <div>
             <p className='text-xs text-muted-foreground'>Last event</p>
-            <p>{summary.last_event_at}</p>
+            <p>{formatDateTime(summary.last_event_at)}</p>
           </div>
         )}
-        <div className='flex gap-4'>
-          <div>
-            <p className='text-xs text-muted-foreground'>Turns</p>
-            <p className='font-medium'>{summary.turn_count}</p>
-          </div>
-          <div>
-            <p className='text-xs text-muted-foreground'>Checkpoints</p>
-            <p className='font-medium'>{summary.checkpoint_count}</p>
-          </div>
-        </div>
       </div>
       {summary.first_prompt && (
         <div>
@@ -93,19 +193,10 @@ function SessionSummaryView({ summary }: { summary: DashboardInteractionSessionD
       )}
       {summary.file_paths.length > 0 && (
         <div>
-          <p className='text-xs text-muted-foreground'>File paths</p>
-          <ul className='max-h-32 list-inside list-disc overflow-auto text-sm'>
-            {summary.file_paths.slice(0, 40).map((p) => (
-              <li key={p} className='font-mono text-xs'>
-                {p}
-              </li>
-            ))}
-            {summary.file_paths.length > 40 && (
-              <li className='text-muted-foreground'>
-                +{summary.file_paths.length - 40} more
-              </li>
-            )}
-          </ul>
+          <h3 className='mb-2 text-sm font-semibold'>Files Touched</h3>
+          <div className='max-h-64 overflow-auto rounded-md border bg-muted/20 p-3'>
+            <FileTree paths={summary.file_paths} />
+          </div>
         </div>
       )}
     </div>
@@ -154,26 +245,25 @@ export function SessionDetailSidebar({
     'idle' | 'loading' | 'api' | 'error'
   >('idle')
   const [interactionError, setInteractionError] = useState<string | null>(null)
-  const [selectedTurn, setSelectedTurn] =
-    useState<DashboardInteractionTurnDto | null>(null)
-  const [checkpointModalOpen, setCheckpointModalOpen] = useState(false)
-  const [modalCheckpointId, setModalCheckpointId] = useState<string | null>(
-    null,
-  )
-  const [modalCheckpointStub, setModalCheckpointStub] =
-    useState<Checkpoint | null>(null)
+  const [openCheckpointAccordion, setOpenCheckpointAccordion] = useState<
+    string | undefined
+  >()
 
   useEffect(() => {
     if (!sessionId?.trim() || !repoId) {
-      setInteractionDetail(null)
-      setInteractionSource('idle')
-      setInteractionError(null)
+      startTransition(() => {
+        setInteractionDetail(null)
+        setInteractionSource('idle')
+        setInteractionError(null)
+      })
       return
     }
 
     let cancelled = false
-    setInteractionSource('loading')
-    setInteractionError(null)
+    startTransition(() => {
+      setInteractionSource('loading')
+      setInteractionError(null)
+    })
 
     fetchDashboardInteractionSessionDetail({ repoId, sessionId })
       .then((result) => {
@@ -199,12 +289,6 @@ export function SessionDetailSidebar({
   const turns = interactionDetail?.turns ?? []
   const rawEvents = interactionDetail?.raw_events ?? []
   const tools = flattenToolUses(interactionDetail, turns)
-
-  const openCheckpointModal = (linked: DashboardInteractionCommitAuthorDto) => {
-    setModalCheckpointId(linked.checkpoint_id)
-    setModalCheckpointStub(checkpointStubFromLinked(linked))
-    setCheckpointModalOpen(true)
-  }
 
   return (
     <>
@@ -256,33 +340,53 @@ export function SessionDetailSidebar({
                   {turns.length === 0 ? (
                     <p className='text-sm text-muted-foreground'>No turns.</p>
                   ) : (
-                    turns.map((turn) => (
-                      <button
-                        key={turn.turn_id}
-                        type='button'
-                        className='w-full rounded-md border bg-background px-3 py-2 text-left hover:bg-muted/40'
-                        onClick={() => setSelectedTurn(turn)}
-                      >
-                        <div className='flex items-start justify-between gap-2'>
-                          <div className='min-w-0'>
-                            <p className='text-sm font-medium'>
-                              Turn {turn.turn_number}
-                            </p>
-                            <p className='line-clamp-2 text-xs text-muted-foreground'>
-                              {turn.prompt ?? turn.summary ?? '-'}
-                            </p>
-                          </div>
-                          <div className='flex shrink-0 flex-col items-end gap-1'>
-                            {turn.checkpoint_id && (
-                              <Badge variant='secondary'>checkpoint</Badge>
-                            )}
-                            <Badge variant='outline'>
-                              {turn.files_modified.length} files
-                            </Badge>
-                          </div>
-                        </div>
-                      </button>
-                    ))
+                    <Accordion
+                      key={summary.session_id}
+                      type='single'
+                      collapsible
+                      className='flex w-full flex-col gap-3'
+                    >
+                      {turns.map((turn) => (
+                        <AccordionItem
+                          key={turn.turn_id}
+                          value={turn.turn_id}
+                          variant='card'
+                        >
+                          <AccordionTrigger className='px-4 py-3 hover:bg-muted/50 hover:no-underline [&[data-state=open]]:bg-muted/40'>
+                            <div className='flex min-w-0 flex-1 items-start justify-between gap-2 text-start'>
+                              <div className='min-w-0'>
+                                <p className='text-sm font-medium'>
+                                  Turn {turn.turn_number}
+                                </p>
+                                <p className='line-clamp-2 text-xs text-muted-foreground'>
+                                  {turn.prompt ?? turn.summary ?? '-'}
+                                </p>
+                              </div>
+                              <div className='flex shrink-0 flex-col items-end gap-1 pe-1'>
+                                {turn.checkpoint_id && (
+                                  <Badge variant='secondary'>checkpoint</Badge>
+                                )}
+                                {turn.model && (
+                                  <Badge variant='outline' className='max-w-[140px] truncate'>
+                                    {turn.model}
+                                  </Badge>
+                                )}
+                                <Badge variant='outline'>
+                                  {turn.files_modified.length} files
+                                </Badge>
+                              </div>
+                            </div>
+                          </AccordionTrigger>
+                          <AccordionContent className='border-t border-border px-4 pb-4 pt-4'>
+                            <TurnDetailContent
+                              turn={turn}
+                              rawEvents={rawEvents}
+                              userName={userName}
+                            />
+                          </AccordionContent>
+                        </AccordionItem>
+                      ))}
+                    </Accordion>
                   )}
                 </TabsContent>
                 <TabsContent value='checkpoints' className='mt-0 space-y-2'>
@@ -291,23 +395,38 @@ export function SessionDetailSidebar({
                       No linked checkpoints.
                     </p>
                   ) : (
-                    summary.linked_checkpoints.map((c) => (
-                      <Card
-                        key={`${c.checkpoint_id}-${c.commit_sha}`}
-                        className='cursor-pointer bg-muted/20 p-3 transition-colors hover:bg-muted/40'
-                        onClick={() => openCheckpointModal(c)}
-                      >
-                        <p className='font-mono text-xs'>{c.checkpoint_id}</p>
-                        <p className='text-xs text-muted-foreground'>
-                          {c.commit_sha.slice(0, 12)}…
-                        </p>
-                        {(c.name || c.email) && (
-                          <p className='mt-1 text-xs'>
-                            {c.name ?? c.email ?? ''}
-                          </p>
-                        )}
-                      </Card>
-                    ))
+                    <Accordion
+                      type='single'
+                      collapsible
+                      value={openCheckpointAccordion}
+                      onValueChange={setOpenCheckpointAccordion}
+                      className='flex w-full flex-col gap-3'
+                    >
+                      {summary.linked_checkpoints.map((c) => (
+                        <AccordionItem
+                          key={`${c.checkpoint_id}-${c.commit_sha}`}
+                          value={c.checkpoint_id}
+                          variant='card'
+                        >
+                          <AccordionTrigger className='px-4 py-3 hover:bg-muted/50 hover:no-underline [&[data-state=open]]:bg-muted/40'>
+                            <div className='min-w-0 flex-1 text-start'>
+                              <p className='font-mono text-xs'>{c.checkpoint_id}</p>
+                              <p className='text-xs text-muted-foreground'>
+                                {c.commit_sha.slice(0, 12)}…
+                              </p>
+                            </div>
+                          </AccordionTrigger>
+                          <AccordionContent className='border-t border-border px-4 pb-4 pt-4'>
+                            <LinkedCheckpointAccordionBody
+                              key={`chk-${c.checkpoint_id}-${openCheckpointAccordion ?? 'none'}`}
+                              repoId={repoId}
+                              linked={c}
+                              isActive={openCheckpointAccordion === c.checkpoint_id}
+                            />
+                          </AccordionContent>
+                        </AccordionItem>
+                      ))}
+                    </Accordion>
                   )}
                 </TabsContent>
                 <TabsContent value='tools' className='mt-0 space-y-2'>
@@ -352,28 +471,6 @@ export function SessionDetailSidebar({
         </div>
       </div>
 
-      {selectedTurn && (
-        <TurnDetailModal
-          turn={selectedTurn}
-          rawEvents={rawEvents}
-          userName={userName}
-          onClose={() => setSelectedTurn(null)}
-        />
-      )}
-
-      <CheckpointSummaryDialog
-        open={checkpointModalOpen}
-        onOpenChange={(open) => {
-          setCheckpointModalOpen(open)
-          if (!open) {
-            setModalCheckpointId(null)
-            setModalCheckpointStub(null)
-          }
-        }}
-        repoId={repoId}
-        checkpointId={modalCheckpointId}
-        checkpointStub={modalCheckpointStub}
-      />
     </>
   )
 }

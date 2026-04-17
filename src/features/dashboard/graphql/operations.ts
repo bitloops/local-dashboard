@@ -305,12 +305,6 @@ export const DASHBOARD_INTERACTION_SESSION_DETAIL_QUERY = `
         turnId
         sessionId
         branch
-        actor {
-          id
-          name
-          email
-          source
-        }
         turnNumber
         prompt
         summary

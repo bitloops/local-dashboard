@@ -15,11 +15,11 @@ import { Separator } from '@/components/ui/separator'
 import { Button } from '@/components/ui/button'
 import { Sheet, SheetContent } from '@/components/ui/sheet'
 import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog'
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from '@/components/ui/accordion'
 import { XIcon } from 'lucide-react'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { PrismLight as SyntaxHighlighter } from 'react-syntax-highlighter'
@@ -84,8 +84,6 @@ function CheckpointDetailContentInner({
     'idle' | 'loading' | 'api' | 'error'
   >('idle')
   const [interactionError, setInteractionError] = useState<string | null>(null)
-  const [selectedTurn, setSelectedTurn] =
-    useState<DashboardInteractionTurnDto | null>(null)
 
   const selectedCheckpointCreatedAt = selectedCheckpoint?.createdAt
     ? formatDateTime(selectedCheckpoint.createdAt)
@@ -290,7 +288,6 @@ function CheckpointDetailContentInner({
                           setInteractionDetail(null)
                           setInteractionSource('idle')
                           setInteractionError(null)
-                          setSelectedTurn(null)
                         }}
                         className='min-w-0'
                       >
@@ -384,37 +381,58 @@ function CheckpointDetailContentInner({
                                       </p>
                                     )}
                                     {interactionSource === 'api' && turns.length > 0 && (
-                                      <div className='space-y-2'>
+                                      <Accordion
+                                        key={`turns-${selectedCheckpoint.id}-${selectedSessionTab}`}
+                                        type='single'
+                                        collapsible
+                                        className='flex w-full flex-col gap-3'
+                                      >
                                         {turns.map((turn) => (
-                                          <button
+                                          <AccordionItem
                                             key={turn.turn_id}
-                                            type='button'
-                                            className='w-full text-left rounded-md border bg-background px-3 py-2 hover:bg-muted/40'
-                                            onClick={() => setSelectedTurn(turn)}
+                                            value={turn.turn_id}
+                                            variant='card'
                                           >
-                                            <div className='flex items-start justify-between gap-2'>
-                                              <div className='min-w-0'>
-                                                <p className='text-sm font-medium'>
-                                                  Turn {turn.turn_number}
-                                                </p>
-                                                <p className='text-xs text-muted-foreground line-clamp-2'>
-                                                  {turn.prompt ?? turn.summary ?? '-'}
-                                                </p>
-                                              </div>
-                                              <div className='flex shrink-0 flex-col items-end gap-1'>
-                                                {turn.checkpoint_id && (
-                                                  <Badge variant='secondary'>
-                                                    checkpoint
+                                            <AccordionTrigger className='px-4 py-3 hover:bg-muted/50 hover:no-underline [&[data-state=open]]:bg-muted/40'>
+                                              <div className='flex min-w-0 flex-1 items-start justify-between gap-2 text-start'>
+                                                <div className='min-w-0'>
+                                                  <p className='text-sm font-medium'>
+                                                    Turn {turn.turn_number}
+                                                  </p>
+                                                  <p className='line-clamp-2 text-xs text-muted-foreground'>
+                                                    {turn.prompt ?? turn.summary ?? '-'}
+                                                  </p>
+                                                </div>
+                                                <div className='flex shrink-0 flex-col items-end gap-1 pe-1'>
+                                                  {turn.checkpoint_id && (
+                                                    <Badge variant='secondary'>
+                                                      checkpoint
+                                                    </Badge>
+                                                  )}
+                                                  {turn.model && (
+                                                    <Badge
+                                                      variant='outline'
+                                                      className='max-w-[140px] truncate'
+                                                    >
+                                                      {turn.model}
+                                                    </Badge>
+                                                  )}
+                                                  <Badge variant='outline'>
+                                                    {turn.files_modified.length} files
                                                   </Badge>
-                                                )}
-                                                <Badge variant='outline'>
-                                                  {turn.files_modified.length} files
-                                                </Badge>
+                                                </div>
                                               </div>
-                                            </div>
-                                          </button>
+                                            </AccordionTrigger>
+                                            <AccordionContent className='border-t border-border px-4 pb-4 pt-4'>
+                                              <TurnDetailContent
+                                                turn={turn}
+                                                rawEvents={rawEvents}
+                                                userName={userName}
+                                              />
+                                            </AccordionContent>
+                                          </AccordionItem>
                                         ))}
-                                      </div>
+                                      </Accordion>
                                     )}
                                   </div>
                                 )}
@@ -608,7 +626,7 @@ function CheckpointDetailContentInner({
                       </div>
                       <div className='sm:px-3 sm:first:ps-0 sm:last:pe-0'>
                         <p className='text-xs text-muted-foreground'>
-                          API Calls
+                          Tool calls
                         </p>
                         <p className='text-lg font-bold text-primary'>
                           {detailTokenUsage
@@ -703,28 +721,19 @@ function CheckpointDetailContentInner({
         </div>
       </div>
       </div>
-      {selectedTurn && (
-        <TurnDetailModal
-          turn={selectedTurn}
-          rawEvents={rawEvents}
-          userName={userName}
-          onClose={() => setSelectedTurn(null)}
-        />
-      )}
     </>
   )
 }
 
-export function TurnDetailModal({
+/** Turn detail body (prompt, transcript, token chart, files) — use inside sheet/sidebar accordions. */
+export function TurnDetailContent({
   turn,
   rawEvents,
   userName,
-  onClose,
 }: {
   turn: DashboardInteractionTurnDto
   rawEvents: DashboardInteractionEventDto[]
   userName: string
-  onClose: () => void
 }) {
   const payloadForTurnEnd = () => {
     const relevant = rawEvents
@@ -742,70 +751,71 @@ export function TurnDetailModal({
   const transcriptEntries = fragment ? parseTranscriptEntries(fragment) : []
 
   return (
-    <Dialog open onOpenChange={(open) => (!open ? onClose() : undefined)}>
-      <DialogContent className='sm:max-w-3xl max-h-[85vh] overflow-hidden p-0'>
-        <div className='flex min-h-0 flex-col'>
-          <DialogHeader className='border-b px-5 py-4'>
-            <DialogTitle className='flex items-center gap-2'>
-              Turn {turn.turn_number}
-              <CopyButton value={turn.turn_id} />
-            </DialogTitle>
-            <div className='mt-2 flex flex-wrap gap-2'>
-              <Badge variant='secondary'>{turn.agent_type}</Badge>
-              {turn.model && <Badge variant='outline'>{turn.model}</Badge>}
-              {turn.started_at && (
-                <Badge variant='outline'>{formatDateTime(turn.started_at)}</Badge>
-              )}
-              {turn.checkpoint_id && (
-                <Badge variant='secondary'>checkpoint</Badge>
-              )}
-            </div>
-          </DialogHeader>
+    <div className='space-y-4'>
+      <span className='sr-only'>Turn {turn.turn_number}</span>
+      <div className='flex flex-wrap items-center gap-2 border-b border-border pb-3'>
+        <CopyButton value={turn.turn_id} />
+        <Badge variant='secondary'>{turn.agent_type}</Badge>
+        {turn.model && <Badge variant='outline'>{turn.model}</Badge>}
+        {turn.started_at && (
+          <Badge variant='outline'>{formatDateTime(turn.started_at)}</Badge>
+        )}
+        {turn.ended_at && (
+          <Badge variant='outline'>ended {formatDateTime(turn.ended_at)}</Badge>
+        )}
+        {turn.checkpoint_id && <Badge variant='secondary'>checkpoint</Badge>}
+      </div>
 
-          <div className='min-h-0 flex-1 overflow-y-auto px-5 py-4 space-y-4'>
-            <div className='space-y-1'>
-              <p className='text-xs text-muted-foreground'>Prompt</p>
-              <p className='rounded-md border bg-muted/20 p-3 text-sm whitespace-pre-wrap break-words'>
-                {turn.prompt ?? '-'}
-              </p>
-            </div>
+      <div className='space-y-1'>
+        <p className='text-xs text-muted-foreground'>Prompt</p>
+        <p className='rounded-md border bg-muted/20 p-3 text-sm whitespace-pre-wrap break-words'>
+          {turn.prompt ?? '-'}
+        </p>
+      </div>
 
-            <div className='space-y-1'>
-              <p className='text-xs text-muted-foreground'>Transcript (turn)</p>
-              <div className='max-h-[50vh] overflow-auto rounded-md border bg-background p-2'>
-                {transcriptEntries.length === 0 ? (
-                  <p className='text-sm text-muted-foreground'>
-                    No transcript fragment available for this turn.
-                  </p>
-                ) : (
-                  <ChatTranscript
-                    entries={transcriptEntries}
-                    sessionId={turn.session_id}
-                    agentName={formatAgentLabel(turn.agent_type)}
-                    userName={userName}
-                  />
-                )}
-              </div>
-            </div>
-
-            <div className='space-y-1'>
-              <p className='text-xs text-muted-foreground'>Files modified</p>
-              {turn.files_modified.length === 0 ? (
-                <p className='text-sm text-muted-foreground'>-</p>
-              ) : (
-                <div className='flex flex-wrap gap-2'>
-                  {turn.files_modified.map((p) => (
-                    <Badge key={p} variant='outline' className='font-mono'>
-                      {p}
-                    </Badge>
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
+      <div className='space-y-1'>
+        <p className='text-xs text-muted-foreground'>Transcript (turn)</p>
+        <div className='max-h-[min(50vh,320px)] overflow-auto rounded-md border bg-background p-2'>
+          {transcriptEntries.length === 0 ? (
+            <p className='text-sm text-muted-foreground'>
+              No transcript fragment available for this turn.
+            </p>
+          ) : (
+            <ChatTranscript
+              entries={transcriptEntries}
+              sessionId={turn.session_id}
+              agentName={formatAgentLabel(turn.agent_type)}
+              userName={userName}
+            />
+          )}
         </div>
-      </DialogContent>
-    </Dialog>
+      </div>
+
+      <Separator />
+      <div>
+        <h3 className='mb-2 text-sm font-semibold'>Token Usage</h3>
+        <Suspense
+          fallback={
+            <div className='h-40 animate-pulse rounded-md bg-muted/30' />
+          }
+        >
+          <TokenUsageChart usage={turn.token_usage} />
+        </Suspense>
+      </div>
+
+      <div>
+        <h3 className='mb-2 text-sm font-semibold'>Files Touched</h3>
+        {turn.files_modified.length === 0 ? (
+          <p className='text-sm text-muted-foreground'>
+            No files modified for this turn.
+          </p>
+        ) : (
+          <div className='max-h-64 overflow-auto rounded-md border bg-muted/20 p-3'>
+            <FileTree paths={turn.files_modified} />
+          </div>
+        )}
+      </div>
+    </div>
   )
 }
 

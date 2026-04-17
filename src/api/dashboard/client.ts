@@ -3,6 +3,10 @@ import type {
   GraphQLRequestOptions,
   GraphQLResponseEnvelope,
 } from '@/api/graphql/types'
+import {
+  getMockDashboardGraphQLResponse,
+  isDashboardApiMockEnabled,
+} from './mock-dashboard-graphql'
 
 const DASHBOARD_GRAPHQL_ENDPOINT = '/devql/dashboard'
 const DASHBOARD_BLOB_ENDPOINT = '/devql/dashboard/blobs'
@@ -34,6 +38,13 @@ export async function requestDashboardGraphQL<
   variables?: TVariables,
   options?: GraphQLRequestOptions,
 ): Promise<GraphQLResponseEnvelope<TData>> {
+  if (isDashboardApiMockEnabled()) {
+    return getMockDashboardGraphQLResponse<TData>(
+      query,
+      variables as Record<string, unknown> | undefined,
+    )
+  }
+
   const response = await fetch(resolveEndpoint(DASHBOARD_GRAPHQL_ENDPOINT), {
     method: 'POST',
     headers: {

@@ -114,7 +114,7 @@ export function TokenUsageChart({ usage }: TokenUsageChartProps) {
             </div>
           ))}
           <div className='flex items-center gap-2 border-t pt-1 text-xs'>
-            <span className='text-muted-foreground'>API Calls</span>
+            <span className='text-muted-foreground'>Tool calls</span>
             <span className='ml-auto font-mono'>
               {usage ? usage.api_call_count : '-'}
             </span>

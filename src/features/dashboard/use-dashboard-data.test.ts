@@ -6,6 +6,7 @@ import type {
   DashboardCheckpointDetailResponse,
   DashboardCheckpointDto,
   DashboardCommitRowDto,
+  DashboardInteractionSessionDetailResponse,
   DashboardRepositoryOption,
 } from './api-types'
 import type { DashboardInteractionSessionDto } from './api-types'
@@ -16,6 +17,7 @@ import {
   fetchDashboardBranches,
   fetchDashboardCheckpointDetail,
   fetchDashboardCommitsPage,
+  fetchDashboardInteractionSessionDetail,
   fetchDashboardInteractionSessionsPage,
   fetchDashboardRepositories,
   fetchDashboardUsers,
@@ -38,6 +40,7 @@ vi.mock('./graphql/fetch-dashboard-data', () => ({
   fetchDashboardCommitsPage: vi.fn(),
   fetchDashboardInteractionSessionsPage: vi.fn(),
   fetchDashboardCheckpointDetail: vi.fn(),
+  fetchDashboardInteractionSessionDetail: vi.fn(),
 }))
 
 const mockFetchDashboardRepositories = vi.mocked(fetchDashboardRepositories)
@@ -50,6 +53,9 @@ const mockFetchDashboardInteractionSessionsPage = vi.mocked(
 )
 const mockFetchDashboardCheckpointDetail = vi.mocked(
   fetchDashboardCheckpointDetail,
+)
+const mockFetchDashboardInteractionSessionDetail = vi.mocked(
+  fetchDashboardInteractionSessionDetail,
 )
 
 const repositoryOptions: DashboardRepositoryOption[] = [
@@ -114,6 +120,7 @@ function makeCommitRow(
 
 function makeInteractionSession(
   sessionId: string,
+  overrides: Partial<DashboardInteractionSessionDto> = {},
 ): DashboardInteractionSessionDto {
   return {
     session_id: sessionId,
@@ -132,6 +139,7 @@ function makeInteractionSession(
     tool_uses: [],
     linked_checkpoints: [],
     latest_commit_author: null,
+    ...overrides,
   }
 }
 
@@ -147,6 +155,16 @@ function makeCheckpointDetail(
     session_count: 1,
     token_usage: null,
     sessions: [],
+  }
+}
+
+function makeInteractionSessionDetail(
+  sessionId: string,
+): DashboardInteractionSessionDetailResponse {
+  return {
+    summary: makeInteractionSession(sessionId),
+    turns: [],
+    raw_events: [],
   }
 }
 
@@ -187,7 +205,7 @@ describe('useDashboardData', () => {
       async ({ offset }) => ({
         rows: [
           makeInteractionSession(
-            offset === DASHBOARD_PAGE_SIZE ? 'session-2' : 'session-1',
+            offset === DASHBOARD_PAGE_SIZE ? 'session-2' : 'session-a',
           ),
         ],
         hasNextPage: offset === 0,
@@ -195,6 +213,9 @@ describe('useDashboardData', () => {
     )
     mockFetchDashboardCheckpointDetail.mockImplementation(
       async ({ checkpointId }) => makeCheckpointDetail(checkpointId),
+    )
+    mockFetchDashboardInteractionSessionDetail.mockImplementation(
+      async ({ sessionId }) => makeInteractionSessionDetail(sessionId),
     )
   })
 
@@ -398,7 +419,7 @@ describe('useDashboardData', () => {
     await waitFor(() => {
       expect(result.current.sessionsHasNextPage).toBe(true)
       expect(result.current.sessionsHasPreviousPage).toBe(false)
-      expect(result.current.sessionRows[0]?.session_id).toBe('session-1')
+      expect(result.current.sessionRows[0]?.session_id).toBe('session-a')
     })
 
     act(() => {
@@ -427,6 +448,53 @@ describe('useDashboardData', () => {
       ).toBeGreaterThan(1)
       expect(result.current.sessionsHasPreviousPage).toBe(false)
     })
+  })
+
+  it('sets selected session id and summary when onSessionSelect is called', async () => {
+    mockFetchDashboardInteractionSessionsPage.mockImplementation(
+      async ({ offset }) => ({
+        rows: [
+          makeInteractionSession(
+            offset === DASHBOARD_PAGE_SIZE ? 'session-2' : 'session-a',
+            { turn_count: 12, first_prompt: 'Custom prompt' },
+          ),
+        ],
+        hasNextPage: offset === 0,
+      }),
+    )
+
+    const { result } = renderHook(() => useDashboardData())
+
+    await waitFor(() => expect(result.current.sessionRows[0]).toBeDefined())
+
+    const session = result.current.sessionRows[0]!
+
+    act(() => {
+      result.current.onSessionSelect(session)
+    })
+
+    expect(result.current.selectedSessionId).toBe('session-a')
+    expect(result.current.selectedSessionSummary).toEqual(session)
+    expect(result.current.selectedSessionSummary?.turn_count).toBe(12)
+  })
+
+  it('clears selected session when the repo changes', async () => {
+    const { result } = renderHook(() => useDashboardData())
+
+    await waitFor(() => expect(result.current.sessionRows[0]).toBeDefined())
+
+    act(() => {
+      result.current.onSessionSelect(result.current.sessionRows[0]!)
+    })
+
+    expect(result.current.selectedSessionId).toBe('session-a')
+
+    act(() => {
+      result.current.onRepoChange('repo-2')
+    })
+
+    expect(result.current.selectedSessionId).toBeNull()
+    expect(result.current.selectedSessionSummary).toBeNull()
   })
 
   it('loads checkpoint detail with repoId and refetches when the selection changes', async () => {
