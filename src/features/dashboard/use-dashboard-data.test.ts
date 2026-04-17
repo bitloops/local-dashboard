@@ -187,7 +187,7 @@ describe('useDashboardData', () => {
       async ({ offset }) => ({
         rows: [
           makeInteractionSession(
-            offset === DASHBOARD_PAGE_SIZE ? 'session-2' : 'session-a',
+            offset === DASHBOARD_PAGE_SIZE ? 'session-2' : 'session-1',
           ),
         ],
         hasNextPage: offset === 0,
@@ -398,7 +398,7 @@ describe('useDashboardData', () => {
     await waitFor(() => {
       expect(result.current.sessionsHasNextPage).toBe(true)
       expect(result.current.sessionsHasPreviousPage).toBe(false)
-      expect(result.current.sessionRows[0]?.session_id).toBe('session-a')
+      expect(result.current.sessionRows[0]?.session_id).toBe('session-1')
     })
 
     act(() => {
