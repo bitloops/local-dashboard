@@ -1,5 +1,6 @@
 import type {
   DashboardCheckpointDetailResponse,
+  DashboardInteractionSessionDto,
   DashboardRepositoryOption,
 } from '@/features/dashboard/api-types'
 import type {
@@ -19,6 +20,10 @@ export type DashboardCommitsRequest = {
   offset: number
 }
 
+export type DashboardSessionsRequest = {
+  offset: number
+}
+
 export type DashboardSliceState = {
   selectedRepoId: string | null
   selectedBranch: string | null
@@ -33,6 +38,11 @@ export type DashboardSliceState = {
   rows: CommitData[]
   commitsPageInfo: DashboardCommitsPageInfo | null
   currentCommitsRequest: DashboardCommitsRequest
+  sessionRows: DashboardInteractionSessionDto[]
+  sessionsPageInfo: DashboardCommitsPageInfo | null
+  currentSessionsRequest: DashboardSessionsRequest
+  selectedSessionId: string | null
+  selectedSessionSummary: DashboardInteractionSessionDto | null
   selectedCheckpointId: string | null
   checkpointDetail: DashboardCheckpointDetailResponse | null
   checkpointDetailSource: CheckpointDetailLoadState
@@ -52,6 +62,11 @@ export type DashboardSliceActions = {
   setRows: (value: CommitData[]) => void
   setCommitsPageInfo: (value: DashboardCommitsPageInfo | null) => void
   setCurrentCommitsRequest: (value: DashboardCommitsRequest) => void
+  setSessionRows: (value: DashboardInteractionSessionDto[]) => void
+  setSessionsPageInfo: (value: DashboardCommitsPageInfo | null) => void
+  setCurrentSessionsRequest: (value: DashboardSessionsRequest) => void
+  setSelectedSessionId: (value: string | null) => void
+  setSelectedSessionSummary: (value: DashboardInteractionSessionDto | null) => void
   setSelectedCheckpointId: (value: string | null) => void
   setCheckpointDetail: (value: DashboardCheckpointDetailResponse | null) => void
   setCheckpointDetailSource: (value: CheckpointDetailLoadState) => void
@@ -70,6 +85,7 @@ type DashboardSet = (
 ) => void
 
 const INITIAL_COMMITS_REQUEST: DashboardCommitsRequest = { offset: 0 }
+const INITIAL_SESSIONS_REQUEST: DashboardSessionsRequest = { offset: 0 }
 
 function repoIdentityFromId(
   repoOptions: DashboardRepositoryOption[],
@@ -99,6 +115,11 @@ export function createDashboardSlice(set: DashboardSet): DashboardSlice {
     rows: [],
     commitsPageInfo: null,
     currentCommitsRequest: INITIAL_COMMITS_REQUEST,
+    sessionRows: [],
+    sessionsPageInfo: null,
+    currentSessionsRequest: INITIAL_SESSIONS_REQUEST,
+    selectedSessionId: null,
+    selectedSessionSummary: null,
     selectedCheckpointId: null,
     checkpointDetail: null,
     checkpointDetailSource: 'idle',
@@ -145,6 +166,11 @@ export function createDashboardSlice(set: DashboardSet): DashboardSlice {
     setRows: (value) => set({ rows: value }),
     setCommitsPageInfo: (value) => set({ commitsPageInfo: value }),
     setCurrentCommitsRequest: (value) => set({ currentCommitsRequest: value }),
+    setSessionRows: (value) => set({ sessionRows: value }),
+    setSessionsPageInfo: (value) => set({ sessionsPageInfo: value }),
+    setCurrentSessionsRequest: (value) => set({ currentSessionsRequest: value }),
+    setSelectedSessionId: (value) => set({ selectedSessionId: value }),
+    setSelectedSessionSummary: (value) => set({ selectedSessionSummary: value }),
     setSelectedCheckpointId: (value) => set({ selectedCheckpointId: value }),
     setCheckpointDetail: (value) => set({ checkpointDetail: value }),
     setCheckpointDetailSource: (value) =>
@@ -158,6 +184,7 @@ export function createDashboardSlice(set: DashboardSet): DashboardSlice {
         fromDate: undefined,
         toDate: undefined,
         currentCommitsRequest: INITIAL_COMMITS_REQUEST,
+        currentSessionsRequest: INITIAL_SESSIONS_REQUEST,
       }),
     clearDashboardCache: () =>
       set({
@@ -168,6 +195,11 @@ export function createDashboardSlice(set: DashboardSet): DashboardSlice {
         rows: [],
         commitsPageInfo: null,
         currentCommitsRequest: INITIAL_COMMITS_REQUEST,
+        sessionRows: [],
+        sessionsPageInfo: null,
+        currentSessionsRequest: INITIAL_SESSIONS_REQUEST,
+        selectedSessionId: null,
+        selectedSessionSummary: null,
         selectedCheckpointId: null,
         checkpointDetail: null,
         checkpointDetailSource: 'idle',

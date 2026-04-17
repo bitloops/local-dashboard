@@ -172,6 +172,7 @@ describe('CheckpointSheet (component)', () => {
     checkpointDetail: null,
     checkpointDetailSource: 'idle' as const,
     userName: 'Test User',
+    repoId: null as string | null,
     onClose: vi.fn(),
   }
 

@@ -29,18 +29,12 @@ import {
 import { Sidebar, SidebarRail } from '@/components/ui/sidebar'
 import { useSidebar } from '@/components/ui/use-sidebar'
 import type {
-  DashboardCheckpointDetailResponse,
+  DashboardInteractionSessionDto,
   DashboardRepositoryOption,
 } from './api-types'
-import { CheckpointDetailContent } from './components/checkpoint-sheet'
-import { CommitTable } from './components/commits-table'
-import {
-  type Checkpoint,
-  type CheckpointDetailLoadState,
-  type CommitData,
-  type LoadState,
-  type UserOption,
-} from './types'
+import { SessionDetailSidebar } from './components/session-detail-sidebar'
+import { SessionsTable } from './components/sessions-table'
+import { type CommitData, type LoadState, type UserOption } from './types'
 import { formatAgentLabel } from './utils'
 
 const CommitCheckpointChart = lazy(() =>
@@ -60,11 +54,13 @@ const dottedAlertClassName =
 
 type DashboardViewProps = {
   rows: CommitData[]
+  sessionRows: DashboardInteractionSessionDto[]
   repoOptions: DashboardRepositoryOption[]
   branchOptions: string[]
   userOptions: UserOption[]
   agentOptions: string[]
   selectedRepoId: string | null
+  effectiveRepoId: string | null
   selectedBranch: string | null
   selectedUser: string | null
   selectedAgent: string | null
@@ -75,13 +71,12 @@ type DashboardViewProps = {
   dataSource: LoadState
   optionsSource: LoadState
   branchOptionsSource: LoadState
-  commitsHasNextPage: boolean
-  commitsHasPreviousPage: boolean
-  onCommitsNext: () => void
-  onCommitsBack: () => void
-  selectedCheckpoint: Checkpoint | null
-  checkpointDetail: DashboardCheckpointDetailResponse | null
-  checkpointDetailSource: CheckpointDetailLoadState
+  sessionsHasNextPage: boolean
+  sessionsHasPreviousPage: boolean
+  onSessionsNext: () => void
+  onSessionsBack: () => void
+  selectedSessionId: string | null
+  selectedSessionSummary: DashboardInteractionSessionDto | null
   onRepoChange: (value: string | null) => void
   onBranchChange: (value: string | null) => void
   onUserChange: (value: string | null) => void
@@ -89,16 +84,18 @@ type DashboardViewProps = {
   onFromDateChange: (value: Date | undefined) => void
   onToDateChange: (value: Date | undefined) => void
   onClearFilters: () => void
-  onCheckpointSelect: (checkpoint: Checkpoint) => void
+  onSessionSelect: (session: DashboardInteractionSessionDto) => void
 }
 
 export function DashboardView({
   rows,
+  sessionRows = [],
   repoOptions,
   branchOptions,
   userOptions,
   agentOptions,
   selectedRepoId,
+  effectiveRepoId,
   selectedBranch,
   selectedUser,
   selectedAgent,
@@ -109,13 +106,12 @@ export function DashboardView({
   dataSource,
   optionsSource,
   branchOptionsSource,
-  commitsHasNextPage,
-  commitsHasPreviousPage,
-  onCommitsNext,
-  onCommitsBack,
-  selectedCheckpoint,
-  checkpointDetail,
-  checkpointDetailSource,
+  sessionsHasNextPage,
+  sessionsHasPreviousPage,
+  onSessionsNext,
+  onSessionsBack,
+  selectedSessionId,
+  selectedSessionSummary,
   onRepoChange,
   onBranchChange,
   onUserChange,
@@ -123,13 +119,13 @@ export function DashboardView({
   onFromDateChange,
   onToDateChange,
   onClearFilters,
-  onCheckpointSelect,
+  onSessionSelect,
 }: DashboardViewProps) {
   const [selectedCommit, setSelectedCommit] = useState<string | null>(null)
   const { setOpen, setRightOpen } = useSidebar()
 
-  const handleCheckpointSelect = (checkpoint: Checkpoint) => {
-    onCheckpointSelect(checkpoint)
+  const handleSessionClick = (session: DashboardInteractionSessionDto) => {
+    onSessionSelect(session)
     setOpen(false)
     setRightOpen(true)
   }
@@ -146,9 +142,10 @@ export function DashboardView({
     ? (userOptions.find((u) => u.value === selectedUser)?.label ?? 'You')
     : (userOptions[0]?.label ?? 'You')
 
+  const totalSessions = sessionRows.length
   const totalCommits = rows.length
   const totalCheckpoints = rows.reduce((sum, row) => sum + row.checkpoints, 0)
-  const totalAgents = new Set(rows.map((row) => row.agent)).size
+  const sessionAgents = new Set(sessionRows.map((s) => s.agent_type)).size
   const activeBranches = effectiveBranch ? 1 : 0
 
   return (
@@ -345,20 +342,20 @@ export function DashboardView({
             {
               title: 'Throughput',
               icon: Gauge,
-              value: `${totalCommits} commits`,
-              description: 'For current filters',
+              value: `${totalSessions} sessions`,
+              description: 'On this page',
             },
             {
               title: 'Checkpoints',
               icon: Bookmark,
               value: String(totalCheckpoints),
-              description: 'Across visible commits',
+              description: `Across ${totalCommits} commits (chart sample)`,
             },
             {
               title: 'Agents',
               icon: Bot,
-              value: String(totalAgents),
-              description: 'In visible commits',
+              value: String(sessionAgents),
+              description: 'In sessions on this page',
             },
             {
               title: 'Active Branches',
@@ -413,7 +410,7 @@ export function DashboardView({
         <div className='mt-6'>
           <div className='mb-4 flex flex-wrap items-center justify-between gap-2'>
             <h2 className='text-lg font-semibold tracking-tight'>
-              Recent Commits
+              Recent Sessions
             </h2>
             {effectiveBranch && (
               <div className='flex items-center gap-1'>
@@ -422,9 +419,11 @@ export function DashboardView({
                   variant='outline'
                   size='sm'
                   className='h-8 px-2'
-                  disabled={!commitsHasPreviousPage || dataSource === 'loading'}
-                  onClick={onCommitsBack}
-                  aria-label='Previous commits page'
+                  disabled={
+                    !sessionsHasPreviousPage || dataSource === 'loading'
+                  }
+                  onClick={onSessionsBack}
+                  aria-label='Previous sessions page'
                 >
                   <ChevronLeft className='h-4 w-4' />
                 </Button>
@@ -433,16 +432,19 @@ export function DashboardView({
                   variant='outline'
                   size='sm'
                   className='h-8 px-2'
-                  disabled={!commitsHasNextPage || dataSource === 'loading'}
-                  onClick={onCommitsNext}
-                  aria-label='Next commits page'
+                  disabled={!sessionsHasNextPage || dataSource === 'loading'}
+                  onClick={onSessionsNext}
+                  aria-label='Next sessions page'
                 >
                   <ChevronRight className='h-4 w-4' />
                 </Button>
               </div>
             )}
           </div>
-          <CommitTable data={rows} onCheckpointClick={handleCheckpointSelect} />
+          <SessionsTable
+            data={sessionRows}
+            onSessionClick={handleSessionClick}
+          />
         </div>
       </Main>
 
@@ -455,10 +457,10 @@ export function DashboardView({
         maxWidth={700}
       >
         <SidebarRail side='right' />
-        <CheckpointDetailContent
-          selectedCheckpoint={selectedCheckpoint}
-          checkpointDetail={checkpointDetail}
-          checkpointDetailSource={checkpointDetailSource}
+        <SessionDetailSidebar
+          sessionId={selectedSessionId}
+          sessionSummary={selectedSessionSummary}
+          repoId={effectiveRepoId}
           userName={userName}
           onClose={() => {
             setRightOpen(false)

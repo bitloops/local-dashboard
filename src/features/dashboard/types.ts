@@ -14,6 +14,10 @@ export type Checkpoint = {
   createdAt?: string
   branch?: string
   agent?: string
+  /** Agents attributed to this checkpoint (from API). */
+  agents?: string[]
+  /** Commit author, propagated for flat checkpoint rows. */
+  author?: string
   strategy?: string
   sessionId?: string
   toolUseId?: string

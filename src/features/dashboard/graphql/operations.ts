@@ -185,3 +185,174 @@ export const DASHBOARD_CHECKPOINT_DETAIL_QUERY = `
     }
   }
 `
+
+export const DASHBOARD_INTERACTION_SESSIONS_QUERY = `
+  query DashboardInteractionSessions(
+    $repoId: String
+    $filter: DashboardInteractionFilterInput
+    $limit: Int
+    $offset: Int
+  ) {
+    interactionSessions(repoId: $repoId, filter: $filter, limit: $limit, offset: $offset) {
+      sessionId
+      branch
+      actor {
+        id
+        name
+        email
+        source
+      }
+      agentType
+      model
+      firstPrompt
+      startedAt
+      endedAt
+      lastEventAt
+      turnCount
+      checkpointCount
+      tokenUsage {
+        inputTokens
+        outputTokens
+        cacheCreationTokens
+        cacheReadTokens
+        apiCallCount
+      }
+      filePaths
+      toolUses {
+        toolUseId
+        sessionId
+        turnId
+        toolKind
+        taskDescription
+        subagentId
+        transcriptPath
+        startedAt
+        endedAt
+      }
+      linkedCheckpoints {
+        checkpointId
+        commitSha
+        name
+        email
+        committedAt
+      }
+      latestCommitAuthor {
+        checkpointId
+        commitSha
+        name
+        email
+        committedAt
+      }
+    }
+  }
+`
+
+export const DASHBOARD_INTERACTION_SESSION_DETAIL_QUERY = `
+  query DashboardInteractionSessionDetail($repoId: String, $sessionId: String!) {
+    interactionSession(repoId: $repoId, sessionId: $sessionId) {
+      summary {
+        sessionId
+        branch
+        actor {
+          id
+          name
+          email
+          source
+        }
+        agentType
+        model
+        firstPrompt
+        startedAt
+        endedAt
+        lastEventAt
+        turnCount
+        checkpointCount
+        tokenUsage {
+          inputTokens
+          outputTokens
+          cacheCreationTokens
+          cacheReadTokens
+          apiCallCount
+        }
+        filePaths
+        toolUses {
+          toolUseId
+          sessionId
+          turnId
+          toolKind
+          taskDescription
+          subagentId
+          transcriptPath
+          startedAt
+          endedAt
+        }
+        linkedCheckpoints {
+          checkpointId
+          commitSha
+          name
+          email
+          committedAt
+        }
+        latestCommitAuthor {
+          checkpointId
+          commitSha
+          name
+          email
+          committedAt
+        }
+      }
+      turns {
+        turnId
+        sessionId
+        branch
+        actor {
+          id
+          name
+          email
+          source
+        }
+        turnNumber
+        prompt
+        summary
+        agentType
+        model
+        startedAt
+        endedAt
+        tokenUsage {
+          inputTokens
+          outputTokens
+          cacheCreationTokens
+          cacheReadTokens
+          apiCallCount
+        }
+        filesModified
+        checkpointId
+        toolUses {
+          toolUseId
+          sessionId
+          turnId
+          toolKind
+          taskDescription
+          subagentId
+          transcriptPath
+          startedAt
+          endedAt
+        }
+      }
+      rawEvents {
+        eventId
+        sessionId
+        turnId
+        eventType
+        eventTime
+        agentType
+        model
+        toolUseId
+        toolKind
+        taskDescription
+        subagentId
+        payload
+      }
+    }
+  }
+`

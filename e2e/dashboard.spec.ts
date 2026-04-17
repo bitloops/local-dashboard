@@ -210,6 +210,96 @@ function buildDashboardCommitsResponse() {
   }
 }
 
+/** GraphQL nodes for `interactionSessions` / session detail `summary` (matches STUB_COMMITS sessions). */
+function buildStubInteractionSessionNodes() {
+  return [
+    {
+      sessionId: 'sess-01',
+      branch: 'main',
+      actor: null,
+      agentType: 'claude-code',
+      model: null,
+      firstPrompt: 'feat: add dashboard layout scaffold',
+      startedAt: '2025-02-14T10:12:00.000Z',
+      endedAt: null,
+      lastEventAt: null,
+      turnCount: 2,
+      checkpointCount: 4,
+      tokenUsage: null,
+      filePaths: [] as string[],
+      toolUses: [] as Array<Record<string, unknown>>,
+      linkedCheckpoints: [
+        {
+          checkpointId: 'cp-01',
+          commitSha: 'a3f1c2d000000000000000000000000000000000',
+          name: 'Wayne Omoga',
+          email: 'wayne@bitloops.com',
+          committedAt: '2025-02-14T10:12:00Z',
+        },
+        {
+          checkpointId: 'cp-02',
+          commitSha: 'a3f1c2d000000000000000000000000000000000',
+          name: 'Wayne Omoga',
+          email: 'wayne@bitloops.com',
+          committedAt: '2025-02-14T10:28:00Z',
+        },
+      ],
+      latestCommitAuthor: null,
+    },
+    {
+      sessionId: 'sess-02',
+      branch: 'main',
+      actor: null,
+      agentType: 'gemini-cli',
+      model: null,
+      firstPrompt: 'fix: resolve auth token refresh loop',
+      startedAt: '2025-02-15T09:15:00.000Z',
+      endedAt: null,
+      lastEventAt: null,
+      turnCount: 1,
+      checkpointCount: 7,
+      tokenUsage: null,
+      filePaths: [] as string[],
+      toolUses: [] as Array<Record<string, unknown>>,
+      linkedCheckpoints: [
+        {
+          checkpointId: 'cp-05',
+          commitSha: 'b7e9a010000000000000000000000000000000',
+          name: 'Alice Dev',
+          email: 'alice@bitloops.com',
+          committedAt: '2025-02-15T09:15:00Z',
+        },
+      ],
+      latestCommitAuthor: null,
+    },
+  ]
+}
+
+function buildDashboardInteractionSessionsResponse() {
+  return {
+    data: {
+      interactionSessions: buildStubInteractionSessionNodes(),
+    },
+  }
+}
+
+function buildDashboardInteractionSessionDetailResponse(sessionId?: string) {
+  const nodes = buildStubInteractionSessionNodes()
+  const summary =
+    nodes.find((n) => n.sessionId === sessionId) ?? nodes[0] ?? null
+  return {
+    data: {
+      interactionSession: summary
+        ? {
+            summary,
+            turns: [] as Array<Record<string, unknown>>,
+            rawEvents: [] as Array<Record<string, unknown>>,
+          }
+        : null,
+    },
+  }
+}
+
 function buildDashboardRepositoriesResponse() {
   return {
     data: {
@@ -424,6 +514,7 @@ async function stubApiRoutes(page: Page) {
     const request = route.request()
     const body = request.postDataJSON() as {
       query?: string
+      variables?: { sessionId?: string }
     }
     const query = body.query ?? ''
 
@@ -459,6 +550,26 @@ async function stubApiRoutes(page: Page) {
         status: 200,
         contentType: 'application/json',
         body: JSON.stringify(buildDashboardAgentsResponse()),
+      })
+      return
+    }
+
+    if (query.includes('query DashboardInteractionSessions')) {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify(buildDashboardInteractionSessionsResponse()),
+      })
+      return
+    }
+
+    if (query.includes('query DashboardInteractionSessionDetail')) {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify(
+          buildDashboardInteractionSessionDetailResponse(body.variables?.sessionId),
+        ),
       })
       return
     }
@@ -510,7 +621,7 @@ test.describe('App / dashboard load', () => {
 
     await expect(page.getByRole('heading', { name: 'Dashboard' })).toBeVisible()
     await expect(page.getByText('Filters', { exact: true })).toBeVisible()
-    await expect(page.getByText('Recent Commits')).toBeVisible()
+    await expect(page.getByText('Recent Sessions')).toBeVisible()
   })
 
   test('dashboard displays stat cards after API data loads', async ({
@@ -529,11 +640,11 @@ test.describe('App / dashboard load', () => {
     await expect(page.getByText('Active Branches')).toBeVisible()
   })
 
-  test('dashboard shows commit rows from the API', async ({ page }) => {
+  test('dashboard shows session prompt rows from the API', async ({ page }) => {
     await stubApiRoutes(page)
     await page.goto('/')
 
-    // Both distinct commit messages from STUB_COMMITS should appear in the table
+    // Distinct first prompts from stub interaction sessions appear in the Prompt column
     await expect(
       page.getByText('feat: add dashboard layout scaffold'),
     ).toBeVisible()
@@ -607,8 +718,11 @@ test.describe('App / dashboard load', () => {
   }) => {
     await stubRepositoriesRoute(page)
     await page.route('**/devql/dashboard', async (route: Route) => {
-      const body = route.request().postDataJSON() as { query?: string }
-      const query = body.query ?? ''
+      const routeBody = route.request().postDataJSON() as {
+        query?: string
+        variables?: { sessionId?: string }
+      }
+      const query = routeBody.query ?? ''
 
       if (query.includes('query DashboardRepositories')) {
         await route.fulfill({
@@ -646,6 +760,28 @@ test.describe('App / dashboard load', () => {
         return
       }
 
+      if (query.includes('query DashboardInteractionSessions')) {
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify(buildDashboardInteractionSessionsResponse()),
+        })
+        return
+      }
+
+      if (query.includes('query DashboardInteractionSessionDetail')) {
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify(
+            buildDashboardInteractionSessionDetailResponse(
+              routeBody.variables?.sessionId,
+            ),
+          ),
+        })
+        return
+      }
+
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
@@ -655,7 +791,7 @@ test.describe('App / dashboard load', () => {
 
     await page.goto('/')
 
-    await expect(page.getByText('Recent Commits')).toBeVisible()
+    await expect(page.getByText('Recent Sessions')).toBeVisible()
     await expect(
       page.getByText(/No branches are currently available/),
     ).toHaveCount(0)
@@ -780,7 +916,7 @@ test.describe('Filters', () => {
     await page.route('**/devql/dashboard', async (route: Route) => {
       const body = route.request().postDataJSON() as {
         query?: string
-        variables?: { repoId?: string }
+        variables?: { repoId?: string; sessionId?: string }
       }
       const query = body.query ?? ''
       const repo = body.variables?.repoId
@@ -824,6 +960,26 @@ test.describe('Filters', () => {
         return
       }
 
+      if (query.includes('query DashboardInteractionSessions')) {
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify(buildDashboardInteractionSessionsResponse()),
+        })
+        return
+      }
+
+      if (query.includes('query DashboardInteractionSessionDetail')) {
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify(
+            buildDashboardInteractionSessionDetailResponse(body.variables?.sessionId),
+          ),
+        })
+        return
+      }
+
       if (query.includes('query DashboardCommits')) {
         await route.fulfill({
           status: 200,
@@ -853,105 +1009,116 @@ test.describe('Filters', () => {
 })
 
 // ---------------------------------------------------------------------------
-// Checkpoint sheet
+// Session detail & checkpoint summary
 // ---------------------------------------------------------------------------
 
-test.describe('Checkpoint sheet', () => {
-  const openFirstCheckpoint = async (page: Page) => {
-    await page.getByRole('button', { name: 'Expand row' }).first().click()
-    const tree = page.getByRole('tree').first()
-    await expect(tree).toBeVisible()
-    await tree.getByRole('button').first().click()
+test.describe('Session detail & checkpoint summary', () => {
+  const selectFirstStubSession = async (page: Page) => {
+    await page
+      .getByText('feat: add dashboard layout scaffold', { exact: false })
+      .first()
+      .click()
   }
 
-  test('expanding a commit row reveals its checkpoint entries', async ({
+  const openCheckpointSummaryFromFirstSession = async (page: Page) => {
+    await selectFirstStubSession(page)
+    await page.getByRole('tab', { name: 'Checkpoints' }).click()
+    await page.getByText('cp-01', { exact: true }).click()
+  }
+
+  test('selecting a session row opens the session sidebar', async ({
     page,
   }) => {
     await stubApiRoutes(page)
     await page.goto('/')
 
-    // The expand chevron button has aria-label "Expand row"
-    await page.getByRole('button', { name: 'Expand row' }).first().click()
-
-    // Checkpoint tree appears and shows checkpoint id (e.g. cp-01) from stub.
-    const tree = page.getByRole('tree')
-    await expect(tree).toBeVisible({ timeout: 10_000 })
-  })
-
-  test('clicking a checkpoint opens the sheet with the checkpoint ID', async ({
-    page,
-  }) => {
-    await stubApiRoutes(page)
-    await page.goto('/')
-
-    await openFirstCheckpoint(page)
+    await selectFirstStubSession(page)
 
     await expect(
-      page.getByRole('heading', { name: /Checkpoint cp-/i }),
+      page.getByRole('heading', { name: /^Session/ }),
+    ).toBeVisible({ timeout: 10_000 })
+    await expect(
+      page.getByRole('button', { name: 'Close session panel' }),
     ).toBeVisible()
   })
 
-  test('checkpoint sheet shows Files Touched and Metadata sections', async ({
+  test('Checkpoints tab lists linked checkpoint ids from the API', async ({
     page,
   }) => {
     await stubApiRoutes(page)
     await page.goto('/')
 
-    await openFirstCheckpoint(page)
-    await page.getByRole('tab', { name: /details|summary/i }).click()
+    await selectFirstStubSession(page)
+    await page.getByRole('tab', { name: 'Checkpoints' }).click()
 
-    await expect(page.getByText('Files Touched')).toBeVisible()
-    await expect(page.getByText('Metadata')).toBeVisible()
+    await expect(page.getByText('cp-01', { exact: true })).toBeVisible()
+    await expect(page.getByText('cp-02', { exact: true })).toBeVisible()
   })
 
-  test('checkpoint sheet shows transcript entries or chat-load fallback state', async ({
+  test('clicking a linked checkpoint opens the checkpoint summary dialog', async ({
     page,
   }) => {
     await stubApiRoutes(page)
     await page.goto('/')
 
-    await openFirstCheckpoint(page)
+    await openCheckpointSummaryFromFirstSession(page)
 
-    // Chat Sessions section is always rendered. Depending on environment/network,
-    // transcript data may be shown, it may be empty, or an explicit load error may appear.
-    await expect(page.getByText('Chat Sessions')).toBeVisible()
-    const transcriptOrFallback = page
-      .getByText('No transcript entries available.')
-      .or(page.getByText(/Could not load chat data from/))
-      .or(page.getByText(/I'?ll add a layout with AppSidebar/i))
-    await expect(transcriptOrFallback.first()).toBeVisible({ timeout: 8000 })
+    const dialog = page.getByRole('dialog')
+    await expect(dialog).toBeVisible({ timeout: 10_000 })
+    await expect(dialog.getByText(/Checkpoint cp-01/)).toBeVisible()
   })
 
-  test('checkpoint sheet closes when the close button is clicked', async ({
+  test('checkpoint summary dialog shows Files Touched and Metadata', async ({
     page,
   }) => {
     await stubApiRoutes(page)
     await page.goto('/')
 
-    await openFirstCheckpoint(page)
-    await expect(
-      page.getByRole('heading', { name: /Checkpoint cp-/i }),
-    ).toBeVisible()
+    await openCheckpointSummaryFromFirstSession(page)
 
-    const heading = page.getByRole('heading', { name: /Checkpoint cp-/i })
-    const headingText = await heading.textContent()
-
-    await page.getByRole('button', { name: /Close checkpoint panel/i }).click()
-    await expect(
-      page.getByRole('button', { name: /Open checkpoint panel/i }),
-    ).toBeVisible()
-
-    await page.getByRole('button', { name: /Open checkpoint panel/i }).click()
-    await expect(heading).toHaveText(headingText ?? '')
+    const dialog = page.getByRole('dialog')
+    await expect(dialog.getByText('Files Touched')).toBeVisible()
+    await expect(dialog.getByText('Metadata')).toBeVisible()
   })
 
-  test('checkpoint sheet shows error state when detail API fails', async ({
+  test('checkpoint summary dialog shows stub file paths from the detail API', async ({
+    page,
+  }) => {
+    await stubApiRoutes(page)
+    await page.goto('/')
+
+    await openCheckpointSummaryFromFirstSession(page)
+
+    await expect(page.getByRole('dialog')).toContainText('App.tsx', {
+      timeout: 8000,
+    })
+  })
+
+  test('checkpoint summary dialog closes when Close is clicked', async ({
+    page,
+  }) => {
+    await stubApiRoutes(page)
+    await page.goto('/')
+
+    await openCheckpointSummaryFromFirstSession(page)
+
+    const dialog = page.getByRole('dialog')
+    await expect(dialog).toBeVisible()
+
+    await dialog.getByRole('button', { name: 'Close' }).first().click()
+    await expect(page.getByRole('dialog')).toHaveCount(0)
+  })
+
+  test('checkpoint summary shows an error when checkpoint detail API fails', async ({
     page,
   }) => {
     await stubRepositoriesRoute(page)
     await page.route('**/devql/dashboard', async (route) => {
-      const body = route.request().postDataJSON() as { query?: string }
-      const query = body.query ?? ''
+      const routeBody = route.request().postDataJSON() as {
+        query?: string
+        variables?: { sessionId?: string }
+      }
+      const query = routeBody.query ?? ''
 
       if (query.includes('query DashboardRepositories')) {
         await route.fulfill({
@@ -989,6 +1156,28 @@ test.describe('Checkpoint sheet', () => {
         return
       }
 
+      if (query.includes('query DashboardInteractionSessions')) {
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify(buildDashboardInteractionSessionsResponse()),
+        })
+        return
+      }
+
+      if (query.includes('query DashboardInteractionSessionDetail')) {
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify(
+            buildDashboardInteractionSessionDetailResponse(
+              routeBody.variables?.sessionId,
+            ),
+          ),
+        })
+        return
+      }
+
       if (query.includes('query DashboardCheckpointDetail')) {
         await route.fulfill({
           status: 500,
@@ -1006,14 +1195,10 @@ test.describe('Checkpoint sheet', () => {
     })
 
     await page.goto('/')
-    await openFirstCheckpoint(page)
+    await openCheckpointSummaryFromFirstSession(page)
 
     await expect(
-      page
-        .getByText(/Could not load chat data from/)
-        .or(
-          page.getByText('No chat sessions were returned for this checkpoint.'),
-        ),
+      page.getByText('Could not load checkpoint detail.'),
     ).toBeVisible({ timeout: 8000 })
   })
 })

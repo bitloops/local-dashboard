@@ -2,22 +2,26 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { rootStoreInstance, useStore } from '@/store'
 import { useShallow } from 'zustand/react/shallow'
 import { syncQueryExplorerVariablesWithDashboardSelection } from '@/store/slices/query-explorer'
+import type { DashboardInteractionSessionDto } from './api-types'
 import { type Checkpoint, type LoadState } from './types'
 import {
-  COMMITS_PAGE_SIZE,
+  DASHBOARD_PAGE_SIZE,
   fetchDashboardAgents,
   fetchDashboardBranches,
   fetchDashboardCheckpointDetail,
   fetchDashboardCommitsPage,
+  fetchDashboardInteractionSessionsPage,
   fetchDashboardRepositories,
   fetchDashboardUsers,
 } from './graphql/fetch-dashboard-data'
-import type { DashboardCommitsRequest } from '@/store/slices/dashboard'
+import type { DashboardSessionsRequest } from '@/store/slices/dashboard'
 import {
+  endOfDayIso,
   endOfDayUnixSeconds,
   mapAgentOptions,
   mapCommitRows,
   mapUserOptions,
+  startOfDayIso,
   startOfDayUnixSeconds,
 } from './utils'
 
@@ -34,8 +38,11 @@ export function useDashboardData() {
     userOptions,
     agentOptions,
     rows,
-    commitsPageInfo,
+    sessionRows,
+    sessionsPageInfo,
     selectedCheckpointId,
+    selectedSessionId,
+    selectedSessionSummary,
     checkpointDetail,
     checkpointDetailSource,
     setSelectedRepoId,
@@ -51,6 +58,11 @@ export function useDashboardData() {
     setRows,
     setCommitsPageInfo,
     setCurrentCommitsRequest,
+    setSessionRows,
+    setSessionsPageInfo,
+    setCurrentSessionsRequest,
+    setSelectedSessionId,
+    setSelectedSessionSummary,
     setSelectedCheckpointId,
     setCheckpointDetail,
     setCheckpointDetailSource,
@@ -68,8 +80,11 @@ export function useDashboardData() {
       userOptions: state.userOptions,
       agentOptions: state.agentOptions,
       rows: state.rows,
-      commitsPageInfo: state.commitsPageInfo,
+      sessionRows: state.sessionRows,
+      sessionsPageInfo: state.sessionsPageInfo,
       selectedCheckpointId: state.selectedCheckpointId,
+      selectedSessionId: state.selectedSessionId,
+      selectedSessionSummary: state.selectedSessionSummary,
       checkpointDetail: state.checkpointDetail,
       checkpointDetailSource: state.checkpointDetailSource,
       setSelectedRepoId: state.setSelectedRepoId,
@@ -85,6 +100,11 @@ export function useDashboardData() {
       setRows: state.setRows,
       setCommitsPageInfo: state.setCommitsPageInfo,
       setCurrentCommitsRequest: state.setCurrentCommitsRequest,
+      setSessionRows: state.setSessionRows,
+      setSessionsPageInfo: state.setSessionsPageInfo,
+      setCurrentSessionsRequest: state.setCurrentSessionsRequest,
+      setSelectedSessionId: state.setSelectedSessionId,
+      setSelectedSessionSummary: state.setSelectedSessionSummary,
       setSelectedCheckpointId: state.setSelectedCheckpointId,
       setCheckpointDetail: state.setCheckpointDetail,
       setCheckpointDetailSource: state.setCheckpointDetailSource,
@@ -106,7 +126,7 @@ export function useDashboardData() {
     source: 'api',
   })
 
-  const commitsAbortRef = useRef<AbortController | null>(null)
+  const dashboardAbortRef = useRef<AbortController | null>(null)
 
   const effectiveRepoOption =
     repoOptions.find((repo) => repo.repoId === selectedRepoId) ??
@@ -118,6 +138,8 @@ export function useDashboardData() {
     effectiveRepoOption?.defaultBranch?.trim() || null
   const from = fromDate != null ? String(startOfDayUnixSeconds(fromDate)) : null
   const to = toDate != null ? String(endOfDayUnixSeconds(toDate)) : null
+  const sinceRfc3339 = fromDate != null ? startOfDayIso(fromDate) : null
+  const untilRfc3339 = toDate != null ? endOfDayIso(toDate) : null
   const branchOptionsRequestKey =
     effectiveRepoId === null
       ? null
@@ -127,7 +149,6 @@ export function useDashboardData() {
     branchOptionsRequestState.key !== branchOptionsRequestKey
       ? 'loading'
       : branchOptionsRequestState.source
-  // The central daemon catalogue may know the default branch before branch enumeration is wired.
   const effectiveBranch =
     selectedBranch ?? branchOptions[0] ?? defaultBranchFallback
   const selectedCheckpoint =
@@ -274,12 +295,14 @@ export function useDashboardData() {
         ) {
           setSelectedUser(null)
           setCurrentCommitsRequest({ offset: 0 })
+          setCurrentSessionsRequest({ offset: 0 })
         }
 
         setAgentOptions(nextAgentOptions)
         if (selectedAgent && !nextAgentOptions.includes(selectedAgent)) {
           setSelectedAgent(null)
           setCurrentCommitsRequest({ offset: 0 })
+          setCurrentSessionsRequest({ offset: 0 })
         }
 
         setOptionsSource('api')
@@ -301,82 +324,36 @@ export function useDashboardData() {
     selectedUser,
     setAgentOptions,
     setCurrentCommitsRequest,
+    setCurrentSessionsRequest,
     setSelectedAgent,
     setSelectedUser,
     setUserOptions,
     to,
   ])
 
-  const loadCommitsPage = useCallback(
-    async (paginationArg?: DashboardCommitsRequest) => {
+  const loadChartCommitsOnly = useCallback(
+    async (signal: AbortSignal) => {
       if (!effectiveRepoId || !effectiveBranch) {
         return
       }
-
-      const pagination =
-        paginationArg ?? rootStoreInstance.getState().currentCommitsRequest
-
-      commitsAbortRef.current?.abort()
-      const ac = new AbortController()
-      commitsAbortRef.current = ac
-
-      setDataSource('loading')
-
-      try {
-        const data = await fetchDashboardCommitsPage(
-          {
-            repoId: effectiveRepoId,
-            branch: effectiveBranch,
-            from,
-            to,
-            user: selectedUser,
-            agent: selectedAgent,
-            offset: pagination.offset,
-          },
-          { signal: ac.signal },
-        )
-
-        if (ac.signal.aborted) {
-          return
-        }
-
-        const mappedRows = mapCommitRows(data.rows)
-        setRows(mappedRows)
-        setCurrentCommitsRequest(pagination)
-        setCommitsPageInfo({
-          hasNextPage: data.hasNextPage,
-          hasPreviousPage: pagination.offset > 0,
-          offset: pagination.offset,
-        })
-
-        const allCheckpoints = mappedRows.flatMap((row) => row.checkpointList)
-        const firstCheckpoint = allCheckpoints[0] ?? null
-        const prev = selectedCheckpointRef.current
-        const next =
-          prev && allCheckpoints.some((cp) => cp.id === prev.id)
-            ? prev
-            : firstCheckpoint
-
-        setSelectedCheckpointId(next?.id ?? null)
-        if (!next && prev) {
-          setCheckpointDetail(null)
-          setCheckpointDetailSource('idle')
-        } else if (next && next.id !== prev?.id) {
-          setCheckpointDetail(null)
-          setCheckpointDetailSource('loading')
-        }
-        setDataSource('api')
-      } catch (error: unknown) {
-        if (
-          (error instanceof DOMException || error instanceof Error) &&
-          error.name === 'AbortError'
-        ) {
-          return
-        }
-        console.error('Failed to load dashboard commits', error)
-        setDataSource('error')
-        setCommitsPageInfo(null)
+      const commitsData = await fetchDashboardCommitsPage(
+        {
+          repoId: effectiveRepoId,
+          branch: effectiveBranch,
+          from,
+          to,
+          user: selectedUser,
+          agent: selectedAgent,
+          offset: 0,
+        },
+        { signal },
+      )
+      if (signal.aborted) {
+        return
       }
+      setRows(mapCommitRows(commitsData.rows))
+      setCommitsPageInfo(null)
+      setCurrentCommitsRequest({ offset: 0 })
     },
     [
       effectiveBranch,
@@ -384,70 +361,187 @@ export function useDashboardData() {
       from,
       selectedAgent,
       selectedUser,
-      setCheckpointDetail,
-      setCheckpointDetailSource,
       setCommitsPageInfo,
       setCurrentCommitsRequest,
       setRows,
-      setSelectedCheckpointId,
       to,
     ],
   )
 
+  const loadSessionsPageOnly = useCallback(
+    async (
+      sessionsReq: DashboardSessionsRequest,
+      options?: { signal?: AbortSignal },
+    ) => {
+      if (!effectiveRepoId || !effectiveBranch) {
+        return
+      }
+      const sessionsData = await fetchDashboardInteractionSessionsPage(
+        {
+          repoId: effectiveRepoId,
+          branch: effectiveBranch,
+          since: sinceRfc3339,
+          until: untilRfc3339,
+          agent: selectedAgent,
+          commitAuthor: selectedUser,
+          offset: sessionsReq.offset,
+        },
+        options,
+      )
+      if (options?.signal?.aborted) {
+        return
+      }
+      setSessionRows(sessionsData.rows)
+      setSessionsPageInfo({
+        hasNextPage: sessionsData.hasNextPage,
+        hasPreviousPage: sessionsReq.offset > 0,
+        offset: sessionsReq.offset,
+      })
+      setCurrentSessionsRequest(sessionsReq)
+    },
+    [
+      effectiveBranch,
+      effectiveRepoId,
+      selectedAgent,
+      selectedUser,
+      setCurrentSessionsRequest,
+      setSessionRows,
+      setSessionsPageInfo,
+      sinceRfc3339,
+      untilRfc3339,
+    ],
+  )
+
+  const reloadDashboardForFilters = useCallback(async () => {
+    if (!effectiveRepoId || !effectiveBranch) {
+      return
+    }
+
+    dashboardAbortRef.current?.abort()
+    const ac = new AbortController()
+    dashboardAbortRef.current = ac
+
+    setDataSource('loading')
+
+    try {
+      await Promise.all([
+        loadSessionsPageOnly({ offset: 0 }, { signal: ac.signal }),
+        loadChartCommitsOnly(ac.signal),
+      ])
+      if (ac.signal.aborted) {
+        return
+      }
+      setDataSource('api')
+    } catch (error: unknown) {
+      if (
+        (error instanceof DOMException || error instanceof Error) &&
+        error.name === 'AbortError'
+      ) {
+        return
+      }
+      console.error('Failed to load dashboard sessions/commits', error)
+      setDataSource('error')
+      setSessionsPageInfo(null)
+    }
+  }, [
+    effectiveBranch,
+    effectiveRepoId,
+    loadChartCommitsOnly,
+    loadSessionsPageOnly,
+    setSessionsPageInfo,
+  ])
+
   useEffect(() => {
     if (!effectiveRepoId || !effectiveBranch) {
+      setSessionRows([])
+      setSessionsPageInfo(null)
       setRows([])
       setCommitsPageInfo(null)
-      setCurrentCommitsRequest({ offset: 0 })
+      setCurrentSessionsRequest({ offset: 0 })
+      setSelectedSessionId(null)
+      setSelectedSessionSummary(null)
       setSelectedCheckpointId(null)
       return () => {
-        commitsAbortRef.current?.abort()
+        dashboardAbortRef.current?.abort()
       }
     }
 
-    setCommitsPageInfo(null)
+    setSessionsPageInfo(null)
+    setCurrentSessionsRequest({ offset: 0 })
     const loadTimer = window.setTimeout(() => {
-      void loadCommitsPage()
+      void reloadDashboardForFilters()
     }, 0)
 
     return () => {
       window.clearTimeout(loadTimer)
-      commitsAbortRef.current?.abort()
+      dashboardAbortRef.current?.abort()
     }
   }, [
     effectiveBranch,
     effectiveRepoId,
     from,
-    loadCommitsPage,
+    reloadDashboardForFilters,
     selectedAgent,
     selectedUser,
     setCommitsPageInfo,
-    setCurrentCommitsRequest,
+    setCurrentSessionsRequest,
     setRows,
     setSelectedCheckpointId,
+    setSelectedSessionId,
+    setSelectedSessionSummary,
+    setSessionRows,
+    setSessionsPageInfo,
     to,
   ])
 
-  const visibleCommitsPageInfo = effectiveBranch ? commitsPageInfo : null
-  const commitsHasNextPage = visibleCommitsPageInfo?.hasNextPage === true
-  const commitsHasPreviousPage =
-    visibleCommitsPageInfo?.hasPreviousPage === true
+  const visibleSessionsPageInfo = effectiveBranch ? sessionsPageInfo : null
+  const sessionsHasNextPage = visibleSessionsPageInfo?.hasNextPage === true
+  const sessionsHasPreviousPage =
+    visibleSessionsPageInfo?.hasPreviousPage === true
 
-  const onCommitsNext = useCallback(() => {
-    const offset = visibleCommitsPageInfo?.offset ?? 0
-    if (!commitsHasNextPage) {
+  const onSessionsNext = useCallback(async () => {
+    const offset = visibleSessionsPageInfo?.offset ?? 0
+    if (!sessionsHasNextPage || !effectiveRepoId || !effectiveBranch) {
       return
     }
-    void loadCommitsPage({ offset: offset + COMMITS_PAGE_SIZE })
-  }, [commitsHasNextPage, loadCommitsPage, visibleCommitsPageInfo?.offset])
+    setDataSource('loading')
+    try {
+      await loadSessionsPageOnly({ offset: offset + DASHBOARD_PAGE_SIZE })
+      setDataSource('api')
+    } catch (error: unknown) {
+      console.error('Failed to load sessions page', error)
+      setDataSource('error')
+    }
+  }, [
+    effectiveBranch,
+    effectiveRepoId,
+    loadSessionsPageOnly,
+    sessionsHasNextPage,
+    visibleSessionsPageInfo?.offset,
+  ])
 
-  const onCommitsBack = useCallback(() => {
-    const offset = visibleCommitsPageInfo?.offset ?? 0
-    if (!commitsHasPreviousPage) {
+  const onSessionsBack = useCallback(async () => {
+    const offset = visibleSessionsPageInfo?.offset ?? 0
+    if (!sessionsHasPreviousPage || !effectiveRepoId || !effectiveBranch) {
       return
     }
-    void loadCommitsPage({ offset: Math.max(0, offset - COMMITS_PAGE_SIZE) })
-  }, [commitsHasPreviousPage, loadCommitsPage, visibleCommitsPageInfo?.offset])
+    setDataSource('loading')
+    try {
+      await loadSessionsPageOnly({
+        offset: Math.max(0, offset - DASHBOARD_PAGE_SIZE),
+      })
+      setDataSource('api')
+    } catch (error: unknown) {
+      console.error('Failed to load sessions page', error)
+      setDataSource('error')
+    }
+  }, [
+    effectiveBranch,
+    effectiveRepoId,
+    loadSessionsPageOnly,
+    sessionsHasPreviousPage,
+    visibleSessionsPageInfo?.offset,
+  ])
 
   useEffect(() => {
     let cancelled = false
@@ -501,6 +595,7 @@ export function useDashboardData() {
   const onFromDateSelect = (date: Date | undefined) => {
     setFromDate(date)
     setCurrentCommitsRequest({ offset: 0 })
+    setCurrentSessionsRequest({ offset: 0 })
 
     if (date && toDate && date > toDate) {
       setToDate(date)
@@ -510,6 +605,7 @@ export function useDashboardData() {
   const onToDateSelect = (date: Date | undefined) => {
     setToDate(date)
     setCurrentCommitsRequest({ offset: 0 })
+    setCurrentSessionsRequest({ offset: 0 })
 
     if (date && fromDate && date < fromDate) {
       setFromDate(date)
@@ -523,8 +619,12 @@ export function useDashboardData() {
       setUserOptions([])
       setAgentOptions([])
       setRows([])
+      setSessionRows([])
       setCommitsPageInfo(null)
+      setSessionsPageInfo(null)
       setSelectedCheckpointId(null)
+      setSelectedSessionId(null)
+      setSelectedSessionSummary(null)
       setCheckpointDetail(null)
       setCheckpointDetailSource('idle')
     }
@@ -539,26 +639,34 @@ export function useDashboardData() {
     setUserOptions([])
     setAgentOptions([])
     setRows([])
+    setSessionRows([])
     setCommitsPageInfo(null)
+    setSessionsPageInfo(null)
     setSelectedCheckpointId(null)
+    setSelectedSessionId(null)
+    setSelectedSessionSummary(null)
     setCheckpointDetail(null)
     setCheckpointDetailSource('idle')
     setCurrentCommitsRequest({ offset: 0 })
+    setCurrentSessionsRequest({ offset: 0 })
   }
 
   const onBranchChange = (value: string | null) => {
     setSelectedBranch(value)
     setCurrentCommitsRequest({ offset: 0 })
+    setCurrentSessionsRequest({ offset: 0 })
   }
 
   const onUserChange = (value: string | null) => {
     setSelectedUser(value)
     setCurrentCommitsRequest({ offset: 0 })
+    setCurrentSessionsRequest({ offset: 0 })
   }
 
   const onAgentChange = (value: string | null) => {
     setSelectedAgent(value)
     setCurrentCommitsRequest({ offset: 0 })
+    setCurrentSessionsRequest({ offset: 0 })
   }
 
   const onCheckpointSelect = (checkpoint: Checkpoint) => {
@@ -567,6 +675,12 @@ export function useDashboardData() {
     setCheckpointDetailSource('loading')
   }
 
+  const onSessionSelect = (session: DashboardInteractionSessionDto) => {
+    setSelectedSessionId(session.session_id)
+    setSelectedSessionSummary(session)
+  }
+
+  const visibleSessionRows = effectiveBranch ? sessionRows : []
   const visibleRows = effectiveBranch ? rows : []
   const visibleUserOptions = effectiveBranch ? userOptions : []
   const visibleAgentOptions = effectiveBranch ? agentOptions : []
@@ -576,12 +690,14 @@ export function useDashboardData() {
     dataSource === 'error' ? 'error' : effectiveBranch ? dataSource : 'api'
 
   return {
+    sessionRows: visibleSessionRows,
     rows: visibleRows,
     repoOptions,
     branchOptions,
     userOptions: visibleUserOptions,
     agentOptions: visibleAgentOptions,
     selectedRepoId,
+    effectiveRepoId,
     selectedBranch,
     selectedUser: visibleSelectedUser,
     selectedAgent: visibleSelectedAgent,
@@ -592,10 +708,12 @@ export function useDashboardData() {
     dataSource: visibleDataSource,
     optionsSource,
     branchOptionsSource: visibleBranchOptionsSource,
-    commitsHasNextPage: visibleCommitsPageInfo?.hasNextPage === true,
-    commitsHasPreviousPage: effectiveBranch ? commitsHasPreviousPage : false,
-    onCommitsNext,
-    onCommitsBack,
+    sessionsHasNextPage: visibleSessionsPageInfo?.hasNextPage === true,
+    sessionsHasPreviousPage: effectiveBranch ? sessionsHasPreviousPage : false,
+    onSessionsNext,
+    onSessionsBack,
+    selectedSessionId,
+    selectedSessionSummary,
     selectedCheckpoint,
     checkpointDetail,
     checkpointDetailSource,
@@ -607,5 +725,6 @@ export function useDashboardData() {
     onToDateChange: onToDateSelect,
     onClearFilters: clearFilters,
     onCheckpointSelect,
+    onSessionSelect,
   }
 }

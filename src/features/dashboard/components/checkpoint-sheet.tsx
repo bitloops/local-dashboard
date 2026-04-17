@@ -2,6 +2,10 @@ import { lazy, Suspense, useState } from 'react'
 import {
   type DashboardCheckpointDetailResponse,
   type DashboardCheckpointSessionDetailDto,
+  type DashboardInteractionEventDto,
+  type DashboardInteractionSessionDetailResponse,
+  type DashboardInteractionToolUseDto,
+  type DashboardInteractionTurnDto,
 } from '../api-types'
 import { CopyButton } from '@/components/copy-button'
 import { Badge } from '@/components/ui/badge'
@@ -10,6 +14,12 @@ import { Card, CardDescription, CardTitle } from '@/components/ui/card'
 import { Separator } from '@/components/ui/separator'
 import { Button } from '@/components/ui/button'
 import { Sheet, SheetContent } from '@/components/ui/sheet'
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 import { XIcon } from 'lucide-react'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { PrismLight as SyntaxHighlighter } from 'react-syntax-highlighter'
@@ -20,6 +30,7 @@ import { FileTree } from './file-tree'
 import { type Checkpoint } from '../types'
 import { type CheckpointDetailLoadState } from '../types'
 import { formatAgentLabel } from '../utils'
+import { fetchDashboardInteractionSessionDetail } from '../graphql/fetch-dashboard-data'
 import {
   formatDateTime,
   parseTranscriptEntries,
@@ -38,6 +49,7 @@ export type CheckpointDetailContentProps = {
   checkpointDetail: DashboardCheckpointDetailResponse | null
   checkpointDetailSource: CheckpointDetailLoadState
   userName: string
+  repoId: string | null
   /** When provided, a close button is shown in the header (e.g. when used inside Sidebar). */
   onClose?: () => void
 }
@@ -47,6 +59,7 @@ type CheckpointSheetProps = CheckpointDetailContentProps & {
 }
 
 type SheetViewMode = 'session' | 'summary'
+type SessionSubView = 'detail' | 'turns' | 'tools'
 
 /** Inner content for checkpoint detail. Use inside Sheet (CheckpointSheet) or Sidebar. */
 export function CheckpointDetailContent(props: CheckpointDetailContentProps) {
@@ -58,9 +71,21 @@ function CheckpointDetailContentInner({
   checkpointDetail,
   checkpointDetailSource,
   userName,
+  repoId,
   onClose,
 }: CheckpointDetailContentProps) {
   const [viewMode, setViewMode] = useState<SheetViewMode>('session')
+  const [sessionSubView, setSessionSubView] =
+    useState<SessionSubView>('detail')
+  const [selectedSessionTab, setSelectedSessionTab] = useState('0')
+  const [interactionDetail, setInteractionDetail] =
+    useState<DashboardInteractionSessionDetailResponse | null>(null)
+  const [interactionSource, setInteractionSource] = useState<
+    'idle' | 'loading' | 'api' | 'error'
+  >('idle')
+  const [interactionError, setInteractionError] = useState<string | null>(null)
+  const [selectedTurn, setSelectedTurn] =
+    useState<DashboardInteractionTurnDto | null>(null)
 
   const selectedCheckpointCreatedAt = selectedCheckpoint?.createdAt
     ? formatDateTime(selectedCheckpoint.createdAt)
@@ -82,6 +107,70 @@ function CheckpointDetailContentInner({
   const detailTokenUsage = checkpointDetail?.token_usage
   const detailSessions = checkpointDetail?.sessions ?? []
 
+  const activeCheckpointSession =
+    detailSessions[Number(selectedSessionTab)] ?? null
+
+  async function ensureInteractionDetailLoaded(sessionId: string) {
+    if (!repoId) {
+      setInteractionSource('error')
+      setInteractionError('No repoId available to load interaction session.')
+      return
+    }
+    setInteractionSource('loading')
+    setInteractionError(null)
+    try {
+      const result = await fetchDashboardInteractionSessionDetail({
+        repoId,
+        sessionId,
+      })
+      setInteractionDetail(result)
+      setInteractionSource('api')
+    } catch (err) {
+      const message =
+        err instanceof Error ? err.message : 'Failed to load interaction session.'
+      setInteractionDetail(null)
+      setInteractionSource('error')
+      setInteractionError(message)
+    }
+  }
+
+  const openInteractionForActiveSession = () => {
+    const sessionId = activeCheckpointSession?.session_id?.trim()
+    if (!sessionId) {
+      setInteractionDetail(null)
+      setInteractionSource('error')
+      setInteractionError('No sessionId available for this checkpoint session.')
+      return
+    }
+    void ensureInteractionDetailLoaded(sessionId)
+  }
+
+  const showInteractionFetchBanner =
+    (sessionSubView === 'turns' || sessionSubView === 'tools') &&
+    interactionSource === 'error'
+
+  const turns: DashboardInteractionTurnDto[] = interactionDetail?.turns ?? []
+  const rawEvents: DashboardInteractionEventDto[] =
+    interactionDetail?.raw_events ?? []
+
+  function flattenToolUses(): Array<
+    DashboardInteractionToolUseDto & { scope: 'session' | 'turn'; turnId?: string }
+  > {
+    const sessionTools =
+      interactionDetail?.summary?.tool_uses?.map((t) => ({
+        ...t,
+        scope: 'session' as const,
+      })) ?? []
+    const turnTools = turns.flatMap((turn) =>
+      (turn.tool_uses ?? []).map((t) => ({
+        ...t,
+        scope: 'turn' as const,
+        turnId: turn.turn_id,
+      })),
+    )
+    return [...sessionTools, ...turnTools]
+  }
+
   const metadataJson = selectedCheckpoint
     ? JSON.stringify(
         {
@@ -100,7 +189,8 @@ function CheckpointDetailContentInner({
     : ''
 
   return (
-    <div className='flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden'>
+    <>
+      <div className='flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden'>
       <div className='flex min-w-0 items-center justify-between gap-2 border-b px-4 py-4 pr-14 text-start'>
         <h2 className='flex items-center gap-1 text-lg font-semibold'>
           {selectedCheckpoint
@@ -193,7 +283,15 @@ function CheckpointDetailContentInner({
                     <Card className='min-w-0 overflow-hidden bg-muted/20 pt-0'>
                       <Tabs
                         key={selectedCheckpoint.id}
-                        defaultValue='0'
+                        value={selectedSessionTab}
+                        onValueChange={(value) => {
+                          setSelectedSessionTab(value)
+                          setSessionSubView('detail')
+                          setInteractionDetail(null)
+                          setInteractionSource('idle')
+                          setInteractionError(null)
+                          setSelectedTurn(null)
+                        }}
                         className='min-w-0'
                       >
                         <div className='w-full min-w-0 overflow-x-auto border-b'>
@@ -231,102 +329,247 @@ function CheckpointDetailContentInner({
                                 value={String(idx)}
                                 className='mt-0 min-w-0 space-y-3 px-4 pt-4 pb-6 sm:px-6'
                               >
-                                <div className='min-w-0 flex flex-wrap items-center gap-2'>
-                                  <CardTitle className='text-sm'>
-                                    Session {session.session_index + 1}
-                                  </CardTitle>
-                                  <CardDescription className='min-w-0 flex items-center gap-1 font-mono text-xs'>
-                                    <span className='min-w-0 break-all'>
-                                      {session.session_id}
-                                    </span>
-                                    <CopyButton value={session.session_id} />
-                                  </CardDescription>
-                                </div>
-                                <div className='flex flex-wrap gap-2'>
-                                  <Badge variant='secondary'>
-                                    {formatAgentLabel(session.agent)}
-                                  </Badge>
-                                  <Badge variant='outline'>
-                                    {formatDateTime(session.created_at)}
-                                  </Badge>
-                                </div>
-
-                                <div className='space-y-1'>
-                                  <p className='text-xs text-muted-foreground'>
-                                    Prompt(s)
-                                  </p>
-                                  <pre className='max-h-40 overflow-auto rounded-md border bg-background p-2 text-xs whitespace-pre-wrap break-words'>
-                                    {session.prompts_text
-                                      ? stripUserQueryTags(session.prompts_text)
-                                      : '-'}
-                                  </pre>
-                                </div>
-
-                                <div className='space-y-1'>
-                                  <p className='text-xs text-muted-foreground'>
-                                    Context
-                                  </p>
-                                  <pre className='max-h-40 overflow-auto rounded-md border bg-background p-2 text-xs whitespace-pre-wrap break-words'>
-                                    {session.context_text
-                                      ? stripUserQueryTags(session.context_text)
-                                      : '-'}
-                                  </pre>
-                                </div>
-
-                                <div className='space-y-1'>
-                                  <div className='flex items-center justify-between'>
-                                    <p className='text-xs text-muted-foreground'>
-                                      Metadata JSON
-                                    </p>
-                                    <CopyButton
-                                      value={prettyPrintJson(
-                                        session.metadata_json,
+                                <div
+                                  className='flex min-w-0 w-full rounded-lg border border-border bg-muted/40 p-0.5'
+                                  role='tablist'
+                                  aria-label='Session view'
+                                >
+                                  {(
+                                    [
+                                      { key: 'detail', label: 'Session detail' },
+                                      { key: 'turns', label: 'Turns' },
+                                      { key: 'tools', label: 'Tool use' },
+                                    ] as const
+                                  ).map((item) => (
+                                    <button
+                                      key={item.key}
+                                      type='button'
+                                      role='tab'
+                                      aria-selected={sessionSubView === item.key}
+                                      onClick={() => {
+                                        setSessionSubView(item.key)
+                                        if (item.key !== 'detail') {
+                                          openInteractionForActiveSession()
+                                        }
+                                      }}
+                                      className={cn(
+                                        'min-w-0 flex-1 rounded-md px-3 py-2 text-sm font-medium transition-colors',
+                                        sessionSubView === item.key
+                                          ? 'bg-background text-foreground shadow-sm'
+                                          : 'text-muted-foreground hover:text-foreground',
                                       )}
-                                    />
-                                  </div>
-                                  <div className='max-h-36 min-w-0 w-full overflow-auto rounded-md border bg-background p-2'>
-                                    <SyntaxHighlighter
-                                      language='json'
-                                      style={codeBlockStyle}
-                                      customStyle={{
-                                        margin: 0,
-                                        padding: 0,
-                                        maxWidth: '100%',
-                                        minWidth: 0,
-                                        width: '100%',
-                                        overflow: 'auto',
-                                      }}
-                                      showLineNumbers={false}
-                                      PreTag='div'
-                                      codeTagProps={{
-                                        style: {
-                                          fontSize: '11px',
-                                          whiteSpace: 'pre-wrap',
-                                          wordBreak: 'break-word',
-                                        },
-                                      }}
-                                      wrapLongLines
                                     >
-                                      {prettyPrintJson(session.metadata_json)}
-                                    </SyntaxHighlighter>
-                                  </div>
+                                      {item.label}
+                                    </button>
+                                  ))}
                                 </div>
 
-                                <div className='space-y-1'>
-                                  <p className='text-xs text-muted-foreground'>
-                                    Transcript
+                                {showInteractionFetchBanner && (
+                                  <p className='text-sm text-muted-foreground'>
+                                    Could not load interaction data for this session.
+                                    {interactionError ? ` ${interactionError}` : ''}
                                   </p>
-                                  <div className='max-h-72 min-w-0 overflow-auto rounded-md border bg-background p-2'>
-                                    <ChatTranscript
-                                      entries={transcriptEntries}
-                                      sessionId={session.session_id}
-                                      agentName={formatAgentLabel(
-                                        session.agent,
-                                      )}
-                                      userName={userName}
-                                    />
+                                )}
+
+                                {sessionSubView === 'turns' && (
+                                  <div className='space-y-2'>
+                                    {interactionSource === 'loading' && (
+                                      <p className='text-sm text-muted-foreground'>
+                                        Loading turns…
+                                      </p>
+                                    )}
+                                    {interactionSource === 'api' && turns.length === 0 && (
+                                      <p className='text-sm text-muted-foreground'>
+                                        No turns were returned for this session.
+                                      </p>
+                                    )}
+                                    {interactionSource === 'api' && turns.length > 0 && (
+                                      <div className='space-y-2'>
+                                        {turns.map((turn) => (
+                                          <button
+                                            key={turn.turn_id}
+                                            type='button'
+                                            className='w-full text-left rounded-md border bg-background px-3 py-2 hover:bg-muted/40'
+                                            onClick={() => setSelectedTurn(turn)}
+                                          >
+                                            <div className='flex items-start justify-between gap-2'>
+                                              <div className='min-w-0'>
+                                                <p className='text-sm font-medium'>
+                                                  Turn {turn.turn_number}
+                                                </p>
+                                                <p className='text-xs text-muted-foreground line-clamp-2'>
+                                                  {turn.prompt ?? turn.summary ?? '-'}
+                                                </p>
+                                              </div>
+                                              <div className='flex shrink-0 flex-col items-end gap-1'>
+                                                {turn.checkpoint_id && (
+                                                  <Badge variant='secondary'>
+                                                    checkpoint
+                                                  </Badge>
+                                                )}
+                                                <Badge variant='outline'>
+                                                  {turn.files_modified.length} files
+                                                </Badge>
+                                              </div>
+                                            </div>
+                                          </button>
+                                        ))}
+                                      </div>
+                                    )}
                                   </div>
-                                </div>
+                                )}
+
+                                {sessionSubView === 'tools' && (
+                                  <div className='space-y-2'>
+                                    {interactionSource === 'loading' && (
+                                      <p className='text-sm text-muted-foreground'>
+                                        Loading tool use…
+                                      </p>
+                                    )}
+                                    {interactionSource === 'api' && (
+                                      <>
+                                        {flattenToolUses().length === 0 ? (
+                                          <p className='text-sm text-muted-foreground'>
+                                            No tool use entries were returned for this
+                                            session.
+                                          </p>
+                                        ) : (
+                                          <div className='space-y-2'>
+                                            {flattenToolUses().map((tool) => (
+                                              <div
+                                                key={`${tool.scope}-${tool.tool_use_id}`}
+                                                className='rounded-md border bg-background px-3 py-2'
+                                              >
+                                                <div className='flex flex-wrap items-center gap-2'>
+                                                  <Badge variant='secondary'>
+                                                    {tool.tool_kind ?? 'tool'}
+                                                  </Badge>
+                                                  {tool.turnId && (
+                                                    <Badge variant='outline'>
+                                                      turn
+                                                    </Badge>
+                                                  )}
+                                                  {tool.started_at && (
+                                                    <Badge variant='outline'>
+                                                      {formatDateTime(tool.started_at)}
+                                                    </Badge>
+                                                  )}
+                                                </div>
+                                                {tool.task_description && (
+                                                  <p className='mt-1 text-xs text-muted-foreground whitespace-pre-wrap break-words'>
+                                                    {tool.task_description}
+                                                  </p>
+                                                )}
+                                                <p className='mt-1 text-[11px] font-mono text-muted-foreground break-all'>
+                                                  {tool.tool_use_id}
+                                                </p>
+                                              </div>
+                                            ))}
+                                          </div>
+                                        )}
+                                      </>
+                                    )}
+                                  </div>
+                                )}
+
+                                {sessionSubView === 'detail' && (
+                                  <div className='space-y-3'>
+                                    <div className='min-w-0 flex flex-wrap items-center gap-2'>
+                                      <CardTitle className='text-sm'>
+                                        Session {session.session_index + 1}
+                                      </CardTitle>
+                                      <CardDescription className='min-w-0 flex items-center gap-1 font-mono text-xs'>
+                                        <span className='min-w-0 break-all'>
+                                          {session.session_id}
+                                        </span>
+                                        <CopyButton value={session.session_id} />
+                                      </CardDescription>
+                                    </div>
+                                    <div className='flex flex-wrap gap-2'>
+                                      <Badge variant='secondary'>
+                                        {formatAgentLabel(session.agent)}
+                                      </Badge>
+                                      <Badge variant='outline'>
+                                        {formatDateTime(session.created_at)}
+                                      </Badge>
+                                    </div>
+
+                                    <div className='space-y-1'>
+                                      <p className='text-xs text-muted-foreground'>
+                                        Prompt(s)
+                                      </p>
+                                      <pre className='max-h-40 overflow-auto rounded-md border bg-background p-2 text-xs whitespace-pre-wrap break-words'>
+                                        {session.prompts_text
+                                          ? stripUserQueryTags(session.prompts_text)
+                                          : '-'}
+                                      </pre>
+                                    </div>
+
+                                    <div className='space-y-1'>
+                                      <p className='text-xs text-muted-foreground'>
+                                        Context
+                                      </p>
+                                      <pre className='max-h-40 overflow-auto rounded-md border bg-background p-2 text-xs whitespace-pre-wrap break-words'>
+                                        {session.context_text
+                                          ? stripUserQueryTags(session.context_text)
+                                          : '-'}
+                                      </pre>
+                                    </div>
+
+                                    <div className='space-y-1'>
+                                      <div className='flex items-center justify-between'>
+                                        <p className='text-xs text-muted-foreground'>
+                                          Metadata JSON
+                                        </p>
+                                        <CopyButton
+                                          value={prettyPrintJson(
+                                            session.metadata_json,
+                                          )}
+                                        />
+                                      </div>
+                                      <div className='max-h-36 min-w-0 w-full overflow-auto rounded-md border bg-background p-2'>
+                                        <SyntaxHighlighter
+                                          language='json'
+                                          style={codeBlockStyle}
+                                          customStyle={{
+                                            margin: 0,
+                                            padding: 0,
+                                            maxWidth: '100%',
+                                            minWidth: 0,
+                                            width: '100%',
+                                            overflow: 'auto',
+                                          }}
+                                          showLineNumbers={false}
+                                          PreTag='div'
+                                          codeTagProps={{
+                                            style: {
+                                              fontSize: '11px',
+                                              whiteSpace: 'pre-wrap',
+                                              wordBreak: 'break-word',
+                                            },
+                                          }}
+                                          wrapLongLines
+                                        >
+                                          {prettyPrintJson(session.metadata_json)}
+                                        </SyntaxHighlighter>
+                                      </div>
+                                    </div>
+
+                                    <div className='space-y-1'>
+                                      <p className='text-xs text-muted-foreground'>
+                                        Transcript
+                                      </p>
+                                      <div className='max-h-72 min-w-0 overflow-auto rounded-md border bg-background p-2'>
+                                        <ChatTranscript
+                                          entries={transcriptEntries}
+                                          sessionId={session.session_id}
+                                          agentName={formatAgentLabel(session.agent)}
+                                          userName={userName}
+                                        />
+                                      </div>
+                                    </div>
+                                  </div>
+                                )}
                               </TabsContent>
                             )
                           },
@@ -459,7 +702,110 @@ function CheckpointDetailContentInner({
           )}
         </div>
       </div>
-    </div>
+      </div>
+      {selectedTurn && (
+        <TurnDetailModal
+          turn={selectedTurn}
+          rawEvents={rawEvents}
+          userName={userName}
+          onClose={() => setSelectedTurn(null)}
+        />
+      )}
+    </>
+  )
+}
+
+export function TurnDetailModal({
+  turn,
+  rawEvents,
+  userName,
+  onClose,
+}: {
+  turn: DashboardInteractionTurnDto
+  rawEvents: DashboardInteractionEventDto[]
+  userName: string
+  onClose: () => void
+}) {
+  const payloadForTurnEnd = () => {
+    const relevant = rawEvents
+      .filter((e) => e.turn_id === turn.turn_id && e.event_type === 'turn_end')
+      .sort((a, b) => (a.event_time || '').localeCompare(b.event_time || ''))
+    const latest = relevant[relevant.length - 1]
+    return (latest?.payload as Record<string, unknown> | null | undefined) ?? null
+  }
+
+  const payload = payloadForTurnEnd()
+  const fragment =
+    (payload?.transcript_fragment as string | undefined) ??
+    (payload?.transcriptFragment as string | undefined) ??
+    ''
+  const transcriptEntries = fragment ? parseTranscriptEntries(fragment) : []
+
+  return (
+    <Dialog open onOpenChange={(open) => (!open ? onClose() : undefined)}>
+      <DialogContent className='sm:max-w-3xl max-h-[85vh] overflow-hidden p-0'>
+        <div className='flex min-h-0 flex-col'>
+          <DialogHeader className='border-b px-5 py-4'>
+            <DialogTitle className='flex items-center gap-2'>
+              Turn {turn.turn_number}
+              <CopyButton value={turn.turn_id} />
+            </DialogTitle>
+            <div className='mt-2 flex flex-wrap gap-2'>
+              <Badge variant='secondary'>{turn.agent_type}</Badge>
+              {turn.model && <Badge variant='outline'>{turn.model}</Badge>}
+              {turn.started_at && (
+                <Badge variant='outline'>{formatDateTime(turn.started_at)}</Badge>
+              )}
+              {turn.checkpoint_id && (
+                <Badge variant='secondary'>checkpoint</Badge>
+              )}
+            </div>
+          </DialogHeader>
+
+          <div className='min-h-0 flex-1 overflow-y-auto px-5 py-4 space-y-4'>
+            <div className='space-y-1'>
+              <p className='text-xs text-muted-foreground'>Prompt</p>
+              <p className='rounded-md border bg-muted/20 p-3 text-sm whitespace-pre-wrap break-words'>
+                {turn.prompt ?? '-'}
+              </p>
+            </div>
+
+            <div className='space-y-1'>
+              <p className='text-xs text-muted-foreground'>Transcript (turn)</p>
+              <div className='max-h-[50vh] overflow-auto rounded-md border bg-background p-2'>
+                {transcriptEntries.length === 0 ? (
+                  <p className='text-sm text-muted-foreground'>
+                    No transcript fragment available for this turn.
+                  </p>
+                ) : (
+                  <ChatTranscript
+                    entries={transcriptEntries}
+                    sessionId={turn.session_id}
+                    agentName={formatAgentLabel(turn.agent_type)}
+                    userName={userName}
+                  />
+                )}
+              </div>
+            </div>
+
+            <div className='space-y-1'>
+              <p className='text-xs text-muted-foreground'>Files modified</p>
+              {turn.files_modified.length === 0 ? (
+                <p className='text-sm text-muted-foreground'>-</p>
+              ) : (
+                <div className='flex flex-wrap gap-2'>
+                  {turn.files_modified.map((p) => (
+                    <Badge key={p} variant='outline' className='font-mono'>
+                      {p}
+                    </Badge>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
   )
 }
 
@@ -468,6 +814,7 @@ export function CheckpointSheet({
   checkpointDetail,
   checkpointDetailSource,
   userName,
+  repoId,
   onClose,
 }: CheckpointSheetProps) {
   return (
@@ -491,6 +838,7 @@ export function CheckpointSheet({
           checkpointDetail={checkpointDetail}
           checkpointDetailSource={checkpointDetailSource}
           userName={userName}
+          repoId={repoId}
         />
       </SheetContent>
     </Sheet>
