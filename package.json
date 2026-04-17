@@ -26,6 +26,7 @@
     "@hookform/resolvers": "^5.2.2",
     "@microlink/react-json-view": "^1.31.16",
     "@monaco-editor/react": "^4.7.0",
+    "@radix-ui/react-accordion": "^1.2.12",
     "@radix-ui/react-alert-dialog": "^1.1.15",
     "@radix-ui/react-avatar": "^1.1.11",
     "@radix-ui/react-collapsible": "^1.1.12",
@@ -87,6 +88,5 @@
     "typescript-eslint": "^8.58.2",
     "vite": "^8.0.5",
     "vitest": "^4.1.1"
-  },
-  "packageManager": "pnpm@10.33.0+sha512.10568bb4a6afb58c9eb3630da90cc9516417abebd3fabbe6739f0ae795728da1491e9db5a544c76ad8eb7570f5c4bb3d6c637b2cb41bfdcdb47fa823c8649319"
+  }
 }

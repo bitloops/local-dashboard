@@ -17,10 +17,6 @@ function jsonResponse(payload: unknown, status = 200) {
 }
 
 describe('requestDashboardGraphQL', () => {
-  beforeEach(() => {
-    vi.stubEnv('VITE_DASHBOARD_API_MOCK', '')
-  })
-
   afterEach(() => {
     vi.restoreAllMocks()
   })
@@ -187,7 +183,6 @@ describe('fetchDashboardBlob', () => {
 
 describe('fetchDashboardRepositoriesCached', () => {
   beforeEach(() => {
-    vi.stubEnv('VITE_DASHBOARD_API_MOCK', '')
     clearDashboardRepositoriesCache()
   })
 
