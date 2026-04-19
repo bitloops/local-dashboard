@@ -4,6 +4,7 @@ import {
   mapDashboardBranches,
   mapDashboardCheckpointDetail,
   mapDashboardCommitRows,
+  mapDashboardInteractionUpdate,
   mapDashboardRepositories,
   mapDashboardUsers,
 } from './mappers'
@@ -12,6 +13,7 @@ import type {
   DashboardBranchesQueryData,
   DashboardCheckpointDetailQueryData,
   DashboardCommitsQueryData,
+  DashboardInteractionUpdateNode,
   DashboardRepositoriesQueryData,
   DashboardUsersQueryData,
 } from './types'
@@ -230,6 +232,30 @@ describe('mapDashboardCheckpointDetail', () => {
           context_text: '',
         },
       ],
+    })
+  })
+})
+
+describe('mapDashboardInteractionUpdate', () => {
+  it('maps interaction update snapshots', () => {
+    const data: DashboardInteractionUpdateNode = {
+      repoId: 'repo-1',
+      sessionCount: 4,
+      turnCount: 7,
+      latestSessionId: 'session-4',
+      latestSessionUpdatedAt: '2025-01-01T00:00:00.000Z',
+      latestTurnId: 'turn-7',
+      latestTurnUpdatedAt: '2025-01-01T00:01:00.000Z',
+    }
+
+    expect(mapDashboardInteractionUpdate(data)).toEqual({
+      repo_id: 'repo-1',
+      session_count: 4,
+      turn_count: 7,
+      latest_session_id: 'session-4',
+      latest_session_updated_at: '2025-01-01T00:00:00.000Z',
+      latest_turn_id: 'turn-7',
+      latest_turn_updated_at: '2025-01-01T00:01:00.000Z',
     })
   })
 })

@@ -2,24 +2,53 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { rootStoreInstance, useStore } from '@/store'
 import { useShallow } from 'zustand/react/shallow'
 import { syncQueryExplorerVariablesWithDashboardSelection } from '@/store/slices/query-explorer'
+import type {
+  DashboardInteractionSessionDto,
+  DashboardInteractionUpdateDto,
+} from './api-types'
 import { type Checkpoint, type LoadState } from './types'
 import {
-  COMMITS_PAGE_SIZE,
+  DASHBOARD_PAGE_SIZE,
   fetchDashboardAgents,
   fetchDashboardBranches,
   fetchDashboardCheckpointDetail,
   fetchDashboardCommitsPage,
+  fetchDashboardInteractionSessionsPage,
   fetchDashboardRepositories,
+  subscribeDashboardInteractionUpdates,
   fetchDashboardUsers,
 } from './graphql/fetch-dashboard-data'
-import type { DashboardCommitsRequest } from '@/store/slices/dashboard'
+import type { DashboardSessionsRequest } from '@/store/slices/dashboard'
 import {
+  endOfDayIso,
   endOfDayUnixSeconds,
   mapAgentOptions,
   mapCommitRows,
   mapUserOptions,
+  startOfDayIso,
   startOfDayUnixSeconds,
 } from './utils'
+
+const REPO_CHECKOUT_UNKNOWN_PATTERN = /\brepo(?:sitory)? checkout unknown\b/i
+const INTERACTION_UPDATES_POLL_INTERVAL_MS = 30_000
+
+function isRepoCheckoutUnknownError(error: unknown): boolean {
+  return error instanceof Error
+    ? REPO_CHECKOUT_UNKNOWN_PATTERN.test(error.message)
+    : false
+}
+
+function interactionUpdateKey(update: DashboardInteractionUpdateDto): string {
+  return [
+    update.repo_id,
+    update.session_count,
+    update.turn_count,
+    update.latest_session_id ?? '',
+    update.latest_session_updated_at ?? '',
+    update.latest_turn_id ?? '',
+    update.latest_turn_updated_at ?? '',
+  ].join('|')
+}
 
 export function useDashboardData() {
   const {
@@ -34,8 +63,12 @@ export function useDashboardData() {
     userOptions,
     agentOptions,
     rows,
-    commitsPageInfo,
+    sessionRows,
+    sessionsPageInfo,
+    currentSessionsRequest,
     selectedCheckpointId,
+    selectedSessionId,
+    selectedSessionSummary,
     checkpointDetail,
     checkpointDetailSource,
     setSelectedRepoId,
@@ -51,6 +84,11 @@ export function useDashboardData() {
     setRows,
     setCommitsPageInfo,
     setCurrentCommitsRequest,
+    setSessionRows,
+    setSessionsPageInfo,
+    setCurrentSessionsRequest,
+    setSelectedSessionId,
+    setSelectedSessionSummary,
     setSelectedCheckpointId,
     setCheckpointDetail,
     setCheckpointDetailSource,
@@ -68,8 +106,12 @@ export function useDashboardData() {
       userOptions: state.userOptions,
       agentOptions: state.agentOptions,
       rows: state.rows,
-      commitsPageInfo: state.commitsPageInfo,
+      sessionRows: state.sessionRows,
+      sessionsPageInfo: state.sessionsPageInfo,
+      currentSessionsRequest: state.currentSessionsRequest,
       selectedCheckpointId: state.selectedCheckpointId,
+      selectedSessionId: state.selectedSessionId,
+      selectedSessionSummary: state.selectedSessionSummary,
       checkpointDetail: state.checkpointDetail,
       checkpointDetailSource: state.checkpointDetailSource,
       setSelectedRepoId: state.setSelectedRepoId,
@@ -85,6 +127,11 @@ export function useDashboardData() {
       setRows: state.setRows,
       setCommitsPageInfo: state.setCommitsPageInfo,
       setCurrentCommitsRequest: state.setCurrentCommitsRequest,
+      setSessionRows: state.setSessionRows,
+      setSessionsPageInfo: state.setSessionsPageInfo,
+      setCurrentSessionsRequest: state.setCurrentSessionsRequest,
+      setSelectedSessionId: state.setSelectedSessionId,
+      setSelectedSessionSummary: state.setSelectedSessionSummary,
       setSelectedCheckpointId: state.setSelectedCheckpointId,
       setCheckpointDetail: state.setCheckpointDetail,
       setCheckpointDetailSource: state.setCheckpointDetailSource,
@@ -92,9 +139,18 @@ export function useDashboardData() {
     })),
   )
   const selectedCheckpointRef = useRef<Checkpoint | null>(null)
+  const selectedSessionIdRef = useRef<string | null>(null)
+  const refreshInteractionSessionsFromSubscriptionRef = useRef<
+    () => Promise<void>
+  >(async () => {})
   const [dataSource, setDataSource] = useState<'loading' | 'api' | 'error'>(
     'loading',
   )
+  const [
+    interactionUpdatesPollingFallback,
+    setInteractionUpdatesPollingFallback,
+  ] = useState(false)
+  const [sessionDetailRefreshToken, setSessionDetailRefreshToken] = useState(0)
   const [optionsSource, setOptionsSource] = useState<
     'loading' | 'api' | 'error'
   >('loading')
@@ -105,31 +161,50 @@ export function useDashboardData() {
     key: null,
     source: 'api',
   })
+  const [unavailableRepoIds, setUnavailableRepoIds] = useState<string[]>([])
+  const [validatedSelectedRepoId, setValidatedSelectedRepoId] = useState<
+    string | null
+  >(null)
 
-  const commitsAbortRef = useRef<AbortController | null>(null)
+  const dashboardAbortRef = useRef<AbortController | null>(null)
+  const interactionRefreshInFlightRef = useRef(false)
+  const interactionRefreshQueuedRef = useRef(false)
+  const refreshSelectedSessionDetailRef = useRef(false)
+  const lastInteractionUpdateKeyRef = useRef<string | null>(null)
+  const autoSelectableRepoOptions = repoOptions.filter(
+    (repo) => !unavailableRepoIds.includes(repo.repoId),
+  )
 
+  const selectedRepoOption =
+    (selectedRepoId != null
+      ? repoOptions.find((repo) => repo.repoId === selectedRepoId)
+      : null) ?? null
+  const autoQueryRepoOption =
+    selectedRepoId == null ? (autoSelectableRepoOptions[0] ?? null) : null
+  const hasValidatedSelectedRepo =
+    selectedRepoId == null || validatedSelectedRepoId === selectedRepoId
   const effectiveRepoOption =
-    repoOptions.find((repo) => repo.repoId === selectedRepoId) ??
-    repoOptions[0] ??
-    null
-  const effectiveRepoId = effectiveRepoOption?.repoId ?? null
+    selectedRepoId != null && hasValidatedSelectedRepo
+      ? selectedRepoOption
+      : autoQueryRepoOption
+  const hasDashboardScope = effectiveRepoOption != null
+  const queryRepoId = effectiveRepoOption?.repoId ?? null
+  const effectiveRepoId = queryRepoId
   const effectiveRepoIdentity = effectiveRepoOption?.identity ?? null
   const defaultBranchFallback =
     effectiveRepoOption?.defaultBranch?.trim() || null
   const from = fromDate != null ? String(startOfDayUnixSeconds(fromDate)) : null
   const to = toDate != null ? String(endOfDayUnixSeconds(toDate)) : null
-  const branchOptionsRequestKey =
-    effectiveRepoId === null
-      ? null
-      : `${effectiveRepoId}:${from ?? ''}:${to ?? ''}`
+  const sinceRfc3339 = fromDate != null ? startOfDayIso(fromDate) : null
+  const untilRfc3339 = toDate != null ? endOfDayIso(toDate) : null
+  const branchOptionsRequestKey = `${queryRepoId ?? '__auto__'}:${from ?? ''}:${to ?? ''}`
   const visibleBranchOptionsSource: LoadState =
-    branchOptionsRequestKey === null ||
     branchOptionsRequestState.key !== branchOptionsRequestKey
       ? 'loading'
       : branchOptionsRequestState.source
-  // The central daemon catalogue may know the default branch before branch enumeration is wired.
   const effectiveBranch =
     selectedBranch ?? branchOptions[0] ?? defaultBranchFallback
+  const interactionBranchFilter = selectedBranch
   const selectedCheckpoint =
     rows
       .flatMap((row) => row.checkpointList)
@@ -153,7 +228,79 @@ export function useDashboardData() {
   }, [selectedCheckpoint])
 
   useEffect(() => {
+    selectedSessionIdRef.current = selectedSessionId
+  }, [selectedSessionId])
+
+  useEffect(() => {
+    setInteractionUpdatesPollingFallback(false)
+  }, [queryRepoId])
+
+  const clearRepoScopedState = useCallback(() => {
+    setSelectedBranch(null)
+    setSelectedUser(null)
+    setSelectedAgent(null)
+    setBranchOptions([])
+    setUserOptions([])
+    setAgentOptions([])
+    setRows([])
+    setSessionRows([])
+    setCommitsPageInfo(null)
+    setSessionsPageInfo(null)
+    setSelectedCheckpointId(null)
+    setSelectedSessionId(null)
+    setSelectedSessionSummary(null)
+    setCheckpointDetail(null)
+    setCheckpointDetailSource('idle')
+    setCurrentCommitsRequest({ offset: 0 })
+    setCurrentSessionsRequest({ offset: 0 })
+  }, [
+    setAgentOptions,
+    setBranchOptions,
+    setCheckpointDetail,
+    setCheckpointDetailSource,
+    setCommitsPageInfo,
+    setCurrentCommitsRequest,
+    setCurrentSessionsRequest,
+    setRows,
+    setSelectedAgent,
+    setSelectedBranch,
+    setSelectedCheckpointId,
+    setSelectedSessionId,
+    setSelectedSessionSummary,
+    setSelectedUser,
+    setSessionRows,
+    setSessionsPageInfo,
+    setUserOptions,
+  ])
+
+  const markRepoUnavailable = useCallback(
+    (repoId: string, error: unknown): boolean => {
+      if (!isRepoCheckoutUnknownError(error)) {
+        return false
+      }
+
+      dashboardAbortRef.current?.abort()
+      setUnavailableRepoIds((current) =>
+        current.includes(repoId) ? current : [...current, repoId],
+      )
+      if (selectedRepoId === repoId) {
+        setValidatedSelectedRepoId(null)
+        setSelectedRepoId(null)
+      }
+      clearRepoScopedState()
+      return true
+    },
+    [
+      clearRepoScopedState,
+      selectedRepoId,
+      setSelectedRepoId,
+      setValidatedSelectedRepoId,
+    ],
+  )
+
+  useEffect(() => {
     let cancelled = false
+    const previousSelectedRepoIdentity = selectedRepoOption?.identity ?? null
 
     fetchDashboardRepositories()
       .then((repositories) => {
@@ -162,11 +309,32 @@ export function useDashboardData() {
         }
 
         setRepoOptions(repositories)
-        if (
-          selectedRepoId &&
-          !repositories.some((repo) => repo.repoId === selectedRepoId)
-        ) {
+
+        if (selectedRepoId == null) {
+          setValidatedSelectedRepoId(null)
+          setOptionsSource('api')
+          return
+        }
+
+        const matchingRepo =
+          repositories.find((repo) => repo.repoId === selectedRepoId) ??
+          (previousSelectedRepoIdentity == null
+            ? null
+            : (repositories.find(
+                (repo) => repo.identity === previousSelectedRepoIdentity,
+              ) ?? null))
+
+        if (matchingRepo == null) {
+          setValidatedSelectedRepoId(null)
           setSelectedRepoId(null)
+          clearRepoScopedState()
+          setOptionsSource('api')
+          return
+        }
+
+        setValidatedSelectedRepoId(matchingRepo.repoId)
+        if (matchingRepo.repoId !== selectedRepoId) {
+          setSelectedRepoId(matchingRepo.repoId)
         }
         setOptionsSource('api')
       })
@@ -174,23 +342,35 @@ export function useDashboardData() {
         if (cancelled) return
         console.error('Failed to load repositories', error)
         setRepoOptions([])
+        setValidatedSelectedRepoId(null)
         setOptionsSource('error')
       })
 
     return () => {
       cancelled = true
     }
-  }, [selectedRepoId, setRepoOptions, setSelectedRepoId])
+  }, [
+    clearRepoScopedState,
+    selectedRepoOption?.identity,
+    selectedRepoId,
+    setRepoOptions,
+    setSelectedRepoId,
+  ])
 
   useEffect(() => {
-    if (!effectiveRepoId) {
+    if (!hasDashboardScope) {
+      setBranchOptions([])
+      setBranchOptionsRequestState({
+        key: branchOptionsRequestKey,
+        source: 'api',
+      })
       return
     }
 
     let cancelled = false
 
     fetchDashboardBranches({
-      repoId: effectiveRepoId,
+      repoId: queryRepoId,
       from,
       to,
     })
@@ -214,6 +394,9 @@ export function useDashboardData() {
       })
       .catch((error: unknown) => {
         if (cancelled) return
+        if (queryRepoId != null && markRepoUnavailable(queryRepoId, error)) {
+          return
+        }
         console.error('Failed to load branches', error)
         setBranchOptionsRequestState({
           key: branchOptionsRequestKey,
@@ -226,8 +409,10 @@ export function useDashboardData() {
     }
   }, [
     branchOptionsRequestKey,
-    effectiveRepoId,
     from,
+    hasDashboardScope,
+    markRepoUnavailable,
+    queryRepoId,
     selectedBranch,
     setBranchOptions,
     setSelectedBranch,
@@ -235,9 +420,12 @@ export function useDashboardData() {
   ])
 
   useEffect(() => {
-    if (!effectiveRepoId || !effectiveBranch) {
+    if (!hasDashboardScope) {
       setUserOptions([])
       setAgentOptions([])
+      return
+    }
+    if (!effectiveBranch) {
       return
     }
 
@@ -245,14 +433,14 @@ export function useDashboardData() {
 
     Promise.all([
       fetchDashboardUsers({
-        repoId: effectiveRepoId,
+        repoId: queryRepoId,
         branch: effectiveBranch,
         from,
         to,
         agent: selectedAgent,
       }),
       fetchDashboardAgents({
-        repoId: effectiveRepoId,
+        repoId: queryRepoId,
         branch: effectiveBranch,
         from,
         to,
@@ -274,18 +462,23 @@ export function useDashboardData() {
         ) {
           setSelectedUser(null)
           setCurrentCommitsRequest({ offset: 0 })
+          setCurrentSessionsRequest({ offset: 0 })
         }
 
         setAgentOptions(nextAgentOptions)
         if (selectedAgent && !nextAgentOptions.includes(selectedAgent)) {
           setSelectedAgent(null)
           setCurrentCommitsRequest({ offset: 0 })
+          setCurrentSessionsRequest({ offset: 0 })
         }
 
         setOptionsSource('api')
       })
       .catch((error: unknown) => {
         if (cancelled) return
+        if (queryRepoId != null && markRepoUnavailable(queryRepoId, error)) {
+          return
+        }
         console.error('Failed to load users or agents', error)
         setOptionsSource('error')
       })
@@ -295,159 +488,375 @@ export function useDashboardData() {
     }
   }, [
     effectiveBranch,
-    effectiveRepoId,
     from,
+    hasDashboardScope,
+    markRepoUnavailable,
+    queryRepoId,
     selectedAgent,
     selectedUser,
     setAgentOptions,
     setCurrentCommitsRequest,
+    setCurrentSessionsRequest,
     setSelectedAgent,
     setSelectedUser,
     setUserOptions,
     to,
   ])
 
-  const loadCommitsPage = useCallback(
-    async (paginationArg?: DashboardCommitsRequest) => {
-      if (!effectiveRepoId || !effectiveBranch) {
+  const loadChartCommitsOnly = useCallback(
+    async (signal: AbortSignal) => {
+      if (!hasDashboardScope || !effectiveBranch) {
         return
       }
-
-      const pagination =
-        paginationArg ?? rootStoreInstance.getState().currentCommitsRequest
-
-      commitsAbortRef.current?.abort()
-      const ac = new AbortController()
-      commitsAbortRef.current = ac
-
-      setDataSource('loading')
-
-      try {
-        const data = await fetchDashboardCommitsPage(
-          {
-            repoId: effectiveRepoId,
-            branch: effectiveBranch,
-            from,
-            to,
-            user: selectedUser,
-            agent: selectedAgent,
-            offset: pagination.offset,
-          },
-          { signal: ac.signal },
-        )
-
-        if (ac.signal.aborted) {
-          return
-        }
-
-        const mappedRows = mapCommitRows(data.rows)
-        setRows(mappedRows)
-        setCurrentCommitsRequest(pagination)
-        setCommitsPageInfo({
-          hasNextPage: data.hasNextPage,
-          hasPreviousPage: pagination.offset > 0,
-          offset: pagination.offset,
-        })
-
-        const allCheckpoints = mappedRows.flatMap((row) => row.checkpointList)
-        const firstCheckpoint = allCheckpoints[0] ?? null
-        const prev = selectedCheckpointRef.current
-        const next =
-          prev && allCheckpoints.some((cp) => cp.id === prev.id)
-            ? prev
-            : firstCheckpoint
-
-        setSelectedCheckpointId(next?.id ?? null)
-        if (!next && prev) {
-          setCheckpointDetail(null)
-          setCheckpointDetailSource('idle')
-        } else if (next && next.id !== prev?.id) {
-          setCheckpointDetail(null)
-          setCheckpointDetailSource('loading')
-        }
-        setDataSource('api')
-      } catch (error: unknown) {
-        if (
-          (error instanceof DOMException || error instanceof Error) &&
-          error.name === 'AbortError'
-        ) {
-          return
-        }
-        console.error('Failed to load dashboard commits', error)
-        setDataSource('error')
-        setCommitsPageInfo(null)
+      const commitsData = await fetchDashboardCommitsPage(
+        {
+          repoId: queryRepoId,
+          branch: effectiveBranch,
+          from,
+          to,
+          user: selectedUser,
+          agent: selectedAgent,
+          offset: 0,
+        },
+        { signal },
+      )
+      if (signal.aborted) {
+        return
       }
+      setRows(mapCommitRows(commitsData.rows))
+      setCommitsPageInfo(null)
+      setCurrentCommitsRequest({ offset: 0 })
     },
     [
       effectiveBranch,
-      effectiveRepoId,
       from,
+      hasDashboardScope,
+      queryRepoId,
       selectedAgent,
       selectedUser,
-      setCheckpointDetail,
-      setCheckpointDetailSource,
       setCommitsPageInfo,
       setCurrentCommitsRequest,
       setRows,
-      setSelectedCheckpointId,
       to,
     ],
   )
 
+  const loadSessionsPageOnly = useCallback(
+    async (
+      sessionsReq: DashboardSessionsRequest,
+      options?: { signal?: AbortSignal },
+    ) => {
+      if (!hasDashboardScope) {
+        return
+      }
+      const sessionsData = await fetchDashboardInteractionSessionsPage(
+        {
+          repoId: queryRepoId,
+          branch: interactionBranchFilter,
+          since: sinceRfc3339,
+          until: untilRfc3339,
+          agent: selectedAgent,
+          commitAuthor: selectedUser,
+          offset: sessionsReq.offset,
+        },
+        options,
+      )
+      if (options?.signal?.aborted) {
+        return
+      }
+      setUserOptions(sessionsData.userOptions)
+      if (
+        selectedUser &&
+        !sessionsData.userOptions.some(
+          (option) => option.value === selectedUser,
+        )
+      ) {
+        setSelectedUser(null)
+        setCurrentCommitsRequest({ offset: 0 })
+        setCurrentSessionsRequest({ offset: 0 })
+      }
+      setAgentOptions(sessionsData.agentOptions)
+      if (selectedAgent && !sessionsData.agentOptions.includes(selectedAgent)) {
+        setSelectedAgent(null)
+        setCurrentCommitsRequest({ offset: 0 })
+        setCurrentSessionsRequest({ offset: 0 })
+      }
+      const refreshedSelectedSession =
+        selectedSessionId == null
+          ? null
+          : (sessionsData.rows.find(
+              (session) => session.session_id === selectedSessionId,
+            ) ?? null)
+      setSessionRows(sessionsData.rows)
+      setSessionsPageInfo({
+        hasNextPage: sessionsData.hasNextPage,
+        hasPreviousPage: sessionsReq.offset > 0,
+        offset: sessionsReq.offset,
+      })
+      setCurrentSessionsRequest(sessionsReq)
+      if (refreshedSelectedSession != null) {
+        setSelectedSessionSummary(refreshedSelectedSession)
+      }
+    },
+    [
+      hasDashboardScope,
+      interactionBranchFilter,
+      queryRepoId,
+      selectedAgent,
+      selectedSessionId,
+      selectedUser,
+      setAgentOptions,
+      setCurrentCommitsRequest,
+      setCurrentSessionsRequest,
+      setSessionRows,
+      setSelectedAgent,
+      setSelectedSessionSummary,
+      setSelectedUser,
+      setSessionsPageInfo,
+      setUserOptions,
+      sinceRfc3339,
+      untilRfc3339,
+    ],
+  )
+
+  const refreshInteractionSessionsFromSubscription = useCallback(async () => {
+    if (!hasDashboardScope) {
+      return
+    }
+
+    if (interactionRefreshInFlightRef.current) {
+      interactionRefreshQueuedRef.current = true
+      return
+    }
+
+    interactionRefreshInFlightRef.current = true
+
+    try {
+      await loadSessionsPageOnly(currentSessionsRequest)
+      if (refreshSelectedSessionDetailRef.current) {
+        refreshSelectedSessionDetailRef.current = false
+        setSessionDetailRefreshToken((value) => value + 1)
+      }
+    } catch (error: unknown) {
+      console.error(
+        'Failed to refresh interaction sessions from subscription',
+        error,
+      )
+    } finally {
+      interactionRefreshInFlightRef.current = false
+      if (interactionRefreshQueuedRef.current) {
+        interactionRefreshQueuedRef.current = false
+        void refreshInteractionSessionsFromSubscription()
+      }
+    }
+  }, [currentSessionsRequest, hasDashboardScope, loadSessionsPageOnly])
+
   useEffect(() => {
-    if (!effectiveRepoId || !effectiveBranch) {
+    refreshInteractionSessionsFromSubscriptionRef.current =
+      refreshInteractionSessionsFromSubscription
+  }, [refreshInteractionSessionsFromSubscription])
+
+  const reloadDashboardForFilters = useCallback(async () => {
+    if (!hasDashboardScope) {
+      return
+    }
+
+    dashboardAbortRef.current?.abort()
+    const ac = new AbortController()
+    dashboardAbortRef.current = ac
+
+    setDataSource('loading')
+
+    try {
+      await loadSessionsPageOnly({ offset: 0 }, { signal: ac.signal })
+      if (effectiveBranch) {
+        await loadChartCommitsOnly(ac.signal)
+      } else if (!ac.signal.aborted) {
+        setRows([])
+        setCommitsPageInfo(null)
+      }
+      if (ac.signal.aborted) {
+        return
+      }
+      setDataSource('api')
+    } catch (error: unknown) {
+      if (
+        (error instanceof DOMException || error instanceof Error) &&
+        error.name === 'AbortError'
+      ) {
+        return
+      }
+      if (queryRepoId != null && markRepoUnavailable(queryRepoId, error)) {
+        return
+      }
+      console.error('Failed to load dashboard sessions/commits', error)
+      setDataSource('error')
+      setSessionsPageInfo(null)
+    }
+  }, [
+    effectiveBranch,
+    hasDashboardScope,
+    loadChartCommitsOnly,
+    loadSessionsPageOnly,
+    markRepoUnavailable,
+    queryRepoId,
+    setCommitsPageInfo,
+    setRows,
+    setSessionsPageInfo,
+  ])
+
+  useEffect(() => {
+    if (!hasDashboardScope) {
+      setSessionRows([])
+      setSessionsPageInfo(null)
       setRows([])
       setCommitsPageInfo(null)
-      setCurrentCommitsRequest({ offset: 0 })
+      setCurrentSessionsRequest({ offset: 0 })
+      setSelectedSessionId(null)
+      setSelectedSessionSummary(null)
       setSelectedCheckpointId(null)
       return () => {
-        commitsAbortRef.current?.abort()
+        dashboardAbortRef.current?.abort()
       }
     }
 
-    setCommitsPageInfo(null)
+    setSessionsPageInfo(null)
+    setCurrentSessionsRequest({ offset: 0 })
     const loadTimer = window.setTimeout(() => {
-      void loadCommitsPage()
+      void reloadDashboardForFilters()
     }, 0)
 
     return () => {
       window.clearTimeout(loadTimer)
-      commitsAbortRef.current?.abort()
+      dashboardAbortRef.current?.abort()
     }
   }, [
-    effectiveBranch,
-    effectiveRepoId,
     from,
-    loadCommitsPage,
+    hasDashboardScope,
+    reloadDashboardForFilters,
     selectedAgent,
     selectedUser,
     setCommitsPageInfo,
-    setCurrentCommitsRequest,
+    setCurrentSessionsRequest,
     setRows,
     setSelectedCheckpointId,
+    setSelectedSessionId,
+    setSelectedSessionSummary,
+    setSessionRows,
+    setSessionsPageInfo,
     to,
   ])
 
-  const visibleCommitsPageInfo = effectiveBranch ? commitsPageInfo : null
-  const commitsHasNextPage = visibleCommitsPageInfo?.hasNextPage === true
-  const commitsHasPreviousPage =
-    visibleCommitsPageInfo?.hasPreviousPage === true
-
-  const onCommitsNext = useCallback(() => {
-    const offset = visibleCommitsPageInfo?.offset ?? 0
-    if (!commitsHasNextPage) {
+  useEffect(() => {
+    if (!hasDashboardScope) {
+      lastInteractionUpdateKeyRef.current = null
+      interactionRefreshInFlightRef.current = false
+      interactionRefreshQueuedRef.current = false
+      refreshSelectedSessionDetailRef.current = false
       return
     }
-    void loadCommitsPage({ offset: offset + COMMITS_PAGE_SIZE })
-  }, [commitsHasNextPage, loadCommitsPage, visibleCommitsPageInfo?.offset])
 
-  const onCommitsBack = useCallback(() => {
-    const offset = visibleCommitsPageInfo?.offset ?? 0
-    if (!commitsHasPreviousPage) {
+    if (interactionUpdatesPollingFallback) {
       return
     }
-    void loadCommitsPage({ offset: Math.max(0, offset - COMMITS_PAGE_SIZE) })
-  }, [commitsHasPreviousPage, loadCommitsPage, visibleCommitsPageInfo?.offset])
+
+    lastInteractionUpdateKeyRef.current = null
+    interactionRefreshInFlightRef.current = false
+    interactionRefreshQueuedRef.current = false
+    refreshSelectedSessionDetailRef.current = false
+
+    return subscribeDashboardInteractionUpdates(
+      { repoId: queryRepoId },
+      {
+        onUpdate: (update) => {
+          const nextKey = interactionUpdateKey(update)
+          const previousKey = lastInteractionUpdateKeyRef.current
+          lastInteractionUpdateKeyRef.current = nextKey
+
+          if (previousKey == null || previousKey === nextKey) {
+            return
+          }
+
+          if (
+            selectedSessionIdRef.current != null &&
+            update.latest_session_id === selectedSessionIdRef.current
+          ) {
+            refreshSelectedSessionDetailRef.current = true
+          }
+
+          void refreshInteractionSessionsFromSubscriptionRef.current()
+        },
+        onError: (error: unknown) => {
+          console.warn(
+            'Dashboard interaction subscription unavailable; falling back to polling',
+            error,
+          )
+          setInteractionUpdatesPollingFallback(true)
+        },
+      },
+    )
+  }, [hasDashboardScope, interactionUpdatesPollingFallback, queryRepoId])
+
+  useEffect(() => {
+    if (!interactionUpdatesPollingFallback || !hasDashboardScope) {
+      return
+    }
+
+    const pollTimer = window.setInterval(() => {
+      void refreshInteractionSessionsFromSubscriptionRef.current()
+    }, INTERACTION_UPDATES_POLL_INTERVAL_MS)
+
+    return () => {
+      window.clearInterval(pollTimer)
+    }
+  }, [hasDashboardScope, interactionUpdatesPollingFallback])
+
+  const visibleSessionsPageInfo = hasDashboardScope ? sessionsPageInfo : null
+  const sessionsHasNextPage = visibleSessionsPageInfo?.hasNextPage === true
+  const sessionsHasPreviousPage =
+    visibleSessionsPageInfo?.hasPreviousPage === true
+
+  const onSessionsNext = useCallback(async () => {
+    const offset = visibleSessionsPageInfo?.offset ?? 0
+    if (!sessionsHasNextPage || !hasDashboardScope) {
+      return
+    }
+    setDataSource('loading')
+    try {
+      await loadSessionsPageOnly({ offset: offset + DASHBOARD_PAGE_SIZE })
+      setDataSource('api')
+    } catch (error: unknown) {
+      console.error('Failed to load sessions page', error)
+      setDataSource('error')
+    }
+  }, [
+    hasDashboardScope,
+    loadSessionsPageOnly,
+    sessionsHasNextPage,
+    visibleSessionsPageInfo?.offset,
+  ])
+
+  const onSessionsBack = useCallback(async () => {
+    const offset = visibleSessionsPageInfo?.offset ?? 0
+    if (!sessionsHasPreviousPage || !hasDashboardScope) {
+      return
+    }
+    setDataSource('loading')
+    try {
+      await loadSessionsPageOnly({
+        offset: Math.max(0, offset - DASHBOARD_PAGE_SIZE),
+      })
+      setDataSource('api')
+    } catch (error: unknown) {
+      console.error('Failed to load sessions page', error)
+      setDataSource('error')
+    }
+  }, [
+    hasDashboardScope,
+    loadSessionsPageOnly,
+    sessionsHasPreviousPage,
+    visibleSessionsPageInfo?.offset,
+  ])
 
   useEffect(() => {
     let cancelled = false
@@ -457,16 +866,9 @@ export function useDashboardData() {
         cancelled = true
       }
     }
-    if (!effectiveRepoId) {
-      setCheckpointDetail(null)
-      setCheckpointDetailSource('error')
-      return () => {
-        cancelled = true
-      }
-    }
 
     fetchDashboardCheckpointDetail({
-      repoId: effectiveRepoId,
+      repoId: queryRepoId,
       checkpointId: selectedCheckpoint.id,
     })
       .then((response) => {
@@ -492,7 +894,7 @@ export function useDashboardData() {
     }
   }, [
     checkpointDetailSource,
-    effectiveRepoId,
+    queryRepoId,
     selectedCheckpoint,
     setCheckpointDetail,
     setCheckpointDetailSource,
@@ -501,6 +903,7 @@ export function useDashboardData() {
   const onFromDateSelect = (date: Date | undefined) => {
     setFromDate(date)
     setCurrentCommitsRequest({ offset: 0 })
+    setCurrentSessionsRequest({ offset: 0 })
 
     if (date && toDate && date > toDate) {
       setToDate(date)
@@ -510,6 +913,7 @@ export function useDashboardData() {
   const onToDateSelect = (date: Date | undefined) => {
     setToDate(date)
     setCurrentCommitsRequest({ offset: 0 })
+    setCurrentSessionsRequest({ offset: 0 })
 
     if (date && fromDate && date < fromDate) {
       setFromDate(date)
@@ -519,46 +923,37 @@ export function useDashboardData() {
   const clearFilters = () => {
     resetDashboardFilters()
     if (selectedRepoId) {
-      setBranchOptions([])
-      setUserOptions([])
-      setAgentOptions([])
-      setRows([])
-      setCommitsPageInfo(null)
-      setSelectedCheckpointId(null)
-      setCheckpointDetail(null)
-      setCheckpointDetailSource('idle')
+      clearRepoScopedState()
     }
   }
 
   const onRepoChange = (value: string | null) => {
+    if (value != null) {
+      setUnavailableRepoIds((current) =>
+        current.filter((repoId) => repoId !== value),
+      )
+    }
+    setValidatedSelectedRepoId(null)
     setSelectedRepoId(value)
-    setSelectedBranch(null)
-    setSelectedUser(null)
-    setSelectedAgent(null)
-    setBranchOptions([])
-    setUserOptions([])
-    setAgentOptions([])
-    setRows([])
-    setCommitsPageInfo(null)
-    setSelectedCheckpointId(null)
-    setCheckpointDetail(null)
-    setCheckpointDetailSource('idle')
-    setCurrentCommitsRequest({ offset: 0 })
+    clearRepoScopedState()
   }
 
   const onBranchChange = (value: string | null) => {
     setSelectedBranch(value)
     setCurrentCommitsRequest({ offset: 0 })
+    setCurrentSessionsRequest({ offset: 0 })
   }
 
   const onUserChange = (value: string | null) => {
     setSelectedUser(value)
     setCurrentCommitsRequest({ offset: 0 })
+    setCurrentSessionsRequest({ offset: 0 })
   }
 
   const onAgentChange = (value: string | null) => {
     setSelectedAgent(value)
     setCurrentCommitsRequest({ offset: 0 })
+    setCurrentSessionsRequest({ offset: 0 })
   }
 
   const onCheckpointSelect = (checkpoint: Checkpoint) => {
@@ -567,21 +962,32 @@ export function useDashboardData() {
     setCheckpointDetailSource('loading')
   }
 
+  const onSessionSelect = (session: DashboardInteractionSessionDto) => {
+    setSelectedSessionId(session.session_id)
+    setSelectedSessionSummary(session)
+  }
+
+  const visibleSessionRows = hasDashboardScope ? sessionRows : []
   const visibleRows = effectiveBranch ? rows : []
-  const visibleUserOptions = effectiveBranch ? userOptions : []
-  const visibleAgentOptions = effectiveBranch ? agentOptions : []
-  const visibleSelectedUser = effectiveBranch ? selectedUser : null
-  const visibleSelectedAgent = effectiveBranch ? selectedAgent : null
+  const visibleUserOptions = hasDashboardScope ? userOptions : []
+  const visibleAgentOptions = hasDashboardScope ? agentOptions : []
+  const visibleSelectedUser = hasDashboardScope ? selectedUser : null
+  const visibleSelectedAgent = hasDashboardScope ? selectedAgent : null
   const visibleDataSource: LoadState =
-    dataSource === 'error' ? 'error' : effectiveBranch ? dataSource : 'api'
+    dataSource === 'error' ? 'error' : hasDashboardScope ? dataSource : 'api'
 
   return {
+    sessionRows: visibleSessionRows,
     rows: visibleRows,
     repoOptions,
+    hasAnyRepositories: repoOptions.length > 0,
+    hasAnyAutoSelectableRepositories: autoSelectableRepoOptions.length > 0,
+    hasDashboardScope,
     branchOptions,
     userOptions: visibleUserOptions,
     agentOptions: visibleAgentOptions,
     selectedRepoId,
+    effectiveRepoId,
     selectedBranch,
     selectedUser: visibleSelectedUser,
     selectedAgent: visibleSelectedAgent,
@@ -592,13 +998,18 @@ export function useDashboardData() {
     dataSource: visibleDataSource,
     optionsSource,
     branchOptionsSource: visibleBranchOptionsSource,
-    commitsHasNextPage: visibleCommitsPageInfo?.hasNextPage === true,
-    commitsHasPreviousPage: effectiveBranch ? commitsHasPreviousPage : false,
-    onCommitsNext,
-    onCommitsBack,
+    sessionsHasNextPage: visibleSessionsPageInfo?.hasNextPage === true,
+    sessionsHasPreviousPage: hasDashboardScope
+      ? sessionsHasPreviousPage
+      : false,
+    onSessionsNext,
+    onSessionsBack,
+    selectedSessionId,
+    selectedSessionSummary,
     selectedCheckpoint,
     checkpointDetail,
     checkpointDetailSource,
+    sessionDetailRefreshToken,
     onRepoChange,
     onBranchChange,
     onUserChange,
@@ -607,5 +1018,6 @@ export function useDashboardData() {
     onToDateChange: onToDateSelect,
     onClearFilters: clearFilters,
     onCheckpointSelect,
+    onSessionSelect,
   }
 }

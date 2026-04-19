@@ -102,3 +102,138 @@ export type DashboardCheckpointDetailQueryData = {
     }>
   }
 }
+
+export type DashboardInteractionActorNode = {
+  id?: string | null
+  name?: string | null
+  email?: string | null
+  source?: string | null
+}
+
+export type DashboardInteractionTokenUsageNode = {
+  inputTokens: number
+  outputTokens: number
+  cacheCreationTokens: number
+  cacheReadTokens: number
+  apiCallCount: number
+}
+
+export type DashboardInteractionToolUseNode = {
+  toolUseId: string
+  sessionId: string
+  turnId?: string | null
+  toolKind?: string | null
+  taskDescription?: string | null
+  subagentId?: string | null
+  transcriptPath?: string | null
+  startedAt?: string | null
+  endedAt?: string | null
+}
+
+export type DashboardInteractionCommitAuthorNode = {
+  checkpointId: string
+  commitSha: string
+  name?: string | null
+  email?: string | null
+  committedAt?: string | null
+}
+
+export type DashboardInteractionSessionNode = {
+  sessionId: string
+  branch?: string | null
+  actor?: DashboardInteractionActorNode | null
+  agentType: string
+  model?: string | null
+  firstPrompt?: string | null
+  startedAt: string
+  endedAt?: string | null
+  lastEventAt?: string | null
+  turnCount: number
+  checkpointCount: number
+  tokenUsage?: DashboardInteractionTokenUsageNode | null
+  filePaths: string[]
+  toolUses: DashboardInteractionToolUseNode[]
+  linkedCheckpoints: DashboardInteractionCommitAuthorNode[]
+  latestCommitAuthor?: DashboardInteractionCommitAuthorNode | null
+}
+
+export type DashboardInteractionUpdateNode = {
+  repoId: string
+  sessionCount: number
+  turnCount: number
+  latestSessionId?: string | null
+  latestSessionUpdatedAt?: string | null
+  latestTurnId?: string | null
+  latestTurnUpdatedAt?: string | null
+}
+
+export type DashboardInteractionTurnNode = {
+  turnId: string
+  sessionId: string
+  branch?: string | null
+  actor?: DashboardInteractionActorNode | null
+  turnNumber: number
+  prompt?: string | null
+  summary?: string | null
+  agentType: string
+  model?: string | null
+  startedAt: string
+  endedAt?: string | null
+  tokenUsage?: DashboardInteractionTokenUsageNode | null
+  filesModified: string[]
+  checkpointId?: string | null
+  toolUses: DashboardInteractionToolUseNode[]
+}
+
+export type DashboardInteractionEventNode = {
+  eventId: string
+  sessionId: string
+  turnId?: string | null
+  eventType: string
+  eventTime: string
+  agentType: string
+  model?: string | null
+  toolUseId?: string | null
+  toolKind?: string | null
+  taskDescription?: string | null
+  subagentId?: string | null
+  payload?: unknown
+}
+
+export type DashboardInteractionKpisNode = {
+  totalSessions: number
+  totalTurns: number
+  totalCheckpoints: number
+  totalToolUses: number
+}
+
+export type DashboardInteractionActorBucketNode = {
+  actorEmail: string
+  sessionCount: number
+  turnCount: number
+}
+
+export type DashboardInteractionAgentBucketNode = {
+  key: string
+  sessionCount: number
+  turnCount: number
+}
+
+export type DashboardInteractionSessionsQueryData = {
+  interactionKpis?: DashboardInteractionKpisNode | null
+  interactionActors?: DashboardInteractionActorBucketNode[] | null
+  interactionAgents?: DashboardInteractionAgentBucketNode[] | null
+  interactionSessions: DashboardInteractionSessionNode[]
+}
+
+export type DashboardInteractionSessionDetailQueryData = {
+  interactionSession: {
+    summary: DashboardInteractionSessionNode
+    turns: DashboardInteractionTurnNode[]
+    rawEvents: DashboardInteractionEventNode[]
+  } | null
+}
+
+export type DashboardInteractionUpdatesSubscriptionData = {
+  interactionUpdates: DashboardInteractionUpdateNode
+}

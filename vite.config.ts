@@ -8,10 +8,20 @@ export default defineConfig(({ mode }) => {
   const apiProxyTarget =
     process.env.VITE_API_PROXY_TARGET ??
     env.VITE_API_PROXY_TARGET ??
-    'http://bitloops.local:5667'
+    'http://127.0.0.1:5667'
 
-  const proxyTargetIsHttps = apiProxyTarget.startsWith('https://')
-  const proxySecure = proxyTargetIsHttps
+  const proxyTargetUrl = new URL(apiProxyTarget)
+  const proxyTargetIsHttps = proxyTargetUrl.protocol === 'https:'
+  const proxyTargetIsLocal =
+    proxyTargetUrl.hostname === '127.0.0.1' ||
+    proxyTargetUrl.hostname === 'localhost' ||
+    proxyTargetUrl.hostname === '::1'
+  const proxySecureOverride =
+    process.env.VITE_API_PROXY_SECURE ?? env.VITE_API_PROXY_SECURE
+  const proxySecure =
+    proxySecureOverride != null
+      ? proxySecureOverride === 'true'
+      : proxyTargetIsHttps && !proxyTargetIsLocal
 
   return {
     plugins: [react(), tailwindcss()],

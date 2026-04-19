@@ -5,6 +5,13 @@ import type {
   DashboardCheckpointDto,
   DashboardCommitFileDiffDto,
   DashboardCommitRowDto,
+  DashboardInteractionActorDto,
+  DashboardInteractionEventDto,
+  DashboardInteractionSessionDetailResponse,
+  DashboardInteractionSessionDto,
+  DashboardInteractionToolUseDto,
+  DashboardInteractionTurnDto,
+  DashboardInteractionUpdateDto,
   DashboardRepositoryOption,
   DashboardTokenUsageDto,
   DashboardUserDto,
@@ -16,7 +23,16 @@ import type {
   DashboardCheckpointNode,
   DashboardCommitFileDiffNode,
   DashboardCommitsQueryData,
+  DashboardInteractionActorNode,
+  DashboardInteractionEventNode,
+  DashboardInteractionSessionDetailQueryData,
+  DashboardInteractionSessionNode,
+  DashboardInteractionTokenUsageNode,
+  DashboardInteractionToolUseNode,
+  DashboardInteractionTurnNode,
+  DashboardInteractionUpdateNode,
   DashboardRepositoriesQueryData,
+  DashboardInteractionSessionsQueryData,
   DashboardTokenUsageNode,
   DashboardUsersQueryData,
 } from './types'
@@ -34,8 +50,12 @@ function mapFileDiff(
   }
 }
 
+type AnyTokenUsageNode =
+  | DashboardTokenUsageNode
+  | DashboardInteractionTokenUsageNode
+
 function mapTokenUsage(
-  node: DashboardTokenUsageNode | null | undefined,
+  node: AnyTokenUsageNode | null | undefined,
 ): DashboardTokenUsageDto | null {
   if (node == null) {
     return null
@@ -65,6 +85,132 @@ function mapCheckpoint(node: DashboardCheckpointNode): DashboardCheckpointDto {
     created_at: node.createdAt,
     is_task: node.isTask,
     tool_use_id: node.toolUseId,
+  }
+}
+
+function mapInteractionActor(
+  node: DashboardInteractionActorNode | null | undefined,
+): DashboardInteractionActorDto | null {
+  if (node == null) return null
+  const hasAny =
+    node.id != null ||
+    node.name != null ||
+    node.email != null ||
+    node.source != null
+  if (!hasAny) return null
+  return {
+    id: node.id ?? null,
+    name: node.name ?? null,
+    email: node.email ?? null,
+    source: node.source ?? null,
+  }
+}
+
+function mapInteractionToolUse(
+  node: DashboardInteractionToolUseNode,
+): DashboardInteractionToolUseDto {
+  return {
+    tool_use_id: node.toolUseId,
+    session_id: node.sessionId,
+    turn_id: node.turnId ?? null,
+    tool_kind: node.toolKind ?? null,
+    task_description: node.taskDescription ?? null,
+    subagent_id: node.subagentId ?? null,
+    transcript_path: node.transcriptPath ?? null,
+    started_at: node.startedAt ?? null,
+    ended_at: node.endedAt ?? null,
+  }
+}
+
+function mapInteractionSession(
+  node: DashboardInteractionSessionNode,
+): DashboardInteractionSessionDto {
+  return {
+    session_id: node.sessionId,
+    branch: node.branch ?? null,
+    actor: mapInteractionActor(node.actor),
+    agent_type: node.agentType,
+    model: node.model ?? null,
+    first_prompt: node.firstPrompt ?? null,
+    started_at: node.startedAt,
+    ended_at: node.endedAt ?? null,
+    last_event_at: node.lastEventAt ?? null,
+    turn_count: node.turnCount,
+    checkpoint_count: node.checkpointCount,
+    token_usage: mapTokenUsage(node.tokenUsage),
+    file_paths: node.filePaths ?? [],
+    tool_uses: (node.toolUses ?? []).map(mapInteractionToolUse),
+    linked_checkpoints: (node.linkedCheckpoints ?? []).map((c) => ({
+      checkpoint_id: c.checkpointId,
+      commit_sha: c.commitSha,
+      name: c.name ?? null,
+      email: c.email ?? null,
+      committed_at: c.committedAt ?? null,
+    })),
+    latest_commit_author: node.latestCommitAuthor
+      ? {
+          checkpoint_id: node.latestCommitAuthor.checkpointId,
+          commit_sha: node.latestCommitAuthor.commitSha,
+          name: node.latestCommitAuthor.name ?? null,
+          email: node.latestCommitAuthor.email ?? null,
+          committed_at: node.latestCommitAuthor.committedAt ?? null,
+        }
+      : null,
+  }
+}
+
+function mapInteractionTurn(
+  node: DashboardInteractionTurnNode,
+): DashboardInteractionTurnDto {
+  return {
+    turn_id: node.turnId,
+    session_id: node.sessionId,
+    branch: node.branch ?? null,
+    actor: mapInteractionActor(node.actor),
+    turn_number: node.turnNumber,
+    prompt: node.prompt ?? null,
+    summary: node.summary ?? null,
+    agent_type: node.agentType,
+    model: node.model ?? null,
+    started_at: node.startedAt,
+    ended_at: node.endedAt ?? null,
+    token_usage: mapTokenUsage(node.tokenUsage),
+    files_modified: node.filesModified ?? [],
+    checkpoint_id: node.checkpointId ?? null,
+    tool_uses: (node.toolUses ?? []).map(mapInteractionToolUse),
+  }
+}
+
+function mapInteractionEvent(
+  node: DashboardInteractionEventNode,
+): DashboardInteractionEventDto {
+  return {
+    event_id: node.eventId,
+    session_id: node.sessionId,
+    turn_id: node.turnId ?? null,
+    event_type: node.eventType,
+    event_time: node.eventTime,
+    agent_type: node.agentType,
+    model: node.model ?? null,
+    tool_use_id: node.toolUseId ?? null,
+    tool_kind: node.toolKind ?? null,
+    task_description: node.taskDescription ?? null,
+    subagent_id: node.subagentId ?? null,
+    payload: node.payload ?? null,
+  }
+}
+
+export function mapDashboardInteractionUpdate(
+  node: DashboardInteractionUpdateNode,
+): DashboardInteractionUpdateDto {
+  return {
+    repo_id: node.repoId,
+    session_count: node.sessionCount,
+    turn_count: node.turnCount,
+    latest_session_id: node.latestSessionId ?? null,
+    latest_session_updated_at: node.latestSessionUpdatedAt ?? null,
+    latest_turn_id: node.latestTurnId ?? null,
+    latest_turn_updated_at: node.latestTurnUpdatedAt ?? null,
   }
 }
 
@@ -157,5 +303,24 @@ export function mapDashboardCheckpointDetail(
       prompts_text: session.promptsText,
       context_text: session.contextText,
     })),
+  }
+}
+
+export function mapDashboardInteractionSessions(
+  data: DashboardInteractionSessionsQueryData,
+): DashboardInteractionSessionDto[] {
+  return (data.interactionSessions ?? []).map(mapInteractionSession)
+}
+
+export function mapDashboardInteractionSessionDetail(
+  data: DashboardInteractionSessionDetailQueryData,
+): DashboardInteractionSessionDetailResponse | null {
+  const session = data.interactionSession
+  if (session == null) return null
+
+  return {
+    summary: mapInteractionSession(session.summary),
+    turns: (session.turns ?? []).map(mapInteractionTurn),
+    raw_events: (session.rawEvents ?? []).map(mapInteractionEvent),
   }
 }

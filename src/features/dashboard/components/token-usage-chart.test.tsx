@@ -22,5 +22,6 @@ describe('TokenUsageChart', () => {
     expect(screen.getByText('total tokens')).toBeInTheDocument()
     expect(screen.getByText('Input')).toBeInTheDocument()
     expect(screen.getByText('Output')).toBeInTheDocument()
+    expect(screen.getByText('Tool calls')).toBeInTheDocument()
   })
 })

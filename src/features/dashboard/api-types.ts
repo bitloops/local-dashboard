@@ -94,3 +94,98 @@ export type DashboardCheckpointDetailResponse = {
   token_usage: DashboardTokenUsageDto | null
   sessions: DashboardCheckpointSessionDetailDto[]
 }
+
+export type DashboardInteractionActorDto = {
+  id: string | null
+  name: string | null
+  email: string | null
+  source: string | null
+}
+
+export type DashboardInteractionCommitAuthorDto = {
+  checkpoint_id: string
+  commit_sha: string
+  name: string | null
+  email: string | null
+  committed_at: string | null
+}
+
+export type DashboardInteractionToolUseDto = {
+  tool_use_id: string
+  session_id: string
+  turn_id: string | null
+  tool_kind: string | null
+  task_description: string | null
+  subagent_id: string | null
+  transcript_path: string | null
+  started_at: string | null
+  ended_at: string | null
+}
+
+export type DashboardInteractionSessionDto = {
+  session_id: string
+  branch: string | null
+  actor: DashboardInteractionActorDto | null
+  agent_type: string
+  model: string | null
+  first_prompt: string | null
+  started_at: string
+  ended_at: string | null
+  last_event_at: string | null
+  turn_count: number
+  checkpoint_count: number
+  token_usage: DashboardTokenUsageDto | null
+  file_paths: string[]
+  tool_uses: DashboardInteractionToolUseDto[]
+  linked_checkpoints: DashboardInteractionCommitAuthorDto[]
+  latest_commit_author: DashboardInteractionCommitAuthorDto | null
+}
+
+export type DashboardInteractionTurnDto = {
+  turn_id: string
+  session_id: string
+  branch: string | null
+  actor: DashboardInteractionActorDto | null
+  turn_number: number
+  prompt: string | null
+  summary: string | null
+  agent_type: string
+  model: string | null
+  started_at: string
+  ended_at: string | null
+  token_usage: DashboardTokenUsageDto | null
+  files_modified: string[]
+  checkpoint_id: string | null
+  tool_uses: DashboardInteractionToolUseDto[]
+}
+
+export type DashboardInteractionEventDto = {
+  event_id: string
+  session_id: string
+  turn_id: string | null
+  event_type: string
+  event_time: string
+  agent_type: string
+  model: string | null
+  tool_use_id: string | null
+  tool_kind: string | null
+  task_description: string | null
+  subagent_id: string | null
+  payload: unknown | null
+}
+
+export type DashboardInteractionSessionDetailResponse = {
+  summary: DashboardInteractionSessionDto
+  turns: DashboardInteractionTurnDto[]
+  raw_events: DashboardInteractionEventDto[]
+}
+
+export type DashboardInteractionUpdateDto = {
+  repo_id: string
+  session_count: number
+  turn_count: number
+  latest_session_id: string | null
+  latest_session_updated_at: string | null
+  latest_turn_id: string | null
+  latest_turn_updated_at: string | null
+}
