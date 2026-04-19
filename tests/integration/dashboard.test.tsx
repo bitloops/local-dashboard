@@ -153,7 +153,9 @@ describe('Dashboard integration', () => {
     )
 
     expect(
-      screen.getByText(/No repositories are currently available from the dashboard API/),
+      screen.getByText(
+        /No repositories are currently available from the dashboard API/,
+      ),
     ).toBeInTheDocument()
   })
 
@@ -190,12 +192,8 @@ describe('Dashboard integration', () => {
 
   it('calls onSessionSelect when user clicks a session row', async () => {
     const onSessionSelect = vi.fn()
-    renderDashboard(
-      <DashboardView {...defaultProps({ onSessionSelect })} />,
-    )
-    await userEvent.click(
-      screen.getByText(sessionSample.first_prompt ?? ''),
-    )
+    renderDashboard(<DashboardView {...defaultProps({ onSessionSelect })} />)
+    await userEvent.click(screen.getByText(sessionSample.first_prompt ?? ''))
     expect(onSessionSelect).toHaveBeenCalledTimes(1)
     expect(onSessionSelect).toHaveBeenCalledWith(sessionSample)
   })

@@ -50,7 +50,9 @@ function mapFileDiff(
   }
 }
 
-type AnyTokenUsageNode = DashboardTokenUsageNode | DashboardInteractionTokenUsageNode
+type AnyTokenUsageNode =
+  | DashboardTokenUsageNode
+  | DashboardInteractionTokenUsageNode
 
 function mapTokenUsage(
   node: AnyTokenUsageNode | null | undefined,
@@ -91,7 +93,10 @@ function mapInteractionActor(
 ): DashboardInteractionActorDto | null {
   if (node == null) return null
   const hasAny =
-    node.id != null || node.name != null || node.email != null || node.source != null
+    node.id != null ||
+    node.name != null ||
+    node.email != null ||
+    node.source != null
   if (!hasAny) return null
   return {
     id: node.id ?? null,

@@ -65,7 +65,9 @@ export function CheckpointSummaryPanel({
           </div>
           <div className='sm:px-3 sm:first:ps-0 sm:last:pe-0'>
             <p className='text-xs text-muted-foreground'>Sessions</p>
-            <p className='text-lg font-bold text-primary'>{detailSessionCount}</p>
+            <p className='text-lg font-bold text-primary'>
+              {detailSessionCount}
+            </p>
           </div>
           <div className='sm:px-3 sm:first:ps-0 sm:last:pe-0'>
             <p className='text-xs text-muted-foreground'>Tokens</p>
@@ -120,13 +122,19 @@ export function CheckpointSummaryPanel({
       <Separator />
       <div>
         <h3 className='mb-2 text-sm font-semibold'>Token Usage</h3>
-        <Suspense
-          fallback={
-            <div className='h-40 animate-pulse rounded-md bg-muted/30' />
-          }
-        >
-          <TokenUsageChart usage={detailTokenUsage} />
-        </Suspense>
+        {detailTokenUsage ? (
+          <Suspense
+            fallback={
+              <div className='h-40 animate-pulse rounded-md bg-muted/30' />
+            }
+          >
+            <TokenUsageChart usage={detailTokenUsage} />
+          </Suspense>
+        ) : (
+          <p className='text-sm text-muted-foreground'>
+            No token usage data for this checkpoint.
+          </p>
+        )}
       </div>
 
       <Separator />

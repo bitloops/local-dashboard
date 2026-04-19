@@ -35,7 +35,9 @@ export const sessionColumns: ColumnDef<SessionRow>[] = [
     accessorKey: 'agent_type',
     header: 'Agent',
     cell: ({ row }) => (
-      <Badge variant='secondary'>{formatAgentLabel(row.original.agent_type)}</Badge>
+      <Badge variant='secondary'>
+        {formatAgentLabel(row.original.agent_type)}
+      </Badge>
     ),
   },
   {

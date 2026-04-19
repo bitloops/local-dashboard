@@ -67,10 +67,10 @@ This runs a production build and moves `dist` to `~/.bitloops/dashboard/bundle`.
 
 You do not need a `.env` file for typical local use if your API is already at the default proxy target.
 
-| Variable                    | Purpose                                                                                                                                                           |
-| --------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Variable                    | Purpose                                                                                                                                                      |
+| --------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `VITE_API_PROXY_TARGET`     | Origin for the dev-server `/devql/dashboard` and `/devql/global` proxies (default `http://127.0.0.1:5667`). Use `https://...` if your API is TLS-terminated. |
-| `VITE_QUERY_HISTORY_TTL_MS` | Max age (ms) for persisted query-explorer run history in the browser (default 30 days).                                                                           |
+| `VITE_QUERY_HISTORY_TTL_MS` | Max age (ms) for persisted query-explorer run history in the browser (default 30 days).                                                                      |
 
 See [.env.example](.env.example) for commented templates.
 

@@ -11,7 +11,9 @@ function Accordion({
   return <AccordionPrimitive.Root data-slot='accordion' {...props} />
 }
 
-type AccordionItemProps = React.ComponentProps<typeof AccordionPrimitive.Item> & {
+type AccordionItemProps = React.ComponentProps<
+  typeof AccordionPrimitive.Item
+> & {
   /** `card`: standalone bordered panel (use with gap between items). `default`: list row dividers. */
   variant?: 'default' | 'card'
 }

@@ -568,7 +568,9 @@ async function stubApiRoutes(page: Page) {
         status: 200,
         contentType: 'application/json',
         body: JSON.stringify(
-          buildDashboardInteractionSessionDetailResponse(body.variables?.sessionId),
+          buildDashboardInteractionSessionDetailResponse(
+            body.variables?.sessionId,
+          ),
         ),
       })
       return
@@ -974,7 +976,9 @@ test.describe('Filters', () => {
           status: 200,
           contentType: 'application/json',
           body: JSON.stringify(
-            buildDashboardInteractionSessionDetailResponse(body.variables?.sessionId),
+            buildDashboardInteractionSessionDetailResponse(
+              body.variables?.sessionId,
+            ),
           ),
         })
         return
@@ -1034,9 +1038,9 @@ test.describe('Session detail & checkpoint summary', () => {
 
     await selectFirstStubSession(page)
 
-    await expect(
-      page.getByRole('heading', { name: /^Session/ }),
-    ).toBeVisible({ timeout: 10_000 })
+    await expect(page.getByRole('heading', { name: /^Session/ })).toBeVisible({
+      timeout: 10_000,
+    })
     await expect(
       page.getByRole('button', { name: 'Close session panel' }),
     ).toBeVisible()

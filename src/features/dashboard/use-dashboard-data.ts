@@ -29,8 +29,7 @@ import {
   startOfDayUnixSeconds,
 } from './utils'
 
-const REPO_CHECKOUT_UNKNOWN_PATTERN =
-  /\brepo(?:sitory)? checkout unknown\b/i
+const REPO_CHECKOUT_UNKNOWN_PATTERN = /\brepo(?:sitory)? checkout unknown\b/i
 const INTERACTION_UPDATES_POLL_INTERVAL_MS = 30_000
 
 function isRepoCheckoutUnknownError(error: unknown): boolean {
@@ -147,8 +146,10 @@ export function useDashboardData() {
   const [dataSource, setDataSource] = useState<'loading' | 'api' | 'error'>(
     'loading',
   )
-  const [interactionUpdatesPollingFallback, setInteractionUpdatesPollingFallback] =
-    useState(false)
+  const [
+    interactionUpdatesPollingFallback,
+    setInteractionUpdatesPollingFallback,
+  ] = useState(false)
   const [sessionDetailRefreshToken, setSessionDetailRefreshToken] = useState(0)
   const [optionsSource, setOptionsSource] = useState<
     'loading' | 'api' | 'error'
@@ -179,17 +180,14 @@ export function useDashboardData() {
       ? repoOptions.find((repo) => repo.repoId === selectedRepoId)
       : null) ?? null
   const autoQueryRepoOption =
-    selectedRepoId == null
-      ? (autoSelectableRepoOptions[0] ?? null)
-      : null
+    selectedRepoId == null ? (autoSelectableRepoOptions[0] ?? null) : null
   const hasValidatedSelectedRepo =
     selectedRepoId == null || validatedSelectedRepoId === selectedRepoId
   const effectiveRepoOption =
     selectedRepoId != null && hasValidatedSelectedRepo
       ? selectedRepoOption
       : autoQueryRepoOption
-  const hasDashboardScope =
-    effectiveRepoOption != null
+  const hasDashboardScope = effectiveRepoOption != null
   const queryRepoId = effectiveRepoOption?.repoId ?? null
   const effectiveRepoId = queryRepoId
   const effectiveRepoIdentity = effectiveRepoOption?.identity ?? null
@@ -204,7 +202,8 @@ export function useDashboardData() {
     branchOptionsRequestState.key !== branchOptionsRequestKey
       ? 'loading'
       : branchOptionsRequestState.source
-  const effectiveBranch = selectedBranch ?? branchOptions[0] ?? defaultBranchFallback
+  const effectiveBranch =
+    selectedBranch ?? branchOptions[0] ?? defaultBranchFallback
   const interactionBranchFilter = selectedBranch
   const selectedCheckpoint =
     rows
@@ -321,9 +320,9 @@ export function useDashboardData() {
           repositories.find((repo) => repo.repoId === selectedRepoId) ??
           (previousSelectedRepoIdentity == null
             ? null
-            : repositories.find(
+            : (repositories.find(
                 (repo) => repo.identity === previousSelectedRepoIdentity,
-              ) ?? null)
+              ) ?? null))
 
         if (matchingRepo == null) {
           setValidatedSelectedRepoId(null)
@@ -568,17 +567,16 @@ export function useDashboardData() {
       setUserOptions(sessionsData.userOptions)
       if (
         selectedUser &&
-        !sessionsData.userOptions.some((option) => option.value === selectedUser)
+        !sessionsData.userOptions.some(
+          (option) => option.value === selectedUser,
+        )
       ) {
         setSelectedUser(null)
         setCurrentCommitsRequest({ offset: 0 })
         setCurrentSessionsRequest({ offset: 0 })
       }
       setAgentOptions(sessionsData.agentOptions)
-      if (
-        selectedAgent &&
-        !sessionsData.agentOptions.includes(selectedAgent)
-      ) {
+      if (selectedAgent && !sessionsData.agentOptions.includes(selectedAgent)) {
         setSelectedAgent(null)
         setCurrentCommitsRequest({ offset: 0 })
         setCurrentSessionsRequest({ offset: 0 })
@@ -586,9 +584,9 @@ export function useDashboardData() {
       const refreshedSelectedSession =
         selectedSessionId == null
           ? null
-          : sessionsData.rows.find(
+          : (sessionsData.rows.find(
               (session) => session.session_id === selectedSessionId,
-            ) ?? null
+            ) ?? null)
       setSessionRows(sessionsData.rows)
       setSessionsPageInfo({
         hasNextPage: sessionsData.hasNextPage,
@@ -651,11 +649,7 @@ export function useDashboardData() {
         void refreshInteractionSessionsFromSubscription()
       }
     }
-  }, [
-    currentSessionsRequest,
-    hasDashboardScope,
-    loadSessionsPageOnly,
-  ])
+  }, [currentSessionsRequest, hasDashboardScope, loadSessionsPageOnly])
 
   useEffect(() => {
     refreshInteractionSessionsFromSubscriptionRef.current =
@@ -801,17 +795,10 @@ export function useDashboardData() {
         },
       },
     )
-  }, [
-    hasDashboardScope,
-    interactionUpdatesPollingFallback,
-    queryRepoId,
-  ])
+  }, [hasDashboardScope, interactionUpdatesPollingFallback, queryRepoId])
 
   useEffect(() => {
-    if (
-      !interactionUpdatesPollingFallback ||
-      !hasDashboardScope
-    ) {
+    if (!interactionUpdatesPollingFallback || !hasDashboardScope) {
       return
     }
 
@@ -822,10 +809,7 @@ export function useDashboardData() {
     return () => {
       window.clearInterval(pollTimer)
     }
-  }, [
-    hasDashboardScope,
-    interactionUpdatesPollingFallback,
-  ])
+  }, [hasDashboardScope, interactionUpdatesPollingFallback])
 
   const visibleSessionsPageInfo = hasDashboardScope ? sessionsPageInfo : null
   const sessionsHasNextPage = visibleSessionsPageInfo?.hasNextPage === true
@@ -1015,7 +999,9 @@ export function useDashboardData() {
     optionsSource,
     branchOptionsSource: visibleBranchOptionsSource,
     sessionsHasNextPage: visibleSessionsPageInfo?.hasNextPage === true,
-    sessionsHasPreviousPage: hasDashboardScope ? sessionsHasPreviousPage : false,
+    sessionsHasPreviousPage: hasDashboardScope
+      ? sessionsHasPreviousPage
+      : false,
     onSessionsNext,
     onSessionsBack,
     selectedSessionId,

@@ -66,7 +66,9 @@ export type DashboardSliceActions = {
   setSessionsPageInfo: (value: DashboardCommitsPageInfo | null) => void
   setCurrentSessionsRequest: (value: DashboardSessionsRequest) => void
   setSelectedSessionId: (value: string | null) => void
-  setSelectedSessionSummary: (value: DashboardInteractionSessionDto | null) => void
+  setSelectedSessionSummary: (
+    value: DashboardInteractionSessionDto | null,
+  ) => void
   setSelectedCheckpointId: (value: string | null) => void
   setCheckpointDetail: (value: DashboardCheckpointDetailResponse | null) => void
   setCheckpointDetailSource: (value: CheckpointDetailLoadState) => void
@@ -168,9 +170,11 @@ export function createDashboardSlice(set: DashboardSet): DashboardSlice {
     setCurrentCommitsRequest: (value) => set({ currentCommitsRequest: value }),
     setSessionRows: (value) => set({ sessionRows: value }),
     setSessionsPageInfo: (value) => set({ sessionsPageInfo: value }),
-    setCurrentSessionsRequest: (value) => set({ currentSessionsRequest: value }),
+    setCurrentSessionsRequest: (value) =>
+      set({ currentSessionsRequest: value }),
     setSelectedSessionId: (value) => set({ selectedSessionId: value }),
-    setSelectedSessionSummary: (value) => set({ selectedSessionSummary: value }),
+    setSelectedSessionSummary: (value) =>
+      set({ selectedSessionSummary: value }),
     setSelectedCheckpointId: (value) => set({ selectedCheckpointId: value }),
     setCheckpointDetail: (value) => set({ checkpointDetail: value }),
     setCheckpointDetailSource: (value) =>

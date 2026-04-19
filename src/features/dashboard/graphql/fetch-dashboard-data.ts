@@ -271,15 +271,10 @@ export async function fetchDashboardBranches(
   variables: Pick<FetchDashboardFilterVariables, 'repoId' | 'from' | 'to'>,
   options?: { signal?: AbortSignal },
 ) {
-  const response =
-    await requestDashboardGraphQLWithRepoFallback<
-      DashboardBranchesQueryData,
-      Pick<FetchDashboardFilterVariables, 'repoId' | 'from' | 'to'>
-    >(
-      DASHBOARD_BRANCHES_QUERY,
-      variables,
-      options,
-    )
+  const response = await requestDashboardGraphQLWithRepoFallback<
+    DashboardBranchesQueryData,
+    Pick<FetchDashboardFilterVariables, 'repoId' | 'from' | 'to'>
+  >(DASHBOARD_BRANCHES_QUERY, variables, options)
 
   if (response.errors?.length) {
     firstGraphQLError('Failed to load branches.', response.errors)
@@ -294,15 +289,10 @@ export async function fetchDashboardUsers(
   variables: FetchDashboardFilterVariables & { agent: string | null },
   options?: { signal?: AbortSignal },
 ) {
-  const response =
-    await requestDashboardGraphQLWithRepoFallback<
-      DashboardUsersQueryData,
-      FetchDashboardFilterVariables & { agent: string | null }
-    >(
-      DASHBOARD_USERS_QUERY,
-      variables,
-      options,
-    )
+  const response = await requestDashboardGraphQLWithRepoFallback<
+    DashboardUsersQueryData,
+    FetchDashboardFilterVariables & { agent: string | null }
+  >(DASHBOARD_USERS_QUERY, variables, options)
 
   if (response.errors?.length) {
     firstGraphQLError('Failed to load users.', response.errors)
@@ -317,15 +307,10 @@ export async function fetchDashboardAgents(
   variables: FetchDashboardFilterVariables & { user: string | null },
   options?: { signal?: AbortSignal },
 ) {
-  const response =
-    await requestDashboardGraphQLWithRepoFallback<
-      DashboardAgentsQueryData,
-      FetchDashboardFilterVariables & { user: string | null }
-    >(
-      DASHBOARD_AGENTS_QUERY,
-      variables,
-      options,
-    )
+  const response = await requestDashboardGraphQLWithRepoFallback<
+    DashboardAgentsQueryData,
+    FetchDashboardFilterVariables & { user: string | null }
+  >(DASHBOARD_AGENTS_QUERY, variables, options)
 
   if (response.errors?.length) {
     firstGraphQLError('Failed to load agents.', response.errors)
@@ -340,18 +325,17 @@ export async function fetchDashboardCommitsPage(
   variables: FetchDashboardCommitsVariables,
   options?: { signal?: AbortSignal },
 ): Promise<{ rows: DashboardCommitRowDto[]; hasNextPage: boolean }> {
-  const response =
-    await requestDashboardGraphQLWithRepoFallback<
-      DashboardCommitsQueryData,
-      FetchDashboardCommitsVariables & { limit: number }
-    >(
-      DASHBOARD_COMMITS_QUERY,
-      {
-        ...variables,
-        limit: COMMITS_PAGE_SIZE + 1,
-      },
-      options,
-    )
+  const response = await requestDashboardGraphQLWithRepoFallback<
+    DashboardCommitsQueryData,
+    FetchDashboardCommitsVariables & { limit: number }
+  >(
+    DASHBOARD_COMMITS_QUERY,
+    {
+      ...variables,
+      limit: COMMITS_PAGE_SIZE + 1,
+    },
+    options,
+  )
 
   if (response.errors?.length) {
     firstGraphQLError('Failed to load commits.', response.errors)
@@ -385,25 +369,24 @@ export async function fetchDashboardInteractionSessionsPage(
     commitAuthor: variables.commitAuthor,
   })
 
-  const response =
-    await requestDashboardGraphQLWithRepoFallback<
-      DashboardInteractionSessionsQueryData,
-      {
-        repoId: string | null
-        filter: Record<string, string> | undefined
-        limit: number
-        offset: number
-      }
-    >(
-      DASHBOARD_INTERACTION_SESSIONS_QUERY,
-      {
-        repoId: variables.repoId,
-        filter,
-        limit: DASHBOARD_PAGE_SIZE + 1,
-        offset: variables.offset,
-      },
-      options,
-    )
+  const response = await requestDashboardGraphQLWithRepoFallback<
+    DashboardInteractionSessionsQueryData,
+    {
+      repoId: string | null
+      filter: Record<string, string> | undefined
+      limit: number
+      offset: number
+    }
+  >(
+    DASHBOARD_INTERACTION_SESSIONS_QUERY,
+    {
+      repoId: variables.repoId,
+      filter,
+      limit: DASHBOARD_PAGE_SIZE + 1,
+      offset: variables.offset,
+    },
+    options,
+  )
 
   if (response.errors?.length) {
     firstGraphQLError('Failed to load interaction sessions.', response.errors)
@@ -441,15 +424,10 @@ export async function fetchDashboardCheckpointDetail(
   variables: { repoId: string | null; checkpointId: string },
   options?: { signal?: AbortSignal },
 ): Promise<DashboardCheckpointDetailResponse> {
-  const response =
-    await requestDashboardGraphQLWithRepoFallback<
-      DashboardCheckpointDetailQueryData,
-      { repoId: string | null; checkpointId: string }
-    >(
-      DASHBOARD_CHECKPOINT_DETAIL_QUERY,
-      variables,
-      options,
-    )
+  const response = await requestDashboardGraphQLWithRepoFallback<
+    DashboardCheckpointDetailQueryData,
+    { repoId: string | null; checkpointId: string }
+  >(DASHBOARD_CHECKPOINT_DETAIL_QUERY, variables, options)
 
   if (response.errors?.length) {
     firstGraphQLError('Failed to load checkpoint detail.', response.errors)
@@ -467,25 +445,25 @@ export async function fetchDashboardInteractionSessionDetail(
   variables: { repoId: string | null; sessionId: string },
   options?: { signal?: AbortSignal },
 ): Promise<DashboardInteractionSessionDetailResponse> {
-  const response =
-    await requestDashboardGraphQLWithRepoFallback<
-      DashboardInteractionSessionDetailQueryData,
-      { repoId: string | null; sessionId: string }
-    >(
-      DASHBOARD_INTERACTION_SESSION_DETAIL_QUERY,
-      variables,
-      options,
-    )
+  const response = await requestDashboardGraphQLWithRepoFallback<
+    DashboardInteractionSessionDetailQueryData,
+    { repoId: string | null; sessionId: string }
+  >(DASHBOARD_INTERACTION_SESSION_DETAIL_QUERY, variables, options)
 
   if (response.errors?.length) {
-    firstGraphQLError('Failed to load interaction session detail.', response.errors)
+    firstGraphQLError(
+      'Failed to load interaction session detail.',
+      response.errors,
+    )
   }
 
   const mapped = mapDashboardInteractionSessionDetail({
     interactionSession: response.data?.interactionSession ?? null,
   })
   if (mapped == null) {
-    throw new GraphQLRequestError('Interaction session detail was not returned.')
+    throw new GraphQLRequestError(
+      'Interaction session detail was not returned.',
+    )
   }
   return mapped
 }

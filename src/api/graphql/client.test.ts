@@ -123,9 +123,11 @@ describe('requestGraphQL', () => {
     const abortedResponse = {
       ok: true,
       status: 200,
-      json: vi.fn().mockRejectedValue(
-        new DOMException('The operation was aborted.', 'AbortError'),
-      ),
+      json: vi
+        .fn()
+        .mockRejectedValue(
+          new DOMException('The operation was aborted.', 'AbortError'),
+        ),
     } as unknown as Response
 
     vi.spyOn(globalThis, 'fetch').mockResolvedValue(abortedResponse)

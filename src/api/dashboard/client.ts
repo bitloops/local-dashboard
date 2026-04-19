@@ -149,7 +149,9 @@ export function subscribeDashboardGraphQL<
 ): () => void {
   if (typeof WebSocket === 'undefined') {
     handlers.onError?.(
-      new GraphQLRequestError('WebSocket is not available in this environment.'),
+      new GraphQLRequestError(
+        'WebSocket is not available in this environment.',
+      ),
     )
     return () => {}
   }
@@ -163,7 +165,9 @@ export function subscribeDashboardGraphQL<
       const delay =
         GRAPHQL_WS_RETRY_DELAYS_MS[
           Math.min(retries, GRAPHQL_WS_RETRY_DELAYS_MS.length - 1)
-        ] ?? GRAPHQL_WS_RETRY_DELAYS_MS.at(-1) ?? 5_000
+        ] ??
+        GRAPHQL_WS_RETRY_DELAYS_MS.at(-1) ??
+        5_000
       await new Promise((resolve) => {
         window.setTimeout(resolve, delay)
       })

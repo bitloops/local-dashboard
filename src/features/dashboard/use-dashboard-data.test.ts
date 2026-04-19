@@ -641,7 +641,9 @@ describe('useDashboardData', () => {
         ],
         {
           hasNextPage: false,
-          userOptions: [{ label: 'Dev (dev@example.com)', value: 'dev@example.com' }],
+          userOptions: [
+            { label: 'Dev (dev@example.com)', value: 'dev@example.com' },
+          ],
         },
       ),
     )
@@ -655,9 +657,7 @@ describe('useDashboardData', () => {
       ])
       expect(result.current.hasAnyRepositories).toBe(true)
       expect(result.current.hasDashboardScope).toBe(true)
-      expect(result.current.effectiveRepoIdentity).toBe(
-        'bitloops/another-repo',
-      )
+      expect(result.current.effectiveRepoIdentity).toBe('bitloops/another-repo')
       expect(result.current.effectiveBranch).toBe('main')
       expect(result.current.rows[0]?.message).toBe('message-auto-sha')
       expect(result.current.sessionRows[0]?.session_id).toBe('auto-session')
@@ -745,9 +745,7 @@ describe('useDashboardData', () => {
 
     await waitFor(() => {
       expect(result.current.selectedRepoId).toBe('repo-2')
-      expect(result.current.effectiveRepoIdentity).toBe(
-        'bitloops/another-repo',
-      )
+      expect(result.current.effectiveRepoIdentity).toBe('bitloops/another-repo')
       expect(result.current.effectiveBranch).toBe('release')
       expect(result.current.rows[0]?.message).toBe('message-release-sha')
       expect(result.current.sessionRows[0]?.session_id).toBe('release-session')
@@ -794,14 +792,18 @@ describe('useDashboardData', () => {
 
     const { result } = renderHook(() => useDashboardData())
 
-    await waitFor(() => expect(result.current.sessionRows[0]?.session_id).toBe('session-a'))
+    await waitFor(() =>
+      expect(result.current.sessionRows[0]?.session_id).toBe('session-a'),
+    )
 
     act(() => {
       result.current.onSessionSelect(result.current.sessionRows[0]!)
     })
 
     await waitFor(() => {
-      expect(mockSubscribeDashboardInteractionUpdates.mock.calls.length).toBeGreaterThan(0)
+      expect(
+        mockSubscribeDashboardInteractionUpdates.mock.calls.length,
+      ).toBeGreaterThan(0)
     })
 
     const callCountBeforeUpdate =
@@ -844,9 +846,9 @@ describe('useDashboardData', () => {
     })
 
     await waitFor(() => {
-      expect(mockFetchDashboardInteractionSessionsPage.mock.calls.length).toBeGreaterThan(
-        callCountBeforeUpdate,
-      )
+      expect(
+        mockFetchDashboardInteractionSessionsPage.mock.calls.length,
+      ).toBeGreaterThan(callCountBeforeUpdate)
       expect(result.current.sessionRows[0]?.turn_count).toBe(2)
       expect(result.current.selectedSessionSummary?.turn_count).toBe(2)
       expect(result.current.sessionDetailRefreshToken).toBe(1)
@@ -866,9 +868,13 @@ describe('useDashboardData', () => {
 
     const { result } = renderHook(() => useDashboardData())
 
-    await waitFor(() => expect(result.current.sessionRows[0]?.session_id).toBe('session-a'))
+    await waitFor(() =>
+      expect(result.current.sessionRows[0]?.session_id).toBe('session-a'),
+    )
     await waitFor(() => {
-      expect(mockSubscribeDashboardInteractionUpdates.mock.calls.length).toBeGreaterThan(0)
+      expect(
+        mockSubscribeDashboardInteractionUpdates.mock.calls.length,
+      ).toBeGreaterThan(0)
     })
 
     const subscriptionHandlers =
@@ -906,9 +912,9 @@ describe('useDashboardData', () => {
       await Promise.resolve()
     })
 
-    expect(mockFetchDashboardInteractionSessionsPage.mock.calls.length).toBeGreaterThan(
-      fetchCallCountBeforePoll,
-    )
+    expect(
+      mockFetchDashboardInteractionSessionsPage.mock.calls.length,
+    ).toBeGreaterThan(fetchCallCountBeforePoll)
     expect(result.current.sessionRows[0]?.turn_count).toBe(3)
   })
 
@@ -951,7 +957,9 @@ describe('useDashboardData', () => {
     expect(mockFetchDashboardCheckpointDetail).not.toHaveBeenCalled()
 
     act(() => {
-      result.current.onCheckpointSelect(result.current.rows[0]!.checkpointList[0]!)
+      result.current.onCheckpointSelect(
+        result.current.rows[0]!.checkpointList[0]!,
+      )
     })
 
     await waitFor(() => {

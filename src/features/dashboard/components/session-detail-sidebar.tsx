@@ -50,9 +50,8 @@ function LinkedCheckpointAccordionBody({
   linked: DashboardInteractionCommitAuthorDto
   isActive: boolean
 }) {
-  const [detail, setDetail] = useState<DashboardCheckpointDetailResponse | null>(
-    null,
-  )
+  const [detail, setDetail] =
+    useState<DashboardCheckpointDetailResponse | null>(null)
   const [source, setSource] = useState<'idle' | 'loading' | 'api' | 'error'>(
     'idle',
   )
@@ -93,9 +92,7 @@ function LinkedCheckpointAccordionBody({
     return null
   }
   if (source !== 'api' && source !== 'error') {
-    return (
-      <p className='text-sm text-muted-foreground'>Loading checkpoint…</p>
-    )
+    return <p className='text-sm text-muted-foreground'>Loading checkpoint…</p>
   }
   if (source === 'error') {
     return (
@@ -112,7 +109,11 @@ function LinkedCheckpointAccordionBody({
   )
 }
 
-function SessionSummaryView({ summary }: { summary: DashboardInteractionSessionDto }) {
+function SessionSummaryView({
+  summary,
+}: {
+  summary: DashboardInteractionSessionDto
+}) {
   const toolCallCount = summary.tool_uses.length
 
   return (
@@ -125,7 +126,9 @@ function SessionSummaryView({ summary }: { summary: DashboardInteractionSessionD
         </CardDescription>
       </div>
       <div className='flex flex-wrap gap-2'>
-        <Badge variant='secondary'>{formatAgentLabel(summary.agent_type)}</Badge>
+        <Badge variant='secondary'>
+          {formatAgentLabel(summary.agent_type)}
+        </Badge>
         {summary.model && <Badge variant='outline'>{summary.model}</Badge>}
         {summary.branch && (
           <Badge variant='outline'>branch:{summary.branch}</Badge>
@@ -142,7 +145,9 @@ function SessionSummaryView({ summary }: { summary: DashboardInteractionSessionD
           </div>
           <div className='sm:px-3 sm:first:ps-0 sm:last:pe-0'>
             <p className='text-xs text-muted-foreground'>Turns</p>
-            <p className='text-lg font-bold text-primary'>{summary.turn_count}</p>
+            <p className='text-lg font-bold text-primary'>
+              {summary.turn_count}
+            </p>
           </div>
           <div className='sm:px-3 sm:first:ps-0 sm:last:pe-0'>
             <p className='text-xs text-muted-foreground'>Checkpoints</p>
@@ -207,7 +212,10 @@ function flattenToolUses(
   interactionDetail: DashboardInteractionSessionDetailResponse | null,
   turns: DashboardInteractionTurnDto[],
 ): Array<
-  DashboardInteractionToolUseDto & { scope: 'session' | 'turn'; turnId?: string }
+  DashboardInteractionToolUseDto & {
+    scope: 'session' | 'turn'
+    turnId?: string
+  }
 > {
   const sessionTools =
     interactionDetail?.summary?.tool_uses?.map((t) => ({
@@ -369,7 +377,10 @@ export function SessionDetailSidebar({
                                   <Badge variant='secondary'>checkpoint</Badge>
                                 )}
                                 {turn.model && (
-                                  <Badge variant='outline' className='max-w-[140px] truncate'>
+                                  <Badge
+                                    variant='outline'
+                                    className='max-w-[140px] truncate'
+                                  >
                                     {turn.model}
                                   </Badge>
                                 )}
@@ -412,7 +423,9 @@ export function SessionDetailSidebar({
                         >
                           <AccordionTrigger className='px-4 py-3 hover:bg-muted/50 hover:no-underline [&[data-state=open]]:bg-muted/40'>
                             <div className='min-w-0 flex-1 text-start'>
-                              <p className='font-mono text-xs'>{c.checkpoint_id}</p>
+                              <p className='font-mono text-xs'>
+                                {c.checkpoint_id}
+                              </p>
                               <p className='text-xs text-muted-foreground'>
                                 {c.commit_sha.slice(0, 12)}…
                               </p>
@@ -423,7 +436,9 @@ export function SessionDetailSidebar({
                               key={`chk-${c.checkpoint_id}-${openCheckpointAccordion ?? 'none'}`}
                               repoId={repoId}
                               linked={c}
-                              isActive={openCheckpointAccordion === c.checkpoint_id}
+                              isActive={
+                                openCheckpointAccordion === c.checkpoint_id
+                              }
                             />
                           </AccordionContent>
                         </AccordionItem>
@@ -446,9 +461,7 @@ export function SessionDetailSidebar({
                           <Badge variant='secondary'>
                             {tool.tool_kind ?? 'tool'}
                           </Badge>
-                          {tool.turnId && (
-                            <Badge variant='outline'>turn</Badge>
-                          )}
+                          {tool.turnId && <Badge variant='outline'>turn</Badge>}
                           {tool.started_at && (
                             <Badge variant='outline'>
                               {formatDateTime(tool.started_at)}
@@ -472,7 +485,6 @@ export function SessionDetailSidebar({
           </div>
         </div>
       </div>
-
     </>
   )
 }
