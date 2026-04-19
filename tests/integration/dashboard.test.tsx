@@ -63,16 +63,7 @@ function renderDashboard(ui: React.ReactElement): ReturnType<typeof render> {
 }
 
 function defaultProps(
-  overrides: Partial<{
-    rows: CommitData[]
-    sessionRows: DashboardInteractionSessionDto[]
-    dataSource: 'loading' | 'api' | 'error'
-    optionsSource: 'loading' | 'api' | 'error'
-    branchOptionsSource: 'loading' | 'api' | 'error'
-    selectedSessionId: string | null
-    selectedSessionSummary: DashboardInteractionSessionDto | null
-    onSessionSelect: (session: DashboardInteractionSessionDto) => void
-  }> = {},
+  overrides: Partial<React.ComponentProps<typeof DashboardView>> = {},
 ) {
   const rows = overrides.rows ?? commitData.slice(0, 1)
   const sessionRows = overrides.sessionRows ?? [sessionSample]
@@ -90,11 +81,14 @@ function defaultProps(
     rows,
     sessionRows,
     repoOptions,
+    hasAnyRepositories: repoOptions.length > 0,
+    hasAnyAutoSelectableRepositories: repoOptions.length > 0,
+    hasDashboardScope: true,
     branchOptions: ['main'],
     userOptions: [{ label: 'You', value: 'you' }],
     agentOptions: ['claude-code', 'gemini-cli'],
     selectedRepoId: null,
-    effectiveRepoId: 'repo-1',
+    effectiveRepoId: null,
     selectedBranch: null,
     selectedUser: null,
     selectedAgent: null,
@@ -111,6 +105,7 @@ function defaultProps(
     onSessionsBack: () => {},
     selectedSessionId: null,
     selectedSessionSummary: null,
+    sessionDetailRefreshToken: 0,
     onRepoChange: () => {},
     onBranchChange: () => {},
     onUserChange: () => {},
@@ -141,6 +136,41 @@ describe('Dashboard integration', () => {
     )
     expect(
       screen.getByText(/Could not load dashboard data from the dashboard API/),
+    ).toBeInTheDocument()
+  })
+
+  it('shows the empty repositories banner only when the repositories list is empty', () => {
+    renderDashboard(
+      <DashboardView
+        {...defaultProps({
+          repoOptions: [],
+          effectiveRepoId: null,
+          effectiveRepoIdentity: null,
+        })}
+        hasAnyRepositories={false}
+        hasAnyAutoSelectableRepositories={false}
+      />,
+    )
+
+    expect(
+      screen.getByText(/No repositories are currently available from the dashboard API/),
+    ).toBeInTheDocument()
+  })
+
+  it('shows a retry banner when repositories exist but none are auto-selectable', () => {
+    renderDashboard(
+      <DashboardView
+        {...defaultProps({
+          effectiveRepoId: null,
+          effectiveRepoIdentity: null,
+        })}
+        hasAnyRepositories
+        hasAnyAutoSelectableRepositories={false}
+      />,
+    )
+
+    expect(
+      screen.getByText(/auto mode could not find an available repository/i),
     ).toBeInTheDocument()
   })
 

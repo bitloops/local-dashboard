@@ -109,11 +109,6 @@ function CheckpointDetailContentInner({
     detailSessions[Number(selectedSessionTab)] ?? null
 
   async function ensureInteractionDetailLoaded(sessionId: string) {
-    if (!repoId) {
-      setInteractionSource('error')
-      setInteractionError('No repoId available to load interaction session.')
-      return
-    }
     setInteractionSource('loading')
     setInteractionError(null)
     try {

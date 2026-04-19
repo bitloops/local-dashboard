@@ -58,7 +58,7 @@ function LinkedCheckpointAccordionBody({
   )
 
   useEffect(() => {
-    if (!isActive || !repoId?.trim()) {
+    if (!isActive) {
       return
     }
     let cancelled = false
@@ -229,6 +229,7 @@ type SessionDetailSidebarProps = {
   sessionSummary: DashboardInteractionSessionDto | null
   repoId: string | null
   userName: string
+  refreshToken?: number
   onClose?: () => void
 }
 
@@ -237,6 +238,7 @@ export function SessionDetailSidebar({
   sessionSummary,
   repoId,
   userName,
+  refreshToken,
   onClose,
 }: SessionDetailSidebarProps) {
   const [interactionDetail, setInteractionDetail] =
@@ -250,7 +252,7 @@ export function SessionDetailSidebar({
   >()
 
   useEffect(() => {
-    if (!sessionId?.trim() || !repoId) {
+    if (!sessionId?.trim()) {
       startTransition(() => {
         setInteractionDetail(null)
         setInteractionSource('idle')
@@ -283,7 +285,7 @@ export function SessionDetailSidebar({
     return () => {
       cancelled = true
     }
-  }, [sessionId, repoId])
+  }, [refreshToken, repoId, sessionId])
 
   const summary = interactionDetail?.summary ?? sessionSummary
   const turns = interactionDetail?.turns ?? []

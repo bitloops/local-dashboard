@@ -56,6 +56,9 @@ type DashboardViewProps = {
   rows: CommitData[]
   sessionRows: DashboardInteractionSessionDto[]
   repoOptions: DashboardRepositoryOption[]
+  hasAnyRepositories: boolean
+  hasAnyAutoSelectableRepositories: boolean
+  hasDashboardScope: boolean
   branchOptions: string[]
   userOptions: UserOption[]
   agentOptions: string[]
@@ -77,6 +80,7 @@ type DashboardViewProps = {
   onSessionsBack: () => void
   selectedSessionId: string | null
   selectedSessionSummary: DashboardInteractionSessionDto | null
+  sessionDetailRefreshToken: number
   onRepoChange: (value: string | null) => void
   onBranchChange: (value: string | null) => void
   onUserChange: (value: string | null) => void
@@ -91,6 +95,9 @@ export function DashboardView({
   rows,
   sessionRows = [],
   repoOptions,
+  hasAnyRepositories,
+  hasAnyAutoSelectableRepositories,
+  hasDashboardScope,
   branchOptions,
   userOptions,
   agentOptions,
@@ -112,6 +119,7 @@ export function DashboardView({
   onSessionsBack,
   selectedSessionId,
   selectedSessionSummary,
+  sessionDetailRefreshToken,
   onRepoChange,
   onBranchChange,
   onUserChange,
@@ -172,13 +180,22 @@ export function DashboardView({
             dashboard API.
           </p>
         )}
-        {!effectiveRepoIdentity && optionsSource !== 'loading' && (
+        {!hasAnyRepositories && optionsSource === 'api' && (
           <p className={dottedAlertClassName}>
             No repositories are currently available from the dashboard API.
           </p>
         )}
+        {hasAnyRepositories &&
+          !hasAnyAutoSelectableRepositories &&
+          !selectedRepoId &&
+          optionsSource === 'api' && (
+            <p className={dottedAlertClassName}>
+              The dashboard returned repositories, but auto mode could not find
+              an available repository to select.
+            </p>
+          )}
         {!effectiveBranch &&
-          Boolean(effectiveRepoIdentity) &&
+          hasDashboardScope &&
           branchOptionsSource === 'api' && (
             <p className={dottedAlertClassName}>
               No branches are currently available from the dashboard API.
@@ -227,7 +244,7 @@ export function DashboardView({
                   onValueChange={(value) =>
                     onBranchChange(value === branchAutoValue ? null : value)
                   }
-                  disabled={!effectiveRepoIdentity}
+                  disabled={!hasDashboardScope}
                 >
                   <SelectTrigger className='w-full' data-testid='filter-branch'>
                     <SelectValue placeholder='Select branch' />
@@ -254,7 +271,7 @@ export function DashboardView({
                   onValueChange={(value) =>
                     onUserChange(value === allFilterValue ? null : value)
                   }
-                  disabled={!effectiveBranch}
+                  disabled={!hasDashboardScope}
                 >
                   <SelectTrigger className='w-full'>
                     <SelectValue placeholder='All users' />
@@ -277,7 +294,7 @@ export function DashboardView({
                   onValueChange={(value) =>
                     onAgentChange(value === allFilterValue ? null : value)
                   }
-                  disabled={!effectiveBranch}
+                  disabled={!hasDashboardScope}
                 >
                   <SelectTrigger className='w-full'>
                     <SelectValue placeholder='All agents' />
@@ -412,7 +429,7 @@ export function DashboardView({
             <h2 className='text-lg font-semibold tracking-tight'>
               Recent Sessions
             </h2>
-            {effectiveBranch && (
+            {hasDashboardScope && (
               <div className='flex items-center gap-1'>
                 <Button
                   type='button'
@@ -462,6 +479,7 @@ export function DashboardView({
           sessionSummary={selectedSessionSummary}
           repoId={effectiveRepoId}
           userName={userName}
+          refreshToken={sessionDetailRefreshToken}
           onClose={() => {
             setRightOpen(false)
           }}

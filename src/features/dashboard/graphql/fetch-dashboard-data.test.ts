@@ -2,13 +2,16 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { requestDashboardGraphQL } from '@/api/dashboard/client'
 import {
   COMMITS_PAGE_SIZE,
+  fetchDashboardBranches,
   fetchDashboardCommitsPage,
+  fetchDashboardInteractionSessionsPage,
   fetchDashboardCheckpointDetail,
   fetchDashboardRepositories,
 } from './fetch-dashboard-data'
 
 vi.mock('@/api/dashboard/client', () => ({
   requestDashboardGraphQL: vi.fn(),
+  subscribeDashboardGraphQL: vi.fn(),
 }))
 
 const mockRequestDashboardGraphQL = vi.mocked(requestDashboardGraphQL)
@@ -116,6 +119,103 @@ describe('fetchDashboardCommitsPage', () => {
         offset: 0,
       }),
     ).rejects.toThrow('bad')
+  })
+})
+
+describe('fetchDashboardBranches', () => {
+  beforeEach(() => {
+    mockRequestDashboardGraphQL.mockReset()
+  })
+
+  it('retries without repoId when the dashboard no longer recognises the selected repo', async () => {
+    mockRequestDashboardGraphQL
+      .mockResolvedValueOnce({
+        data: null,
+        errors: [
+          {
+            message:
+              'dashboard GraphQL wrapper failed: failed to resolve repository: unknown repository `stale-repo`',
+          },
+        ],
+      })
+      .mockResolvedValueOnce({
+        data: {
+          branches: [{ branch: 'main', checkpointCommits: 3 }],
+        },
+      })
+
+    await expect(
+      fetchDashboardBranches({
+        repoId: 'stale-repo',
+        from: null,
+        to: null,
+      }),
+    ).resolves.toEqual([{ branch: 'main', checkpoint_commits: 3 }])
+
+    expect(mockRequestDashboardGraphQL).toHaveBeenCalledTimes(2)
+    expect(mockRequestDashboardGraphQL.mock.calls[0]?.[1]).toMatchObject({
+      repoId: 'stale-repo',
+      from: null,
+      to: null,
+    })
+    expect(mockRequestDashboardGraphQL.mock.calls[1]?.[1]).toMatchObject({
+      repoId: null,
+      from: null,
+      to: null,
+    })
+  })
+
+  it('resolves the sole repository explicitly when auto mode still points at a stale current repo', async () => {
+    mockRequestDashboardGraphQL
+      .mockResolvedValueOnce({
+        data: null,
+        errors: [
+          {
+            message:
+              'dashboard GraphQL wrapper failed: failed to resolve repository: unknown repository `stale-repo`',
+          },
+        ],
+      })
+      .mockResolvedValueOnce({
+        data: {
+          repositories: [
+            {
+              repoId: 'repo-1',
+              identity: 'github://bitloops/bitloops-embeddings',
+              name: 'bitloops-embeddings',
+              provider: 'github',
+              organization: 'bitloops',
+              defaultBranch: 'main',
+            },
+          ],
+        },
+      })
+      .mockResolvedValueOnce({
+        data: {
+          branches: [{ branch: 'main', checkpointCommits: 3 }],
+        },
+      })
+
+    await expect(
+      fetchDashboardBranches({
+        repoId: null,
+        from: null,
+        to: null,
+      }),
+    ).resolves.toEqual([{ branch: 'main', checkpoint_commits: 3 }])
+
+    expect(mockRequestDashboardGraphQL).toHaveBeenCalledTimes(3)
+    expect(mockRequestDashboardGraphQL.mock.calls[0]?.[1]).toMatchObject({
+      repoId: null,
+      from: null,
+      to: null,
+    })
+    expect(mockRequestDashboardGraphQL.mock.calls[1]?.[1]).toBeUndefined()
+    expect(mockRequestDashboardGraphQL.mock.calls[2]?.[1]).toMatchObject({
+      repoId: 'repo-1',
+      from: null,
+      to: null,
+    })
   })
 })
 
@@ -242,5 +342,94 @@ describe('fetchDashboardCheckpointDetail', () => {
         checkpointId: 'cp-1',
       }),
     ).rejects.toThrow('Checkpoint detail was not returned.')
+  })
+})
+
+describe('fetchDashboardInteractionSessionsPage', () => {
+  beforeEach(() => {
+    mockRequestDashboardGraphQL.mockReset()
+  })
+
+  it('retries the interaction sessions query without repoId when the repo is stale', async () => {
+    mockRequestDashboardGraphQL
+      .mockResolvedValueOnce({
+        data: null,
+        errors: [
+          {
+            message:
+              'dashboard GraphQL wrapper failed: failed to resolve repository: unknown repository `stale-repo`',
+          },
+        ],
+      })
+      .mockResolvedValueOnce({
+        data: {
+          interactionKpis: {
+            totalSessions: 1,
+            totalTurns: 2,
+            totalCheckpoints: 1,
+            totalToolUses: 0,
+          },
+          interactionActors: [
+            {
+              actorEmail: 'dev@example.com',
+              sessionCount: 1,
+              turnCount: 2,
+            },
+          ],
+          interactionAgents: [
+            {
+              key: 'claude-code',
+              sessionCount: 1,
+              turnCount: 2,
+            },
+          ],
+          interactionSessions: [
+            {
+              sessionId: 'session-1',
+              branch: 'main',
+              actor: {
+                name: 'Dev',
+                email: 'dev@example.com',
+              },
+              agentType: 'claude-code',
+              model: 'sonnet',
+              firstPrompt: 'Inspect session loading',
+              startedAt: '2025-01-01T00:00:00.000Z',
+              lastEventAt: '2025-01-01T00:01:00.000Z',
+              turnCount: 2,
+              checkpointCount: 1,
+            },
+          ],
+        },
+      })
+
+    const result = await fetchDashboardInteractionSessionsPage({
+      repoId: 'stale-repo',
+      branch: null,
+      since: null,
+      until: null,
+      agent: null,
+      commitAuthor: null,
+      offset: 0,
+    })
+
+    expect(result.rows).toHaveLength(1)
+    expect(result.rows[0]?.session_id).toBe('session-1')
+    expect(result.userOptions).toEqual([
+      {
+        label: 'dev@example.com',
+        value: 'dev@example.com',
+      },
+    ])
+    expect(result.agentOptions).toEqual(['claude-code'])
+    expect(mockRequestDashboardGraphQL).toHaveBeenCalledTimes(2)
+    expect(mockRequestDashboardGraphQL.mock.calls[0]?.[1]).toMatchObject({
+      repoId: 'stale-repo',
+      offset: 0,
+    })
+    expect(mockRequestDashboardGraphQL.mock.calls[1]?.[1]).toMatchObject({
+      repoId: null,
+      offset: 0,
+    })
   })
 })

@@ -179,3 +179,13 @@ export type DashboardInteractionSessionDetailResponse = {
   turns: DashboardInteractionTurnDto[]
   raw_events: DashboardInteractionEventDto[]
 }
+
+export type DashboardInteractionUpdateDto = {
+  repo_id: string
+  session_count: number
+  turn_count: number
+  latest_session_id: string | null
+  latest_session_updated_at: string | null
+  latest_turn_id: string | null
+  latest_turn_updated_at: string | null
+}

@@ -157,6 +157,16 @@ export type DashboardInteractionSessionNode = {
   latestCommitAuthor?: DashboardInteractionCommitAuthorNode | null
 }
 
+export type DashboardInteractionUpdateNode = {
+  repoId: string
+  sessionCount: number
+  turnCount: number
+  latestSessionId?: string | null
+  latestSessionUpdatedAt?: string | null
+  latestTurnId?: string | null
+  latestTurnUpdatedAt?: string | null
+}
+
 export type DashboardInteractionTurnNode = {
   turnId: string
   sessionId: string
@@ -190,7 +200,29 @@ export type DashboardInteractionEventNode = {
   payload?: unknown
 }
 
+export type DashboardInteractionKpisNode = {
+  totalSessions: number
+  totalTurns: number
+  totalCheckpoints: number
+  totalToolUses: number
+}
+
+export type DashboardInteractionActorBucketNode = {
+  actorEmail: string
+  sessionCount: number
+  turnCount: number
+}
+
+export type DashboardInteractionAgentBucketNode = {
+  key: string
+  sessionCount: number
+  turnCount: number
+}
+
 export type DashboardInteractionSessionsQueryData = {
+  interactionKpis?: DashboardInteractionKpisNode | null
+  interactionActors?: DashboardInteractionActorBucketNode[] | null
+  interactionAgents?: DashboardInteractionAgentBucketNode[] | null
   interactionSessions: DashboardInteractionSessionNode[]
 }
 
@@ -200,4 +232,8 @@ export type DashboardInteractionSessionDetailQueryData = {
     turns: DashboardInteractionTurnNode[]
     rawEvents: DashboardInteractionEventNode[]
   } | null
+}
+
+export type DashboardInteractionUpdatesSubscriptionData = {
+  interactionUpdates: DashboardInteractionUpdateNode
 }

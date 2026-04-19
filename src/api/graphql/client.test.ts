@@ -118,6 +118,24 @@ describe('requestGraphQL', () => {
       requestGraphQL('query Viewer { viewer { id } }'),
     ).rejects.toMatchObject(expectedError)
   })
+
+  it('preserves AbortError when response parsing is cancelled', async () => {
+    const abortedResponse = {
+      ok: true,
+      status: 200,
+      json: vi.fn().mockRejectedValue(
+        new DOMException('The operation was aborted.', 'AbortError'),
+      ),
+    } as unknown as Response
+
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(abortedResponse)
+
+    await expect(
+      requestGraphQL('query Viewer { viewer { id } }'),
+    ).rejects.toMatchObject({
+      name: 'AbortError',
+    })
+  })
 })
 
 describe('fetchGraphQLSdl', () => {

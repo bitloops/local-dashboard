@@ -6,7 +6,7 @@ A local-first web UI for the [Bitloops](https://bitloops.com) CLI. Use it to see
 
 - **Node.js** `>= 20.19` or `>= 22.12` (required by Vite 8)
 - **pnpm** (this repo uses pnpm; CI uses pnpm 9)
-- A reachable Bitloops CLI HTTP API. By default the dev server proxies `/devql/dashboard` and `/devql/global` to `http://bitloops.local:5667` (see [Environment](#environment)).
+- A reachable Bitloops CLI HTTP API. By default the dev server proxies `/devql/dashboard` and `/devql/global` to `http://127.0.0.1:5667` (see [Environment](#environment)).
 
 ## Setup
 
@@ -69,7 +69,7 @@ You do not need a `.env` file for typical local use if your API is already at th
 
 | Variable                    | Purpose                                                                                                                                                           |
 | --------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `VITE_API_PROXY_TARGET`     | Origin for the dev-server `/devql/dashboard` and `/devql/global` proxies (default `http://bitloops.local:5667`). Use `https://...` if your API is TLS-terminated. |
+| `VITE_API_PROXY_TARGET`     | Origin for the dev-server `/devql/dashboard` and `/devql/global` proxies (default `http://127.0.0.1:5667`). Use `https://...` if your API is TLS-terminated. |
 | `VITE_QUERY_HISTORY_TTL_MS` | Max age (ms) for persisted query-explorer run history in the browser (default 30 days).                                                                           |
 
 See [.env.example](.env.example) for commented templates.

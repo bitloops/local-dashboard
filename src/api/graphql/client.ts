@@ -3,6 +3,13 @@ import type { GraphQLRequestOptions, GraphQLResponseEnvelope } from './types'
 
 const GRAPHQL_ENDPOINT = '/devql/global'
 
+function isAbortError(error: unknown): boolean {
+  return (
+    (error instanceof DOMException && error.name === 'AbortError') ||
+    (error instanceof Error && error.name === 'AbortError')
+  )
+}
+
 export async function requestGraphQL<
   TData,
   TVariables = Record<string, unknown>,
@@ -26,7 +33,10 @@ export async function requestGraphQL<
   let payload: GraphQLResponseEnvelope<TData> | undefined
   try {
     payload = (await response.json()) as GraphQLResponseEnvelope<TData>
-  } catch {
+  } catch (error) {
+    if (isAbortError(error)) {
+      throw error
+    }
     throw new GraphQLRequestError('Invalid GraphQL response payload.', {
       status: response.status,
     })

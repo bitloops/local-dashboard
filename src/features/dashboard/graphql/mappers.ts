@@ -11,6 +11,7 @@ import type {
   DashboardInteractionSessionDto,
   DashboardInteractionToolUseDto,
   DashboardInteractionTurnDto,
+  DashboardInteractionUpdateDto,
   DashboardRepositoryOption,
   DashboardTokenUsageDto,
   DashboardUserDto,
@@ -29,6 +30,7 @@ import type {
   DashboardInteractionTokenUsageNode,
   DashboardInteractionToolUseNode,
   DashboardInteractionTurnNode,
+  DashboardInteractionUpdateNode,
   DashboardRepositoriesQueryData,
   DashboardInteractionSessionsQueryData,
   DashboardTokenUsageNode,
@@ -190,6 +192,20 @@ function mapInteractionEvent(
     task_description: node.taskDescription ?? null,
     subagent_id: node.subagentId ?? null,
     payload: node.payload ?? null,
+  }
+}
+
+export function mapDashboardInteractionUpdate(
+  node: DashboardInteractionUpdateNode,
+): DashboardInteractionUpdateDto {
+  return {
+    repo_id: node.repoId,
+    session_count: node.sessionCount,
+    turn_count: node.turnCount,
+    latest_session_id: node.latestSessionId ?? null,
+    latest_session_updated_at: node.latestSessionUpdatedAt ?? null,
+    latest_turn_id: node.latestTurnId ?? null,
+    latest_turn_updated_at: node.latestTurnUpdatedAt ?? null,
   }
 }
 
