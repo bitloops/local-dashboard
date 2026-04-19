@@ -4,8 +4,8 @@
       "version": "0.0.7",
       "min_required_cli_version": "0.0.16",
       "max_required_cli_version": "latest",
-      "download_url": "https://github.com/bitloops/local-dashboard/releases/download/v0.0.6/bundle.tar.zst",
-      "checksum_url": "https://github.com/bitloops/local-dashboard/releases/download/v0.0.6/bundle.tar.zst.sha256"
+      "download_url": "https://github.com/bitloops/local-dashboard/releases/download/v0.0.7/bundle.tar.zst",
+      "checksum_url": "https://github.com/bitloops/local-dashboard/releases/download/v0.0.7/bundle.tar.zst.sha256"
     },
     {
       "version": "0.0.6",
