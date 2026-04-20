@@ -205,6 +205,7 @@ describe('useDashboardData', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     rootStoreInstance.getState().clearDashboardCache()
+    rootStoreInstance.getState().setSessionsLandingDefaultsApplied(false)
     rootStoreInstance.getState().resetDashboardFilters()
     rootStoreInstance
       .getState()

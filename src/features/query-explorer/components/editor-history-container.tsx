@@ -11,12 +11,24 @@ import { runQueryExplorerQuery } from '../run-query'
 import { useStore } from '@/store'
 import { formatGraphqlDocument } from '../graphql/format'
 
+type RunQueryFn = (overrides?: {
+  query: string
+  variables: string
+}) => Promise<void>
+
 type View = 'editor' | 'history'
+
+type EditorHistoryContainerProps = {
+  /** Defaults to `/devql/global`; Sessions page passes `/devql/dashboard` runner. */
+  runQuery?: RunQueryFn
+}
 
 /**
  * Left panel of the query explorer: toggles between the query editor and run history list.
  */
-export function EditorHistoryContainer() {
+export function EditorHistoryContainer({
+  runQuery = runQueryExplorerQuery,
+}: EditorHistoryContainerProps = {}) {
   const [view, setView] = useState<View>('editor')
   const query = useStore((s) => s.query)
   const setQuery = useStore((s) => s.setQuery)
@@ -82,7 +94,7 @@ export function EditorHistoryContainer() {
               <TooltipTrigger asChild>
                 <button
                   type='button'
-                  onClick={() => runQueryExplorerQuery()}
+                  onClick={() => runQuery()}
                   disabled={
                     variablesHaveErrors ||
                     !query.trim() ||
@@ -110,6 +122,7 @@ export function EditorHistoryContainer() {
       ) : (
         <HistoryPanel
           onLoadEntry={() => setView('editor')}
+          runQuery={runQuery}
           className='min-h-0 flex-1 overflow-auto'
         />
       )}

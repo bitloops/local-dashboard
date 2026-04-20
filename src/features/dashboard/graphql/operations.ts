@@ -186,6 +186,7 @@ export const DASHBOARD_CHECKPOINT_DETAIL_QUERY = `
   }
 `
 
+/** Full dashboard load: KPIs, actor/agent buckets, and session rows (e.g. `fetchDashboardInteractionSessionsPage`). */
 export const DASHBOARD_INTERACTION_SESSIONS_QUERY = `
   query DashboardInteractionSessions(
     $repoId: String
@@ -215,6 +216,46 @@ export const DASHBOARD_INTERACTION_SESSIONS_QUERY = `
       actor {
         name
         email
+      }
+      tokenUsage {
+        inputTokens
+        outputTokens
+        cacheCreationTokens
+        cacheReadTokens
+        apiCallCount
+      }
+      agentType
+      model
+      firstPrompt
+      startedAt
+      lastEventAt
+      turnCount
+      checkpointCount
+    }
+  }
+`
+
+/** Sessions explorer default: `interactionSessions` only (same variables and session fields as above). */
+export const DASHBOARD_INTERACTION_SESSIONS_ONLY_QUERY = `
+  query DashboardInteractionSessionsOnly(
+    $repoId: String
+    $filter: DashboardInteractionFilterInput
+    $limit: Int
+    $offset: Int
+  ) {
+    interactionSessions(repoId: $repoId, filter: $filter, limit: $limit, offset: $offset) {
+      sessionId
+      branch
+      actor {
+        name
+        email
+      }
+      tokenUsage {
+        inputTokens
+        outputTokens
+        cacheCreationTokens
+        cacheReadTokens
+        apiCallCount
       }
       agentType
       model

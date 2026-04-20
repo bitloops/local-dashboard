@@ -1,5 +1,6 @@
 import { GraphQLRequestError } from '@/api/graphql/errors'
 import { createClient } from 'graphql-ws'
+import type { FormattedExecutionResult } from 'graphql-ws'
 import type {
   GraphQLErrorItem,
   GraphQLRequestOptions,
@@ -161,7 +162,7 @@ export function subscribeDashboardGraphQL<
     lazy: true,
     lazyCloseTimeout: 1_000,
     retryAttempts: GRAPHQL_WS_RETRY_DELAYS_MS.length,
-    retryWait: async (retries) => {
+    retryWait: async (retries: number) => {
       const delay =
         GRAPHQL_WS_RETRY_DELAYS_MS[
           Math.min(retries, GRAPHQL_WS_RETRY_DELAYS_MS.length - 1)
@@ -180,7 +181,7 @@ export function subscribeDashboardGraphQL<
       variables: variables ?? {},
     },
     {
-      next: (payload) => {
+      next: (payload: FormattedExecutionResult<TData>) => {
         const errors = toGraphQLErrorItems(payload.errors)
         if (errors?.length) {
           handlers.onError?.(
@@ -196,7 +197,7 @@ export function subscribeDashboardGraphQL<
           handlers.onData(payload.data)
         }
       },
-      error: (error) => {
+      error: (error: unknown) => {
         handlers.onError?.(normaliseGraphQLWsError(error))
       },
       complete: () => {},

@@ -1,10 +1,4 @@
-import {
-  LayoutDashboard,
-  Search,
-  Settings,
-  HelpCircle,
-  Command,
-} from 'lucide-react'
+import { MessageSquare, Search, Settings, HelpCircle, Command } from 'lucide-react'
 import { type SidebarData } from '../types'
 
 export const sidebarData: SidebarData = {
@@ -20,9 +14,9 @@ export const sidebarData: SidebarData = {
       title: 'General',
       items: [
         {
-          title: 'Dashboard',
+          title: 'Sessions',
           url: '/',
-          icon: LayoutDashboard,
+          icon: MessageSquare,
         },
         {
           title: 'Query Explorer',

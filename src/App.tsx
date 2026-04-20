@@ -5,7 +5,7 @@ import { cn } from '@/lib/utils'
 import { SidebarInset, SidebarProvider } from '@/components/ui/sidebar'
 import { AppSidebar } from '@/components/layout/app-sidebar'
 import { SkipToMain } from '@/components/skip-to-main'
-import { Dashboard } from '@/features/dashboard'
+import { Sessions } from '@/features/sessions'
 import { QueryExplorer } from '@/features/query-explorer'
 import { SettingsPage } from '@/features/settings/page'
 import { ComingSoon } from '@/components/coming-soon'
@@ -13,12 +13,12 @@ import { ComingSoon } from '@/components/coming-soon'
 function PageRouter() {
   const { pathname } = useLocation()
 
-  if (pathname === '/' || pathname === '') return <Dashboard />
+  if (pathname === '/' || pathname === '') return <Sessions />
   if (pathname === '/explorer') return <QueryExplorer />
   if (pathname.startsWith('/settings')) return <SettingsPage />
   if (pathname === '/help-center') return <ComingSoon />
 
-  return <Dashboard />
+  return <Sessions />
 }
 
 export function App() {

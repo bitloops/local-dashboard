@@ -19,10 +19,10 @@ function renderApp() {
 }
 
 describe('App routing integration', () => {
-  it('renders Dashboard at root path', () => {
+  it('renders Sessions at root path', () => {
     renderApp()
     expect(
-      screen.getByRole('heading', { name: 'Dashboard' }),
+      screen.getByRole('heading', { name: 'Sessions', level: 1 }),
     ).toBeInTheDocument()
   })
 
@@ -47,15 +47,15 @@ describe('App routing integration', () => {
     ).toBeInTheDocument()
   })
 
-  it('navigates back to Dashboard when Dashboard link is clicked', async () => {
+  it('navigates back to Sessions when Sessions link is clicked', async () => {
     renderApp()
     await userEvent.click(screen.getByRole('link', { name: /Settings/i }))
     expect(
       screen.getByRole('heading', { name: 'Settings' }),
     ).toBeInTheDocument()
-    await userEvent.click(screen.getByRole('link', { name: /Dashboard/i }))
+    await userEvent.click(screen.getByRole('link', { name: /Sessions/i }))
     expect(
-      screen.getByRole('heading', { name: 'Dashboard' }),
+      screen.getByRole('heading', { name: 'Sessions', level: 1 }),
     ).toBeInTheDocument()
   })
 
@@ -77,15 +77,15 @@ describe('App routing integration', () => {
     ).toBeInTheDocument()
   })
 
-  it('navigates back to Dashboard from Query Explorer when Dashboard link is clicked', async () => {
+  it('navigates back to Sessions from Query Explorer when Sessions link is clicked', async () => {
     renderApp()
     await userEvent.click(screen.getByRole('link', { name: /Query Explorer/i }))
     expect(
       screen.getByRole('heading', { name: 'Query Explorer' }),
     ).toBeInTheDocument()
-    await userEvent.click(screen.getByRole('link', { name: /Dashboard/i }))
+    await userEvent.click(screen.getByRole('link', { name: /Sessions/i }))
     expect(
-      screen.getByRole('heading', { name: 'Dashboard' }),
+      screen.getByRole('heading', { name: 'Sessions', level: 1 }),
     ).toBeInTheDocument()
   })
 })

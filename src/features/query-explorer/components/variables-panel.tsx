@@ -14,6 +14,10 @@ type VariablesPanelProps = {
   onChange: (value: string) => void
   onValidationChange?: (hasErrors: boolean) => void
   className?: string
+  /** When true, only the JSON editor is shown (e.g. Sessions page supplies its own header). */
+  hideHeader?: boolean
+  /** When true, Monaco fills the panel height (use in a flex column with min-h-0). */
+  fillHeight?: boolean
 }
 
 const EDITOR_LANGUAGE = 'json'
@@ -35,6 +39,8 @@ export function VariablesPanel({
   onChange,
   onValidationChange,
   className,
+  hideHeader = false,
+  fillHeight = false,
 }: VariablesPanelProps) {
   const editorRef = useRef<Monaco.editor.IStandaloneCodeEditor | null>(null)
   const monacoRef = useRef<typeof Monaco | null>(null)
@@ -102,20 +108,25 @@ export function VariablesPanel({
       className={cn('flex min-h-0 flex-col', className)}
       data-panel='variables'
     >
-      <div className='border-b border-border px-3 py-2'>
-        <h2 className='text-sm font-medium'>Variables</h2>
-        <p className='text-xs text-muted-foreground'>
-          JSON object for query variables
-        </p>
-      </div>
+      {!hideHeader && (
+        <div className='border-b border-border px-3 py-2'>
+          <h2 className='text-sm font-medium'>Variables</h2>
+          <p className='text-xs text-muted-foreground'>
+            JSON object for query variables
+          </p>
+        </div>
+      )}
       <div className='flex min-h-0 flex-1 flex-col'>
         <div
-          className='relative min-h-0 flex-1 overflow-hidden bg-[var(--editor-bg-secondary)]'
+          className={cn(
+            'relative min-h-0 overflow-hidden bg-[var(--editor-bg-secondary)]',
+            fillHeight ? 'h-full flex-1' : 'flex-1',
+          )}
           aria-label='Query variables JSON'
           data-testid='variables-editor'
         >
           <Editor
-            height={160}
+            height={fillHeight ? '100%' : 160}
             language={EDITOR_LANGUAGE}
             theme={theme}
             value={value}

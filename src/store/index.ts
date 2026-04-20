@@ -7,6 +7,8 @@ import { createQueryExplorerSlice } from './slices/query-explorer'
 import type { QueryExplorerSlice } from './slices/query-explorer'
 import { createDashboardSlice } from './slices/dashboard'
 import type { DashboardSlice } from './slices/dashboard'
+import { createSessionsUiSlice } from './slices/sessions-ui'
+import type { SessionsUiSlice } from './slices/sessions-ui'
 
 export type { DevQLSchema, HistoryEntry } from './types'
 export type {
@@ -19,7 +21,7 @@ export type {
   DashboardSliceActions,
 } from './slices/dashboard'
 
-export type RootState = QueryExplorerSlice & DashboardSlice
+export type RootState = QueryExplorerSlice & DashboardSlice & SessionsUiSlice
 
 export function createRootStore() {
   const store = createStore<RootState>()(
@@ -32,6 +34,7 @@ export function createRootStore() {
         get as StoreApi<QueryExplorerSlice>['getState'],
       ),
       ...createDashboardSlice(set as StoreApi<DashboardSlice>['setState']),
+      ...createSessionsUiSlice(set as StoreApi<SessionsUiSlice>['setState']),
     }),
   )
   return store

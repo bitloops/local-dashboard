@@ -12,6 +12,14 @@ export const stripUserQueryTags = (value: string): string => {
   return value.replace(/<user_query>/gi, '').replace(/<\/user_query>/gi, '')
 }
 
+/** Prompt text from the API: strips user_query tags and trims outer whitespace for display. */
+export function formatPromptForDisplay(value: string | null | undefined): string {
+  if (value == null) {
+    return ''
+  }
+  return stripUserQueryTags(value).trim()
+}
+
 export const prettyPrintJson = (value: string): string => {
   const trimmed = value.trim()
   if (!trimmed) {

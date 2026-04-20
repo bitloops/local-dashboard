@@ -2,6 +2,7 @@ import type { ColumnDef } from '@tanstack/react-table'
 import { Badge } from '@/components/ui/badge'
 import type { DashboardInteractionSessionDto } from '../api-types'
 import { formatAgentLabel } from '../utils'
+import { formatPromptForDisplay } from './checkpoint-sheet-utils'
 
 export type SessionRow = DashboardInteractionSessionDto
 
@@ -45,7 +46,7 @@ export const sessionColumns: ColumnDef<SessionRow>[] = [
     header: 'Prompt',
     cell: ({ row }) => (
       <span className='line-clamp-2 max-w-md text-muted-foreground'>
-        {row.original.first_prompt?.trim() || '—'}
+        {formatPromptForDisplay(row.original.first_prompt) || '—'}
       </span>
     ),
   },
