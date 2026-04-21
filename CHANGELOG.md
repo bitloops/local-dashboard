@@ -1,6 +1,7 @@
 ## [0.0.8]
 
 ### Added
+
 - New sessions page containing explorer and list of sessions.
 
 ### Changed
