@@ -2,8 +2,9 @@ import { DASHBOARD_INTERACTION_SESSIONS_ONLY_QUERY } from '@/features/dashboard/
 import { SESSIONS_LANDING_PAGE_SIZE } from '@/features/sessions/sessions-landing-constants'
 
 /** Default GraphQL document for the Sessions landing explorer: `interactionSessions` only. */
-export const SESSIONS_LANDING_DEFAULT_QUERY =
-  DASHBOARD_INTERACTION_SESSIONS_ONLY_QUERY
+export const SESSIONS_LANDING_DEFAULT_QUERY = `# Run queries against session data (${SESSIONS_LANDING_PAGE_SIZE} sessions per page by default).
+
+${DASHBOARD_INTERACTION_SESSIONS_ONLY_QUERY}`
 
 /**
  * Variables for the sessions default query — matches

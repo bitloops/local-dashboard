@@ -65,8 +65,7 @@ export function sessionsCheckpointRowToCheckpoint(
     timestamp: committed ? formatDateTime(row.committed_at!) : '',
     createdAt: committed ?? undefined,
     commit: row.commit_sha ? row.commit_sha.slice(0, 7) : undefined,
-    author:
-      [row.name, row.email].filter(Boolean).join(' · ') || undefined,
+    author: [row.name, row.email].filter(Boolean).join(' · ') || undefined,
     branch: row.branch ?? undefined,
   }
 }

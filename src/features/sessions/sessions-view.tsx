@@ -39,7 +39,6 @@ import {
   getDefaultInteractionSessionsVariables,
   SESSIONS_LANDING_DEFAULT_QUERY,
 } from '@/features/sessions/default-interaction-sessions'
-import { SESSIONS_LANDING_PAGE_SIZE } from '@/features/sessions/sessions-landing-constants'
 import {
   parseSessionsVariablesJson,
   setVariablesOffset,
@@ -53,7 +52,7 @@ const EDITOR_PANEL_MAX = 1200
 const EDITOR_PANEL_DEFAULT = 780
 
 /** Keeps tab panel height stable for at most `SESSIONS_LANDING_PAGE_SIZE` table rows (+ toolbar/chrome). */
-const SESSIONS_TAB_PANEL_MIN_HEIGHT = 'min-h-[22rem]'
+const SESSIONS_TAB_PANEL_MIN_HEIGHT = 'min-h-[19.5rem]'
 
 type SessionsMainTab = 'sessions' | 'checkpoints'
 
@@ -192,11 +191,7 @@ export function SessionsView() {
     return () => {
       ac.abort()
     }
-  }, [
-    checkpointDetailSource,
-    checkpointSheetCheckpoint,
-    resolvedRepoId,
-  ])
+  }, [checkpointDetailSource, checkpointSheetCheckpoint, resolvedRepoId])
 
   const closeCheckpointSheet = useCallback(() => {
     setCheckpointSheetCheckpoint(null)
@@ -267,10 +262,6 @@ export function SessionsView() {
         <div className='mb-4 flex min-h-0 flex-1 flex-col'>
           <div className='shrink-0'>
             <h1 className='text-2xl font-bold tracking-tight'>Sessions</h1>
-            <p className='mt-1 text-sm text-muted-foreground'>
-              Run queries against session data ({SESSIONS_LANDING_PAGE_SIZE}{' '}
-              sessions per page by default).
-            </p>
           </div>
           <SessionsRepoBranchFilters
             value={variables}
@@ -308,7 +299,7 @@ export function SessionsView() {
             </p>
           )}
 
-          <div className='mt-6 shrink-0'>
+          <div className='mt-4 shrink-0'>
             <Tabs
               value={mainTab}
               onValueChange={(v) => setMainTab(v as SessionsMainTab)}
@@ -366,8 +357,8 @@ export function SessionsView() {
                   className={`flex flex-col ${SESSIONS_TAB_PANEL_MIN_HEIGHT}`}
                 >
                   <p className='mb-3 shrink-0 text-xs text-muted-foreground'>
-                    Checkpoints linked to interaction sessions on this page (from{' '}
-                    <span className='font-mono'>linkedCheckpoints</span>).
+                    Checkpoints linked to interaction sessions on this page
+                    (from <span className='font-mono'>linkedCheckpoints</span>).
                   </p>
                   <SessionsCheckpointsTable
                     rows={checkpointRows}

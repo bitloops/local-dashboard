@@ -47,9 +47,7 @@ export function SessionsCheckpointsTable({
                   {row.commit_sha.slice(0, 7)}
                 </TableCell>
                 <TableCell className='text-sm text-muted-foreground'>
-                  {row.committed_at
-                    ? formatDateTime(row.committed_at)
-                    : '—'}
+                  {row.committed_at ? formatDateTime(row.committed_at) : '—'}
                 </TableCell>
                 <TableCell className='max-w-[280px] truncate text-xs text-muted-foreground'>
                   {row.session_ids.join(', ')}

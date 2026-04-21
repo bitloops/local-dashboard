@@ -638,14 +638,16 @@ test.describe('App / sessions load', () => {
     await expect(
       page.getByRole('heading', { name: 'Sessions', level: 1 }),
     ).toBeVisible()
-    await expect(
-      page.getByText('Run queries against session data.'),
-    ).toBeVisible()
+    // Default query includes a `#` comment at the top; Monaco may briefly show "Loading...".
+    await expect(page.getByTestId('query-editor')).toContainText(
+      'Run queries against session data',
+      { timeout: 15_000 },
+    )
     await expect(page.getByRole('heading', { name: 'Editor' })).toBeVisible()
     await expect(page.getByTestId('sessions-variables-repo')).toBeVisible()
     await expect(page.getByTestId('sessions-variables-branch')).toBeVisible()
     await expect(
-      page.getByText('No sessions for current filters.'),
+      page.getByRole('columnheader', { name: 'Started' }),
     ).toBeVisible()
   })
 
