@@ -13,7 +13,9 @@ export const stripUserQueryTags = (value: string): string => {
 }
 
 /** Prompt text from the API: strips user_query tags and trims outer whitespace for display. */
-export function formatPromptForDisplay(value: string | null | undefined): string {
+export function formatPromptForDisplay(
+  value: string | null | undefined,
+): string {
   if (value == null) {
     return ''
   }

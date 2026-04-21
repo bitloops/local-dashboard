@@ -3,6 +3,7 @@ import { cn } from '@/lib/utils'
 type QueryExplorerLayoutProps = {
   editorPanelWidth: number
   onResizeStart: (e: React.PointerEvent) => void
+  separatorLabel: string
   leftPanel: React.ReactNode
   rightPanel: React.ReactNode
   /** Omitted on Sessions (editor + variables only, side by side). */
@@ -15,6 +16,7 @@ type QueryExplorerLayoutProps = {
 export function QueryExplorerLayout({
   editorPanelWidth,
   onResizeStart,
+  separatorLabel,
   leftPanel,
   rightPanel,
   bottomPanel,
@@ -39,7 +41,7 @@ export function QueryExplorerLayout({
         <div
           role='separator'
           aria-orientation='vertical'
-          aria-label='Resize editor and side panel'
+          aria-label={separatorLabel}
           onPointerDown={onResizeStart}
           className='w-px shrink-0 cursor-col-resize border-e border-foreground/20 bg-transparent transition-colors hover:bg-foreground/10'
         />

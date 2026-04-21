@@ -11,16 +11,22 @@ type UseSessionsResultSyncOptions = {
 /**
  * Maps the last successful dashboard GraphQL `result` into `sessionRows` and pagination meta.
  */
-export function useSessionsResultSync({ variables }: UseSessionsResultSyncOptions) {
-  const { result, setSessionRows, setSessionsPageInfo, setCurrentSessionsRequest } =
-    useStore(
-      useShallow((s) => ({
-        result: s.result,
-        setSessionRows: s.setSessionRows,
-        setSessionsPageInfo: s.setSessionsPageInfo,
-        setCurrentSessionsRequest: s.setCurrentSessionsRequest,
-      })),
-    )
+export function useSessionsResultSync({
+  variables,
+}: UseSessionsResultSyncOptions) {
+  const {
+    result,
+    setSessionRows,
+    setSessionsPageInfo,
+    setCurrentSessionsRequest,
+  } = useStore(
+    useShallow((s) => ({
+      result: s.result,
+      setSessionRows: s.setSessionRows,
+      setSessionsPageInfo: s.setSessionsPageInfo,
+      setCurrentSessionsRequest: s.setCurrentSessionsRequest,
+    })),
+  )
 
   useEffect(() => {
     if (result.status !== 'success' || result.data == null) {

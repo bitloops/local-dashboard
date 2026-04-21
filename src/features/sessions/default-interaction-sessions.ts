@@ -2,7 +2,8 @@ import { DASHBOARD_PAGE_SIZE } from '@/features/dashboard/graphql/fetch-dashboar
 import { DASHBOARD_INTERACTION_SESSIONS_ONLY_QUERY } from '@/features/dashboard/graphql/operations'
 
 /** Default GraphQL document for the Sessions landing explorer: `interactionSessions` only. */
-export const SESSIONS_LANDING_DEFAULT_QUERY = DASHBOARD_INTERACTION_SESSIONS_ONLY_QUERY
+export const SESSIONS_LANDING_DEFAULT_QUERY =
+  DASHBOARD_INTERACTION_SESSIONS_ONLY_QUERY
 
 /**
  * Variables for the sessions default query — matches

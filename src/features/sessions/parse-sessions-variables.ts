@@ -25,12 +25,16 @@ export function resolveSessionsRepoId(
   return repoOptions[0]?.repoId ?? null
 }
 
-export function parseSessionsVariablesJson(value: string): ParsedSessionsVariables {
+export function parseSessionsVariablesJson(
+  value: string,
+): ParsedSessionsVariables {
   try {
     const p = JSON.parse(value) as Record<string, unknown>
     const repoId = typeof p.repoId === 'string' ? p.repoId : null
     const filter =
-      typeof p.filter === 'object' && p.filter !== null && !Array.isArray(p.filter)
+      typeof p.filter === 'object' &&
+      p.filter !== null &&
+      !Array.isArray(p.filter)
         ? (p.filter as Record<string, unknown>)
         : {}
     const branch =
@@ -56,7 +60,10 @@ export function parseSessionsVariablesJson(value: string): ParsedSessionsVariabl
   }
 }
 
-export function setVariablesRepoId(current: string, repoId: string | null): string {
+export function setVariablesRepoId(
+  current: string,
+  repoId: string | null,
+): string {
   try {
     const p = JSON.parse(current) as Record<string, unknown>
     return JSON.stringify({ ...p, repoId }, null, 2)
@@ -72,7 +79,9 @@ export function setVariablesBranch(
   try {
     const p = JSON.parse(current) as Record<string, unknown>
     const prevFilter =
-      typeof p.filter === 'object' && p.filter !== null && !Array.isArray(p.filter)
+      typeof p.filter === 'object' &&
+      p.filter !== null &&
+      !Array.isArray(p.filter)
         ? { ...(p.filter as Record<string, unknown>) }
         : {}
     const nextFilter = { ...prevFilter }

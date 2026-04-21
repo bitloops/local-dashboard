@@ -29,6 +29,7 @@ type SessionsRepoBranchFiltersProps = {
 
 const repoAutoValue = '__repo_auto__'
 const branchAutoValue = '__branch_auto__'
+const emptyBranchOptions: string[] = []
 
 export function SessionsRepoBranchFilters({
   value,
@@ -39,7 +40,9 @@ export function SessionsRepoBranchFilters({
   const [repoOptions, setRepoOptions] = useState<DashboardRepositoryOption[]>(
     [],
   )
-  const [branchOptions, setBranchOptions] = useState<string[]>([])
+  const [branchOptionsByRepoId, setBranchOptionsByRepoId] = useState<
+    Record<string, string[]>
+  >({})
   const [loadError, setLoadError] = useState<string | null>(null)
   const didSeedDefaultBranchRef = useRef(false)
   const lastRepoIdRef = useRef<string | null | undefined>(undefined)
@@ -48,6 +51,9 @@ export function SessionsRepoBranchFilters({
   const effectiveRepoId = resolveSessionsRepoId(parsed.repoId, repoOptions)
   const firstRepoId = repoOptions[0]?.repoId ?? null
   const trimmedRepoId = parsed.repoId?.trim() ?? ''
+  const branchOptions = effectiveRepoId
+    ? (branchOptionsByRepoId[effectiveRepoId] ?? emptyBranchOptions)
+    : emptyBranchOptions
   /** Stored id for the first repo — treat as Auto in the UI so GraphQL gets a concrete `repoId` (matches the Auto label). */
   const repoSelectValue =
     firstRepoId && trimmedRepoId === firstRepoId
@@ -103,23 +109,29 @@ export function SessionsRepoBranchFilters({
 
   useEffect(() => {
     if (!effectiveRepoId) {
-      setBranchOptions([])
       return
     }
+    const repoId = effectiveRepoId
     let cancelled = false
     fetchDashboardBranches({
-      repoId: effectiveRepoId,
+      repoId,
       from: null,
       to: null,
     })
       .then((branches) => {
         if (cancelled) return
-        setBranchOptions(branches.map((b) => b.branch.trim()).filter(Boolean))
+        setBranchOptionsByRepoId((prev) => ({
+          ...prev,
+          [repoId]: branches.map((b) => b.branch.trim()).filter(Boolean),
+        }))
       })
       .catch((err: unknown) => {
         if (cancelled) return
         console.error('Failed to load branches', err)
-        setBranchOptions([])
+        setBranchOptionsByRepoId((prev) => ({
+          ...prev,
+          [repoId]: [],
+        }))
       })
     return () => {
       cancelled = true
@@ -164,10 +176,7 @@ export function SessionsRepoBranchFilters({
 
   return (
     <div
-      className={cn(
-        'flex flex-wrap items-center gap-x-3 gap-y-1.5',
-        className,
-      )}
+      className={cn('flex flex-wrap items-center gap-x-3 gap-y-1.5', className)}
       data-layout='sessions-filters'
     >
       <span className='sr-only'>Session query filters</span>

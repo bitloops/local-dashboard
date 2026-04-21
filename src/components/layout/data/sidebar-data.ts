@@ -1,4 +1,10 @@
-import { MessageSquare, Search, Settings, HelpCircle, Command } from 'lucide-react'
+import {
+  MessageSquare,
+  Search,
+  Settings,
+  HelpCircle,
+  Command,
+} from 'lucide-react'
 import { type SidebarData } from '../types'
 
 export const sidebarData: SidebarData = {

@@ -31,11 +31,13 @@ type SessionsTableProps = {
 }
 
 export function SessionsTable({ data, onSessionClick }: SessionsTableProps) {
+  'use no memo' // TanStack Table uses interior mutability; avoid React Compiler memoization
   const [rowSelection, setRowSelection] = useState({})
   const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({})
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([])
   const [sorting, setSorting] = useState<SortingState>([])
 
+  // eslint-disable-next-line react-hooks/incompatible-library -- useReactTable uses interior mutability; "use no memo" above handles runtime
   const table = useReactTable<SessionRow>({
     data,
     columns: sessionColumns,

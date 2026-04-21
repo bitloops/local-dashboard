@@ -20,7 +20,10 @@ import {
 import { XIcon } from 'lucide-react'
 import { fetchDashboardInteractionSessionDetail } from '../graphql/fetch-dashboard-data'
 import { formatAgentLabel } from '../utils'
-import { formatDateTime, formatPromptForDisplay } from './checkpoint-sheet-utils'
+import {
+  formatDateTime,
+  formatPromptForDisplay,
+} from './checkpoint-sheet-utils'
 import { FileTree } from './file-tree'
 import { TurnDetailContent } from './checkpoint-sheet'
 

@@ -100,6 +100,7 @@ export function QueryExplorer() {
             className='mt-4'
             editorPanelWidth={editorPanelWidth}
             onResizeStart={onResizeStart}
+            separatorLabel='Resize editor and results panels'
             leftPanel={<EditorHistoryContainer />}
             rightPanel={
               <ResultViewerPanel

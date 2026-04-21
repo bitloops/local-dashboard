@@ -172,6 +172,7 @@ export function SessionsView() {
             className='mt-3 min-h-0 flex-1'
             editorPanelWidth={editorPanelWidth}
             onResizeStart={onResizeStart}
+            separatorLabel='Resize editor and variables panels'
             leftPanel={
               <EditorHistoryContainer
                 runQuery={runDashboardQueryExplorerQuery}
@@ -199,9 +200,7 @@ export function SessionsView() {
 
           <div className='mt-6 min-h-0 shrink-0'>
             <div className='mb-4 flex flex-wrap items-center justify-between gap-2'>
-              <h2 className='text-lg font-semibold tracking-tight'>
-                Sessions
-              </h2>
+              <h2 className='text-lg font-semibold tracking-tight'>Sessions</h2>
               <div className='flex items-center gap-1'>
                 <Button
                   type='button'
@@ -209,7 +208,8 @@ export function SessionsView() {
                   size='sm'
                   className='h-8 px-2'
                   disabled={
-                    !sessionsPageInfo?.hasPreviousPage || dataSource === 'loading'
+                    !sessionsPageInfo?.hasPreviousPage ||
+                    dataSource === 'loading'
                   }
                   onClick={() => void onSessionsBack()}
                   aria-label='Previous sessions page'
