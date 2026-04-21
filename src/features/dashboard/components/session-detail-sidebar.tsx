@@ -1,7 +1,5 @@
-import { startTransition, useEffect, useState } from 'react'
+import { lazy, startTransition, Suspense, useEffect, useState } from 'react'
 import {
-  type DashboardCheckpointDetailResponse,
-  type DashboardInteractionCommitAuthorDto,
   type DashboardInteractionSessionDetailResponse,
   type DashboardInteractionSessionDto,
   type DashboardInteractionToolUseDto,
@@ -11,6 +9,7 @@ import { CopyButton } from '@/components/copy-button'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { CardDescription, CardTitle } from '@/components/ui/card'
+import { Separator } from '@/components/ui/separator'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import {
   Accordion,
@@ -19,95 +18,18 @@ import {
   AccordionTrigger,
 } from '@/components/ui/accordion'
 import { XIcon } from 'lucide-react'
-import {
-  fetchDashboardCheckpointDetail,
-  fetchDashboardInteractionSessionDetail,
-} from '../graphql/fetch-dashboard-data'
-import { type Checkpoint } from '../types'
+import { fetchDashboardInteractionSessionDetail } from '../graphql/fetch-dashboard-data'
 import { formatAgentLabel } from '../utils'
-import { formatDateTime } from './checkpoint-sheet-utils'
+import {
+  formatDateTime,
+  formatPromptForDisplay,
+} from './checkpoint-sheet-utils'
 import { FileTree } from './file-tree'
-import { CheckpointSummaryPanel } from './checkpoint-summary-panel'
 import { TurnDetailContent } from './checkpoint-sheet'
 
-function checkpointStubFromLinked(
-  c: DashboardInteractionCommitAuthorDto,
-): Checkpoint {
-  return {
-    id: c.checkpoint_id,
-    commit: c.commit_sha,
-    timestamp: c.committed_at ?? '',
-    author: c.name ?? undefined,
-  }
-}
-
-function LinkedCheckpointAccordionBody({
-  repoId,
-  linked,
-  isActive,
-}: {
-  repoId: string | null
-  linked: DashboardInteractionCommitAuthorDto
-  isActive: boolean
-}) {
-  const [detail, setDetail] =
-    useState<DashboardCheckpointDetailResponse | null>(null)
-  const [source, setSource] = useState<'idle' | 'loading' | 'api' | 'error'>(
-    'idle',
-  )
-
-  useEffect(() => {
-    if (!isActive) {
-      return
-    }
-    let cancelled = false
-
-    fetchDashboardCheckpointDetail({
-      repoId,
-      checkpointId: linked.checkpoint_id,
-    })
-      .then((response) => {
-        if (cancelled) return
-        setDetail(response)
-        setSource('api')
-      })
-      .catch((err: unknown) => {
-        if (cancelled) return
-        console.error('Checkpoint summary load failed', err)
-        setDetail(null)
-        setSource('error')
-      })
-
-    return () => {
-      cancelled = true
-    }
-  }, [isActive, repoId, linked.checkpoint_id])
-
-  const selected: Checkpoint = {
-    ...checkpointStubFromLinked(linked),
-    id: linked.checkpoint_id,
-  }
-
-  if (!isActive) {
-    return null
-  }
-  if (source !== 'api' && source !== 'error') {
-    return <p className='text-sm text-muted-foreground'>Loading checkpoint…</p>
-  }
-  if (source === 'error') {
-    return (
-      <p className='text-sm text-muted-foreground'>
-        Could not load checkpoint detail.
-      </p>
-    )
-  }
-  return (
-    <CheckpointSummaryPanel
-      selectedCheckpoint={selected}
-      checkpointDetail={detail}
-    />
-  )
-}
+const TokenUsageChart = lazy(() =>
+  import('./token-usage-chart').then((m) => ({ default: m.TokenUsageChart })),
+)
 
 function SessionSummaryView({
   summary,
@@ -115,6 +37,7 @@ function SessionSummaryView({
   summary: DashboardInteractionSessionDto
 }) {
   const toolCallCount = summary.tool_uses.length
+  const firstPromptDisplay = formatPromptForDisplay(summary.first_prompt)
 
   return (
     <div className='space-y-4'>
@@ -180,11 +103,31 @@ function SessionSummaryView({
           </div>
         )}
       </div>
-      {summary.first_prompt && (
+
+      <Separator />
+      <div>
+        <h3 className='mb-2 text-sm font-semibold'>Token Usage</h3>
+        {summary.token_usage ? (
+          <Suspense
+            fallback={
+              <div className='h-40 animate-pulse rounded-md bg-muted/30' />
+            }
+          >
+            <TokenUsageChart usage={summary.token_usage} />
+          </Suspense>
+        ) : (
+          <p className='text-sm text-muted-foreground'>
+            No token usage data for this session.
+          </p>
+        )}
+      </div>
+
+      <Separator />
+      {firstPromptDisplay && (
         <div>
           <p className='text-xs text-muted-foreground'>First prompt</p>
           <p className='rounded-md border bg-muted/30 p-2 text-sm whitespace-pre-wrap'>
-            {summary.first_prompt}
+            {firstPromptDisplay}
           </p>
         </div>
       )}
@@ -255,9 +198,6 @@ export function SessionDetailSidebar({
     'idle' | 'loading' | 'api' | 'error'
   >('idle')
   const [interactionError, setInteractionError] = useState<string | null>(null)
-  const [openCheckpointAccordion, setOpenCheckpointAccordion] = useState<
-    string | undefined
-  >()
 
   useEffect(() => {
     if (!sessionId?.trim()) {
@@ -337,10 +277,9 @@ export function SessionDetailSidebar({
             )}
             {(interactionSource === 'api' || sessionSummary) && summary && (
               <Tabs defaultValue='details' className='w-full'>
-                <TabsList className='mb-2 grid w-full grid-cols-4'>
+                <TabsList className='mb-2 grid w-full grid-cols-3'>
                   <TabsTrigger value='details'>Details</TabsTrigger>
                   <TabsTrigger value='turns'>Turns</TabsTrigger>
-                  <TabsTrigger value='checkpoints'>Checkpoints</TabsTrigger>
                   <TabsTrigger value='tools'>Tool use</TabsTrigger>
                 </TabsList>
                 <TabsContent value='details' className='mt-0'>
@@ -366,27 +305,31 @@ export function SessionDetailSidebar({
                             <div className='flex min-w-0 flex-1 items-start justify-between gap-2 text-start'>
                               <div className='min-w-0'>
                                 <p className='text-sm font-medium'>
-                                  Turn {turn.turn_number}
+                                  {turn.turn_number}
                                 </p>
                                 <p className='line-clamp-2 text-xs text-muted-foreground'>
-                                  {turn.prompt ?? turn.summary ?? '-'}
+                                  {formatPromptForDisplay(
+                                    turn.prompt ?? turn.summary ?? '',
+                                  ) || '-'}
                                 </p>
                               </div>
                               <div className='flex shrink-0 flex-col items-end gap-1 pe-1'>
                                 {turn.checkpoint_id && (
                                   <Badge variant='secondary'>checkpoint</Badge>
                                 )}
-                                {turn.model && (
-                                  <Badge
-                                    variant='outline'
-                                    className='max-w-[140px] truncate'
-                                  >
-                                    {turn.model}
+                                <div className='flex flex-wrap items-center justify-end gap-1'>
+                                  {turn.model && (
+                                    <Badge
+                                      variant='outline'
+                                      className='max-w-[140px] truncate'
+                                    >
+                                      {turn.model}
+                                    </Badge>
+                                  )}
+                                  <Badge variant='outline'>
+                                    {turn.files_modified.length} files
                                   </Badge>
-                                )}
-                                <Badge variant='outline'>
-                                  {turn.files_modified.length} files
-                                </Badge>
+                                </div>
                               </div>
                             </div>
                           </AccordionTrigger>
@@ -395,50 +338,6 @@ export function SessionDetailSidebar({
                               turn={turn}
                               rawEvents={rawEvents}
                               userName={userName}
-                            />
-                          </AccordionContent>
-                        </AccordionItem>
-                      ))}
-                    </Accordion>
-                  )}
-                </TabsContent>
-                <TabsContent value='checkpoints' className='mt-0 space-y-2'>
-                  {summary.linked_checkpoints.length === 0 ? (
-                    <p className='text-sm text-muted-foreground'>
-                      No linked checkpoints.
-                    </p>
-                  ) : (
-                    <Accordion
-                      type='single'
-                      collapsible
-                      value={openCheckpointAccordion}
-                      onValueChange={setOpenCheckpointAccordion}
-                      className='flex w-full flex-col gap-3'
-                    >
-                      {summary.linked_checkpoints.map((c) => (
-                        <AccordionItem
-                          key={`${c.checkpoint_id}-${c.commit_sha}`}
-                          value={c.checkpoint_id}
-                          variant='card'
-                        >
-                          <AccordionTrigger className='px-4 py-3 hover:bg-muted/50 hover:no-underline [&[data-state=open]]:bg-muted/40'>
-                            <div className='min-w-0 flex-1 text-start'>
-                              <p className='font-mono text-xs'>
-                                {c.checkpoint_id}
-                              </p>
-                              <p className='text-xs text-muted-foreground'>
-                                {c.commit_sha.slice(0, 12)}…
-                              </p>
-                            </div>
-                          </AccordionTrigger>
-                          <AccordionContent className='border-t border-border px-4 pb-4 pt-4'>
-                            <LinkedCheckpointAccordionBody
-                              key={`chk-${c.checkpoint_id}-${openCheckpointAccordion ?? 'none'}`}
-                              repoId={repoId}
-                              linked={c}
-                              isActive={
-                                openCheckpointAccordion === c.checkpoint_id
-                              }
                             />
                           </AccordionContent>
                         </AccordionItem>

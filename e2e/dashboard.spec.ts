@@ -505,9 +505,6 @@ function buildDashboardCheckpointDetailResponse() {
 // Helpers
 // ---------------------------------------------------------------------------
 
-/** Repository options are served through the dashboard GraphQL endpoint. */
-async function stubRepositoriesRoute() {}
-
 /** Stub all dashboard and query-explorer calls so the app works without a real backend. */
 async function stubApiRoutes(page: Page) {
   await page.route('**/devql/dashboard', async (route: Route) => {
@@ -611,54 +608,60 @@ async function stubApiRoutes(page: Page) {
 }
 
 // ---------------------------------------------------------------------------
-// App / dashboard load
+// Sessions helpers
 // ---------------------------------------------------------------------------
 
-test.describe('App / dashboard load', () => {
-  test('visiting / loads the dashboard with heading and filters', async ({
+const FIRST_SESSION_PROMPT = 'feat: add dashboard layout scaffold'
+const SECOND_SESSION_PROMPT = 'fix: resolve auth token refresh loop'
+
+async function runSessionsQuery(page: Page) {
+  await page.getByRole('button', { name: 'Run query' }).click()
+  await expect(page.getByText(FIRST_SESSION_PROMPT)).toBeVisible()
+}
+
+async function selectFirstStubSession(page: Page) {
+  await runSessionsQuery(page)
+  await page.getByText(FIRST_SESSION_PROMPT, { exact: false }).first().click()
+}
+
+// ---------------------------------------------------------------------------
+// App / sessions load
+// ---------------------------------------------------------------------------
+
+test.describe('App / sessions load', () => {
+  test('visiting / loads the sessions page with filters, editor, and table', async ({
     page,
   }) => {
     await stubApiRoutes(page)
     await page.goto('/')
 
-    await expect(page.getByRole('heading', { name: 'Dashboard' })).toBeVisible()
-    await expect(page.getByText('Filters', { exact: true })).toBeVisible()
-    await expect(page.getByText('Recent Sessions')).toBeVisible()
+    await expect(
+      page.getByRole('heading', { name: 'Sessions', level: 1 }),
+    ).toBeVisible()
+    await expect(
+      page.getByText('Run queries against session data.'),
+    ).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'Editor' })).toBeVisible()
+    await expect(page.getByTestId('sessions-variables-repo')).toBeVisible()
+    await expect(page.getByTestId('sessions-variables-branch')).toBeVisible()
+    await expect(
+      page.getByText('No sessions for current filters.'),
+    ).toBeVisible()
   })
 
-  test('dashboard displays stat cards after API data loads', async ({
+  test('running the sessions query shows session prompt rows from the API', async ({
     page,
   }) => {
     await stubApiRoutes(page)
     await page.goto('/')
 
-    await expect(page.getByText('Throughput')).toBeVisible()
-    await expect(
-      page.getByText('Checkpoints', { exact: true }).first(),
-    ).toBeVisible()
-    await expect(
-      page.getByText('Agents', { exact: true }).first(),
-    ).toBeVisible()
-    await expect(page.getByText('Active Branches')).toBeVisible()
+    await runSessionsQuery(page)
+
+    await expect(page.getByText(FIRST_SESSION_PROMPT)).toBeVisible()
+    await expect(page.getByText(SECOND_SESSION_PROMPT)).toBeVisible()
   })
 
-  test('dashboard shows session prompt rows from the API', async ({ page }) => {
-    await stubApiRoutes(page)
-    await page.goto('/')
-
-    // Distinct first prompts from stub interaction sessions appear in the Prompt column
-    await expect(
-      page.getByText('feat: add dashboard layout scaffold'),
-    ).toBeVisible()
-    await expect(
-      page.getByText('fix: resolve auth token refresh loop'),
-    ).toBeVisible()
-  })
-
-  test('dashboard shows API error banner when data endpoints fail', async ({
-    page,
-  }) => {
-    await stubRepositoriesRoute(page)
+  test('sessions query errors render inline on the page', async ({ page }) => {
     await page.route('**/devql/dashboard', async (route: Route) => {
       const body = route.request().postDataJSON() as { query?: string }
       const query = body.query ?? ''
@@ -700,25 +703,24 @@ test.describe('App / dashboard load', () => {
       }
 
       await route.fulfill({
-        status: 500,
+        status: 200,
         contentType: 'application/json',
         body: JSON.stringify({
+          data: null,
           errors: [{ message: 'Internal Server Error' }],
         }),
       })
     })
 
     await page.goto('/')
+    await page.getByRole('button', { name: 'Run query' }).click()
 
-    await expect(
-      page.getByText(/Could not load dashboard data from the dashboard API/),
-    ).toBeVisible({ timeout: 8000 })
+    await expect(page.getByRole('alert')).toContainText('Internal Server Error')
   })
 
-  test('falls back to the repository default branch when dashboard branches returns empty', async ({
+  test('branch selector stays disabled when the branches query returns no rows', async ({
     page,
   }) => {
-    await stubRepositoriesRoute(page)
     await page.route('**/devql/dashboard', async (route: Route) => {
       const routeBody = route.request().postDataJSON() as {
         query?: string
@@ -793,11 +795,11 @@ test.describe('App / dashboard load', () => {
 
     await page.goto('/')
 
-    await expect(page.getByText('Recent Sessions')).toBeVisible()
-    await expect(
-      page.getByText(/No branches are currently available/),
-    ).toHaveCount(0)
-    await expect(page.getByTestId('filter-branch')).toContainText('Auto (main)')
+    const repoTrigger = page.getByTestId('sessions-variables-repo')
+    const branchTrigger = page.getByTestId('sessions-variables-branch')
+
+    await expect(repoTrigger).toContainText('Auto')
+    await expect(branchTrigger).toBeDisabled()
   })
 })
 
@@ -806,13 +808,14 @@ test.describe('App / dashboard load', () => {
 // ---------------------------------------------------------------------------
 
 test.describe('Filters', () => {
-  test('repo filter dropdown shows repository options from REST', async ({
+  test('repo selector shows repository options from the dashboard API', async ({
     page,
   }) => {
     await stubApiRoutes(page)
     await page.goto('/')
 
-    const repoTrigger = page.getByTestId('filter-repo')
+    const repoTrigger = page.getByTestId('sessions-variables-repo')
+    await expect(repoTrigger).toContainText('Auto')
     await repoTrigger.click()
 
     await expect(page.getByRole('option', { name: /Auto/ })).toBeVisible()
@@ -831,7 +834,8 @@ test.describe('Filters', () => {
     await stubApiRoutes(page)
     await page.goto('/')
 
-    const branchTrigger = page.getByTestId('filter-branch')
+    const branchTrigger = page.getByTestId('sessions-variables-branch')
+    await expect(branchTrigger).toBeEnabled()
     await branchTrigger.click()
 
     await expect(page.getByRole('option', { name: /Auto/ })).toBeVisible()
@@ -847,82 +851,40 @@ test.describe('Filters', () => {
     await stubApiRoutes(page)
     await page.goto('/')
 
-    const branchTrigger = page.getByTestId('filter-branch')
+    const branchTrigger = page.getByTestId('sessions-variables-branch')
+    await expect(branchTrigger).toBeEnabled()
     await branchTrigger.click()
     await page.getByRole('option', { name: 'feat/auth' }).click()
 
     await expect(branchTrigger).toContainText('feat/auth')
   })
 
-  test('clear filters button is disabled until a filter is active', async ({
-    page,
-  }) => {
+  test('selecting a repo updates the repo trigger label', async ({ page }) => {
     await stubApiRoutes(page)
     await page.goto('/')
 
-    const clearBtn = page.getByRole('button', { name: 'Clear filters' })
+    const repoTrigger = page.getByTestId('sessions-variables-repo')
+    await expect(repoTrigger).toContainText('Auto')
+    await repoTrigger.click()
+    await page.getByRole('option', { name: 'bitloops/another-repo' }).click()
 
-    // No filter selected yet — button must be disabled
-    await expect(clearBtn).toBeDisabled()
-
-    // Activate a filter by selecting a branch
-    const branchTrigger = page.getByTestId('filter-branch')
-    await branchTrigger.click()
-    await page.getByRole('option', { name: 'feat/auth' }).click()
-
-    // Button should now be enabled
-    await expect(clearBtn).toBeEnabled()
+    await expect(repoTrigger).toContainText('bitloops/another-repo')
   })
 
-  test('clicking clear filters resets the branch selection to Auto', async ({
-    page,
-  }) => {
-    await stubApiRoutes(page)
-    await page.goto('/')
-
-    const branchTrigger = page.getByTestId('filter-branch')
-    await branchTrigger.click()
-    await page.getByRole('option', { name: 'feat/auth' }).click()
-    await expect(branchTrigger).toContainText('feat/auth')
-
-    await page.getByRole('button', { name: 'Clear filters' }).click()
-
-    // After clearing, the trigger reverts to the Auto value
-    await expect(branchTrigger).not.toContainText('feat/auth')
-    await expect(branchTrigger).toContainText('Auto')
-  })
-
-  test('filter section contains User, Agent, From, and To controls', async ({
-    page,
-  }) => {
-    await stubApiRoutes(page)
-    await page.goto('/')
-
-    // Match the small <p> label elements inside the Filters card
-    await expect(
-      page.locator('p.text-muted-foreground', { hasText: /^User$/ }).first(),
-    ).toBeVisible()
-    await expect(
-      page.locator('p.text-muted-foreground', { hasText: /^Agent$/ }).first(),
-    ).toBeVisible()
-    await expect(page.getByText('From', { exact: true })).toBeVisible()
-    await expect(page.getByText('To', { exact: true })).toBeVisible()
-  })
-
-  test('selecting a repo passes that repoId to downstream GraphQL calls', async ({
+  test('selecting a repo is reflected in the sessions query variables', async ({
     page,
   }) => {
     const observedRepos: string[] = []
 
-    await stubRepositoriesRoute(page)
     await page.route('**/devql/dashboard', async (route: Route) => {
       const body = route.request().postDataJSON() as {
         query?: string
         variables?: { repoId?: string; sessionId?: string }
       }
       const query = body.query ?? ''
-      const repo = body.variables?.repoId
-      if (repo) {
+      const repo = body.variables?.repoId ?? null
+
+      if (query.includes('query DashboardInteractionSessions') && repo) {
         observedRepos.push(repo)
       }
 
@@ -1004,32 +966,21 @@ test.describe('Filters', () => {
 
     observedRepos.length = 0
 
-    const repoTrigger = page.getByTestId('filter-repo')
+    const repoTrigger = page.getByTestId('sessions-variables-repo')
+    await expect(repoTrigger).toContainText('Auto')
     await repoTrigger.click()
     await page.getByRole('option', { name: 'bitloops/another-repo' }).click()
+    await runSessionsQuery(page)
 
     await expect.poll(() => observedRepos.includes('repo-2')).toBe(true)
   })
 })
 
 // ---------------------------------------------------------------------------
-// Session detail & checkpoint summary
+// Session detail
 // ---------------------------------------------------------------------------
 
-test.describe('Session detail & checkpoint summary', () => {
-  const selectFirstStubSession = async (page: Page) => {
-    await page
-      .getByText('feat: add dashboard layout scaffold', { exact: false })
-      .first()
-      .click()
-  }
-
-  const openCheckpointSummaryFromFirstSession = async (page: Page) => {
-    await selectFirstStubSession(page)
-    await page.getByRole('tab', { name: 'Checkpoints' }).click()
-    await page.getByText('cp-01', { exact: true }).click()
-  }
-
+test.describe('Session detail', () => {
   test('selecting a session row opens the session sidebar', async ({
     page,
   }) => {
@@ -1038,85 +989,54 @@ test.describe('Session detail & checkpoint summary', () => {
 
     await selectFirstStubSession(page)
 
-    await expect(page.getByRole('heading', { name: /^Session/ })).toBeVisible({
-      timeout: 10_000,
-    })
     await expect(
       page.getByRole('button', { name: 'Close session panel' }),
-    ).toBeVisible()
+    ).toBeVisible({ timeout: 10_000 })
   })
 
-  test('Checkpoints tab lists linked checkpoint ids from the API', async ({
+  test('sidebar details tab shows summary metrics and first prompt', async ({
     page,
   }) => {
     await stubApiRoutes(page)
     await page.goto('/')
 
     await selectFirstStubSession(page)
-    await page.getByRole('tab', { name: 'Checkpoints' }).click()
 
-    await expect(page.getByText('cp-01', { exact: true })).toBeVisible()
-    await expect(page.getByText('cp-02', { exact: true })).toBeVisible()
+    await expect(page.getByText('Tool calls')).toBeVisible()
+    await expect(
+      page.getByText('No token usage data for this session.'),
+    ).toBeVisible()
+    await expect(page.getByText('First prompt')).toBeVisible()
+    await expect(page.getByText(FIRST_SESSION_PROMPT).last()).toBeVisible()
   })
 
-  test('clicking a linked checkpoint opens the checkpoint summary dialog', async ({
+  test('sidebar turns tab shows the empty state from the stub detail', async ({
     page,
   }) => {
     await stubApiRoutes(page)
     await page.goto('/')
 
-    await openCheckpointSummaryFromFirstSession(page)
+    await selectFirstStubSession(page)
+    await page.getByRole('tab', { name: 'Turns' }).click()
 
-    const dialog = page.getByRole('dialog')
-    await expect(dialog).toBeVisible({ timeout: 10_000 })
-    await expect(dialog.getByText(/Checkpoint cp-01/)).toBeVisible()
+    await expect(page.getByText('No turns.')).toBeVisible()
   })
 
-  test('checkpoint summary dialog shows Files Touched and Metadata', async ({
+  test('sidebar tool use tab shows the empty state from the stub detail', async ({
     page,
   }) => {
     await stubApiRoutes(page)
     await page.goto('/')
 
-    await openCheckpointSummaryFromFirstSession(page)
+    await selectFirstStubSession(page)
+    await page.getByRole('tab', { name: 'Tool use' }).click()
 
-    const dialog = page.getByRole('dialog')
-    await expect(dialog.getByText('Files Touched')).toBeVisible()
-    await expect(dialog.getByText('Metadata')).toBeVisible()
+    await expect(page.getByText('No tool use entries.')).toBeVisible()
   })
 
-  test('checkpoint summary dialog shows stub file paths from the detail API', async ({
+  test('session detail errors are shown inline in the sidebar', async ({
     page,
   }) => {
-    await stubApiRoutes(page)
-    await page.goto('/')
-
-    await openCheckpointSummaryFromFirstSession(page)
-
-    await expect(page.getByRole('dialog')).toContainText('App.tsx', {
-      timeout: 8000,
-    })
-  })
-
-  test('checkpoint summary dialog closes when Close is clicked', async ({
-    page,
-  }) => {
-    await stubApiRoutes(page)
-    await page.goto('/')
-
-    await openCheckpointSummaryFromFirstSession(page)
-
-    const dialog = page.getByRole('dialog')
-    await expect(dialog).toBeVisible()
-
-    await dialog.getByRole('button', { name: 'Close' }).first().click()
-    await expect(page.getByRole('dialog')).toHaveCount(0)
-  })
-
-  test('checkpoint summary shows an error when checkpoint detail API fails', async ({
-    page,
-  }) => {
-    await stubRepositoriesRoute(page)
     await page.route('**/devql/dashboard', async (route) => {
       const routeBody = route.request().postDataJSON() as {
         query?: string
@@ -1169,41 +1089,38 @@ test.describe('Session detail & checkpoint summary', () => {
         return
       }
 
-      if (query.includes('query DashboardInteractionSessionDetail')) {
-        await route.fulfill({
-          status: 200,
-          contentType: 'application/json',
-          body: JSON.stringify(
-            buildDashboardInteractionSessionDetailResponse(
-              routeBody.variables?.sessionId,
-            ),
-          ),
-        })
-        return
-      }
-
-      if (query.includes('query DashboardCheckpointDetail')) {
-        await route.fulfill({
-          status: 500,
-          contentType: 'application/json',
-          body: JSON.stringify({ errors: [{ message: 'error' }] }),
-        })
-        return
-      }
-
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
-        body: JSON.stringify(buildDashboardCommitsResponse()),
+        body: JSON.stringify({
+          data: null,
+          errors: [{ message: 'Failed to load session detail.' }],
+        }),
       })
     })
 
     await page.goto('/')
-    await openCheckpointSummaryFromFirstSession(page)
+    await selectFirstStubSession(page)
 
-    await expect(
-      page.getByText('Could not load checkpoint detail.'),
-    ).toBeVisible({ timeout: 8000 })
+    await expect(page.getByText('Failed to load session detail.')).toBeVisible({
+      timeout: 8000,
+    })
+  })
+
+  test('close session panel hides the sidebar', async ({ page }) => {
+    await stubApiRoutes(page)
+    await page.goto('/')
+
+    await selectFirstStubSession(page)
+    const closeButton = page.getByRole('button', {
+      name: 'Close session panel',
+    })
+    const viewportWidth = await page.evaluate(() => window.innerWidth)
+    await closeButton.click()
+
+    await expect
+      .poll(async () => (await closeButton.boundingBox())?.x ?? 0)
+      .toBeGreaterThan(viewportWidth)
   })
 })
 
@@ -1241,13 +1158,16 @@ test.describe('Settings', () => {
 // ---------------------------------------------------------------------------
 
 test.describe('Navigation', () => {
-  test('sidebar contains Dashboard, Settings, and Help navigation links', async ({
+  test('sidebar contains Sessions, Query Explorer, Settings, and Help navigation links', async ({
     page,
   }) => {
     await stubApiRoutes(page)
     await page.goto('/')
 
-    await expect(page.getByRole('link', { name: 'Dashboard' })).toBeVisible()
+    await expect(page.getByRole('link', { name: 'Sessions' })).toBeVisible()
+    await expect(
+      page.getByRole('link', { name: 'Query Explorer' }),
+    ).toBeVisible()
     await expect(page.getByRole('link', { name: 'Settings' })).toBeVisible()
     await expect(page.getByRole('link', { name: 'Help' })).toBeVisible()
   })
@@ -1263,19 +1183,19 @@ test.describe('Navigation', () => {
     await expect(page.getByRole('heading', { name: 'Settings' })).toBeVisible()
   })
 
-  test('clicking Dashboard in the sidebar returns to the dashboard', async ({
+  test('clicking Sessions in the sidebar returns to the sessions page', async ({
     page,
   }) => {
     await stubApiRoutes(page)
     await page.goto('/')
 
-    // Go to Settings first
     await page.getByRole('link', { name: 'Settings' }).click()
     await expect(page.getByRole('heading', { name: 'Settings' })).toBeVisible()
 
-    // Then navigate back to Dashboard
-    await page.getByRole('link', { name: 'Dashboard' }).click()
-    await expect(page.getByRole('heading', { name: 'Dashboard' })).toBeVisible()
+    await page.getByRole('link', { name: 'Sessions' }).click()
+    await expect(
+      page.getByRole('heading', { name: 'Sessions', level: 1 }),
+    ).toBeVisible()
   })
 
   test('clicking Help in the sidebar shows the Coming Soon page', async ({

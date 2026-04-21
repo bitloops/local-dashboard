@@ -1,5 +1,5 @@
 import {
-  LayoutDashboard,
+  MessageSquare,
   Search,
   Settings,
   HelpCircle,
@@ -20,9 +20,9 @@ export const sidebarData: SidebarData = {
       title: 'General',
       items: [
         {
-          title: 'Dashboard',
+          title: 'Sessions',
           url: '/',
-          icon: LayoutDashboard,
+          icon: MessageSquare,
         },
         {
           title: 'Query Explorer',

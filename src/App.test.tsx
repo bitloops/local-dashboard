@@ -27,14 +27,14 @@ describe('App', () => {
     ).toBeInTheDocument()
   })
 
-  it('renders Dashboard at root path', () => {
+  it('renders Sessions at root path', () => {
     render(
       <Wrapper>
         <App />
       </Wrapper>,
     )
     expect(
-      screen.getByRole('link', { name: 'Skip to Main' }),
+      screen.getByRole('heading', { name: 'Sessions', level: 1 }),
     ).toBeInTheDocument()
   })
 })

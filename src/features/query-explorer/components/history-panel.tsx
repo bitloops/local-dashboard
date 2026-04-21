@@ -1,6 +1,11 @@
 import { useStore } from '@/store'
 import type { HistoryStorageMode } from '@/store'
 import { runQueryExplorerQuery } from '../run-query'
+
+type RunQueryFn = (overrides?: {
+  query: string
+  variables: string
+}) => Promise<void>
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
 import {
@@ -25,11 +30,14 @@ function truncateQuery(q: string): string {
 type HistoryPanelProps = {
   onLoadEntry?: () => void
   className?: string
+  /** Defaults to global DevQL (`/devql/global`); Sessions passes dashboard runner. */
+  runQuery?: RunQueryFn
 }
 
 export function HistoryPanel({
   onLoadEntry,
   className,
+  runQuery = runQueryExplorerQuery,
 }: HistoryPanelProps = {}) {
   const runHistory = useStore((s) => s.runHistory)
   const loadHistoryEntry = useStore((s) => s.loadHistoryEntry)
@@ -126,7 +134,7 @@ export function HistoryPanel({
                 size='sm'
                 className='h-7 text-xs'
                 onClick={() =>
-                  runQueryExplorerQuery({
+                  runQuery({
                     query: entry.query,
                     variables: entry.variables,
                   })

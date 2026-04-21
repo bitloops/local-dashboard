@@ -3,19 +3,25 @@ import { cn } from '@/lib/utils'
 type QueryExplorerLayoutProps = {
   editorPanelWidth: number
   onResizeStart: (e: React.PointerEvent) => void
+  separatorLabel: string
   leftPanel: React.ReactNode
   rightPanel: React.ReactNode
-  bottomPanel: React.ReactNode
+  /** Omitted on Sessions (editor + variables only, side by side). */
+  bottomPanel?: React.ReactNode
   className?: string
+  /** Override default bottom strip height (e.g. Sessions adds repo/branch dropdowns). */
+  bottomPanelClassName?: string
 }
 
 export function QueryExplorerLayout({
   editorPanelWidth,
   onResizeStart,
+  separatorLabel,
   leftPanel,
   rightPanel,
   bottomPanel,
   className,
+  bottomPanelClassName,
 }: QueryExplorerLayoutProps) {
   return (
     <div
@@ -35,7 +41,7 @@ export function QueryExplorerLayout({
         <div
           role='separator'
           aria-orientation='vertical'
-          aria-label='Resize editor and results panels'
+          aria-label={separatorLabel}
           onPointerDown={onResizeStart}
           className='w-px shrink-0 cursor-col-resize border-e border-foreground/20 bg-transparent transition-colors hover:bg-foreground/10'
         />
@@ -43,9 +49,16 @@ export function QueryExplorerLayout({
           {rightPanel}
         </div>
       </div>
-      <div className='h-[180px] min-h-[140px] shrink-0 border-t border-foreground/20'>
-        {bottomPanel}
-      </div>
+      {bottomPanel != null ? (
+        <div
+          className={cn(
+            'h-[180px] min-h-[140px] shrink-0 border-t border-foreground/20',
+            bottomPanelClassName,
+          )}
+        >
+          {bottomPanel}
+        </div>
+      ) : null}
     </div>
   )
 }

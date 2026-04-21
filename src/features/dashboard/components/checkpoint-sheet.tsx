@@ -33,8 +33,8 @@ import { formatAgentLabel } from '../utils'
 import { fetchDashboardInteractionSessionDetail } from '../graphql/fetch-dashboard-data'
 import {
   formatDateTime,
+  formatPromptForDisplay,
   parseTranscriptEntries,
-  stripUserQueryTags,
   prettyPrintJson,
 } from './checkpoint-sheet-utils'
 
@@ -412,9 +412,11 @@ function CheckpointDetailContentInner({
                                                         Turn {turn.turn_number}
                                                       </p>
                                                       <p className='line-clamp-2 text-xs text-muted-foreground'>
-                                                        {turn.prompt ??
-                                                          turn.summary ??
-                                                          '-'}
+                                                        {formatPromptForDisplay(
+                                                          turn.prompt ??
+                                                            turn.summary ??
+                                                            '',
+                                                        ) || '-'}
                                                       </p>
                                                     </div>
                                                     <div className='flex shrink-0 flex-col items-end gap-1 pe-1'>
@@ -423,21 +425,23 @@ function CheckpointDetailContentInner({
                                                           checkpoint
                                                         </Badge>
                                                       )}
-                                                      {turn.model && (
-                                                        <Badge
-                                                          variant='outline'
-                                                          className='max-w-[140px] truncate'
-                                                        >
-                                                          {turn.model}
+                                                      <div className='flex flex-wrap items-center justify-end gap-1'>
+                                                        {turn.model && (
+                                                          <Badge
+                                                            variant='outline'
+                                                            className='max-w-[140px] truncate'
+                                                          >
+                                                            {turn.model}
+                                                          </Badge>
+                                                        )}
+                                                        <Badge variant='outline'>
+                                                          {
+                                                            turn.files_modified
+                                                              .length
+                                                          }{' '}
+                                                          files
                                                         </Badge>
-                                                      )}
-                                                      <Badge variant='outline'>
-                                                        {
-                                                          turn.files_modified
-                                                            .length
-                                                        }{' '}
-                                                        files
-                                                      </Badge>
+                                                      </div>
                                                     </div>
                                                   </div>
                                                 </AccordionTrigger>
@@ -540,9 +544,9 @@ function CheckpointDetailContentInner({
                                         </p>
                                         <pre className='max-h-40 overflow-auto rounded-md border bg-background p-2 text-xs whitespace-pre-wrap break-words'>
                                           {session.prompts_text
-                                            ? stripUserQueryTags(
+                                            ? formatPromptForDisplay(
                                                 session.prompts_text,
-                                              )
+                                              ) || '-'
                                             : '-'}
                                         </pre>
                                       </div>
@@ -553,9 +557,9 @@ function CheckpointDetailContentInner({
                                         </p>
                                         <pre className='max-h-40 overflow-auto rounded-md border bg-background p-2 text-xs whitespace-pre-wrap break-words'>
                                           {session.context_text
-                                            ? stripUserQueryTags(
+                                            ? formatPromptForDisplay(
                                                 session.context_text,
-                                              )
+                                              ) || '-'
                                             : '-'}
                                         </pre>
                                       </div>
@@ -811,7 +815,7 @@ export function TurnDetailContent({
       <div className='space-y-1'>
         <p className='text-xs text-muted-foreground'>Prompt</p>
         <p className='rounded-md border bg-muted/20 p-3 text-sm whitespace-pre-wrap break-words'>
-          {turn.prompt ?? '-'}
+          {formatPromptForDisplay(turn.prompt) || '-'}
         </p>
       </div>
 
