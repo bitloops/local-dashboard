@@ -1,13 +1,27 @@
-import { useLayoutEffect, useCallback, useState } from 'react'
+import {
+  useLayoutEffect,
+  useCallback,
+  useState,
+  useMemo,
+  useEffect,
+} from 'react'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { useShallow } from 'zustand/react/shallow'
 import { Header } from '@/components/layout/header'
 import { Main } from '@/components/layout/main'
 import { ThemeSwitch } from '@/components/theme-switch'
 import { Button } from '@/components/ui/button'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Sidebar, SidebarRail } from '@/components/ui/sidebar'
 import { useSidebar } from '@/components/ui/use-sidebar'
-import type { DashboardInteractionSessionDto } from '@/features/dashboard/api-types'
+import type {
+  DashboardCheckpointDetailResponse,
+  DashboardInteractionSessionDto,
+} from '@/features/dashboard/api-types'
+import { CheckpointSheet } from '@/features/dashboard/components/checkpoint-sheet'
+import type { CheckpointDetailLoadState } from '@/features/dashboard/types'
+import type { Checkpoint } from '@/features/dashboard/types'
+import { fetchDashboardCheckpointDetail } from '@/features/dashboard/graphql/fetch-dashboard-data'
 import { QueryExplorerLayout } from '@/features/query-explorer/components/query-explorer'
 import { EditorHistoryContainer } from '@/features/query-explorer/components/editor-history-container'
 import { useResizeWidth } from '@/features/query-explorer/hooks/use-resize-width'
@@ -15,10 +29,17 @@ import { SessionDetailSidebar } from '@/features/dashboard/components/session-de
 import { SessionsTable } from '@/features/dashboard/components/sessions-table'
 import { rootStoreInstance, useStore } from '@/store'
 import { runDashboardQueryExplorerQuery } from '@/features/sessions/run-dashboard-query'
+import { SessionsCheckpointsTable } from '@/features/sessions/components/sessions-checkpoints-table'
+import {
+  deriveDedupedCheckpointsFromSessions,
+  sessionsCheckpointRowToCheckpoint,
+  type SessionsCheckpointRow,
+} from '@/features/sessions/derive-sessions-checkpoints'
 import {
   getDefaultInteractionSessionsVariables,
   SESSIONS_LANDING_DEFAULT_QUERY,
 } from '@/features/sessions/default-interaction-sessions'
+import { SESSIONS_LANDING_PAGE_SIZE } from '@/features/sessions/sessions-landing-constants'
 import {
   parseSessionsVariablesJson,
   setVariablesOffset,
@@ -31,8 +52,20 @@ const EDITOR_PANEL_MIN = 280
 const EDITOR_PANEL_MAX = 1200
 const EDITOR_PANEL_DEFAULT = 780
 
+/** Keeps tab panel height stable for at most `SESSIONS_LANDING_PAGE_SIZE` table rows (+ toolbar/chrome). */
+const SESSIONS_TAB_PANEL_MIN_HEIGHT = 'min-h-[22rem]'
+
+type SessionsMainTab = 'sessions' | 'checkpoints'
+
 export function SessionsView() {
   const { setOpen, setRightOpen } = useSidebar()
+  const [mainTab, setMainTab] = useState<SessionsMainTab>('sessions')
+  const [checkpointSheetCheckpoint, setCheckpointSheetCheckpoint] =
+    useState<Checkpoint | null>(null)
+  const [checkpointDetail, setCheckpointDetail] =
+    useState<DashboardCheckpointDetailResponse | null>(null)
+  const [checkpointDetailSource, setCheckpointDetailSource] =
+    useState<CheckpointDetailLoadState>('idle')
   const [editorPanelWidth, onResizeStart] = useResizeWidth({
     defaultWidth: EDITOR_PANEL_DEFAULT,
     minWidth: EDITOR_PANEL_MIN,
@@ -105,15 +138,91 @@ export function SessionsView() {
 
   useSessionsResultSync({ variables })
 
+  const parsedVars = parseSessionsVariablesJson(variables)
+  const [resolvedRepoId, setResolvedRepoId] = useState<string | null>(null)
+
+  /**
+   * Auto-run the default sessions query once the landing defaults are applied and a
+   * repo has been resolved, so the page lands with data present instead of an empty
+   * idle table. Re-fires when the resolved repo changes (e.g. user switches repos).
+   */
+  useEffect(() => {
+    if (!sessionsLandingDefaultsApplied) return
+    if (!resolvedRepoId) return
+    const state = rootStoreInstance.getState()
+    void runDashboardQueryExplorerQuery({
+      query: state.query,
+      variables: state.variables,
+    })
+  }, [sessionsLandingDefaultsApplied, resolvedRepoId])
+
+  const checkpointRows = useMemo(
+    () => deriveDedupedCheckpointsFromSessions(sessionRows),
+    [sessionRows],
+  )
+
+  useEffect(() => {
+    if (checkpointDetailSource !== 'loading' || !checkpointSheetCheckpoint) {
+      return
+    }
+
+    const ac = new AbortController()
+
+    fetchDashboardCheckpointDetail(
+      {
+        repoId: resolvedRepoId,
+        checkpointId: checkpointSheetCheckpoint.id,
+      },
+      { signal: ac.signal },
+    )
+      .then((detail) => {
+        setCheckpointDetail(detail)
+        setCheckpointDetailSource('api')
+      })
+      .catch((error: unknown) => {
+        if (ac.signal.aborted) return
+        console.error(
+          `Failed to load checkpoint details for ${checkpointSheetCheckpoint.id}`,
+          error,
+        )
+        setCheckpointDetail(null)
+        setCheckpointDetailSource('error')
+      })
+
+    return () => {
+      ac.abort()
+    }
+  }, [
+    checkpointDetailSource,
+    checkpointSheetCheckpoint,
+    resolvedRepoId,
+  ])
+
+  const closeCheckpointSheet = useCallback(() => {
+    setCheckpointSheetCheckpoint(null)
+    setCheckpointDetail(null)
+    setCheckpointDetailSource('idle')
+  }, [])
+
   const handleSessionClick = (session: DashboardInteractionSessionDto) => {
+    closeCheckpointSheet()
     setSelectedSessionId(session.session_id)
     setSelectedSessionSummary(session)
     setOpen(false)
     setRightOpen(true)
   }
 
-  const parsedVars = parseSessionsVariablesJson(variables)
-  const [resolvedRepoId, setResolvedRepoId] = useState<string | null>(null)
+  const handleCheckpointRowClick = useCallback(
+    (row: SessionsCheckpointRow) => {
+      setSelectedSessionId(null)
+      setSelectedSessionSummary(null)
+      setRightOpen(false)
+      setCheckpointDetail(null)
+      setCheckpointSheetCheckpoint(sessionsCheckpointRowToCheckpoint(row))
+      setCheckpointDetailSource('loading')
+    },
+    [setRightOpen, setSelectedSessionId, setSelectedSessionSummary],
+  )
 
   const userName = 'You'
 
@@ -159,7 +268,8 @@ export function SessionsView() {
           <div className='shrink-0'>
             <h1 className='text-2xl font-bold tracking-tight'>Sessions</h1>
             <p className='mt-1 text-sm text-muted-foreground'>
-              Run queries against session data.
+              Run queries against session data ({SESSIONS_LANDING_PAGE_SIZE}{' '}
+              sessions per page by default).
             </p>
           </div>
           <SessionsRepoBranchFilters
@@ -198,43 +308,74 @@ export function SessionsView() {
             </p>
           )}
 
-          <div className='mt-6 min-h-0 shrink-0'>
-            <div className='mb-4 flex flex-wrap items-center justify-between gap-2'>
-              <h2 className='text-lg font-semibold tracking-tight'>Sessions</h2>
-              <div className='flex items-center gap-1'>
-                <Button
-                  type='button'
-                  variant='outline'
-                  size='sm'
-                  className='h-8 px-2'
-                  disabled={
-                    !sessionsPageInfo?.hasPreviousPage ||
-                    dataSource === 'loading'
-                  }
-                  onClick={() => void onSessionsBack()}
-                  aria-label='Previous sessions page'
-                >
-                  <ChevronLeft className='h-4 w-4' />
-                </Button>
-                <Button
-                  type='button'
-                  variant='outline'
-                  size='sm'
-                  className='h-8 px-2'
-                  disabled={
-                    !sessionsPageInfo?.hasNextPage || dataSource === 'loading'
-                  }
-                  onClick={() => void onSessionsNext()}
-                  aria-label='Next sessions page'
-                >
-                  <ChevronRight className='h-4 w-4' />
-                </Button>
+          <div className='mt-6 shrink-0'>
+            <Tabs
+              value={mainTab}
+              onValueChange={(v) => setMainTab(v as SessionsMainTab)}
+              className='w-full'
+            >
+              <div className='mb-3 flex h-9 shrink-0 flex-nowrap items-center justify-between gap-3'>
+                <TabsList className='h-9 w-fit shrink-0'>
+                  <TabsTrigger value='sessions' className='text-sm'>
+                    Sessions
+                  </TabsTrigger>
+                  <TabsTrigger value='checkpoints' className='text-sm'>
+                    Checkpoints
+                  </TabsTrigger>
+                </TabsList>
+                <div className='flex shrink-0 items-center gap-1'>
+                  <Button
+                    type='button'
+                    variant='outline'
+                    size='sm'
+                    className='h-8 px-2'
+                    disabled={
+                      !sessionsPageInfo?.hasPreviousPage ||
+                      dataSource === 'loading'
+                    }
+                    onClick={() => void onSessionsBack()}
+                    aria-label='Previous sessions page'
+                  >
+                    <ChevronLeft className='h-4 w-4' />
+                  </Button>
+                  <Button
+                    type='button'
+                    variant='outline'
+                    size='sm'
+                    className='h-8 px-2'
+                    disabled={
+                      !sessionsPageInfo?.hasNextPage || dataSource === 'loading'
+                    }
+                    onClick={() => void onSessionsNext()}
+                    aria-label='Next sessions page'
+                  >
+                    <ChevronRight className='h-4 w-4' />
+                  </Button>
+                </div>
               </div>
-            </div>
-            <SessionsTable
-              data={sessionRows}
-              onSessionClick={handleSessionClick}
-            />
+              <TabsContent value='sessions' className='mt-0'>
+                <div className={SESSIONS_TAB_PANEL_MIN_HEIGHT}>
+                  <SessionsTable
+                    data={sessionRows}
+                    onSessionClick={handleSessionClick}
+                  />
+                </div>
+              </TabsContent>
+              <TabsContent value='checkpoints' className='mt-0'>
+                <div
+                  className={`flex flex-col ${SESSIONS_TAB_PANEL_MIN_HEIGHT}`}
+                >
+                  <p className='mb-3 shrink-0 text-xs text-muted-foreground'>
+                    Checkpoints linked to interaction sessions on this page (from{' '}
+                    <span className='font-mono'>linkedCheckpoints</span>).
+                  </p>
+                  <SessionsCheckpointsTable
+                    rows={checkpointRows}
+                    onCheckpointClick={handleCheckpointRowClick}
+                  />
+                </div>
+              </TabsContent>
+            </Tabs>
           </div>
         </div>
       </Main>
@@ -258,6 +399,15 @@ export function SessionsView() {
           }}
         />
       </Sidebar>
+
+      <CheckpointSheet
+        selectedCheckpoint={checkpointSheetCheckpoint}
+        checkpointDetail={checkpointDetail}
+        checkpointDetailSource={checkpointDetailSource}
+        userName={userName}
+        repoId={resolvedRepoId}
+        onClose={closeCheckpointSheet}
+      />
     </>
   )
 }

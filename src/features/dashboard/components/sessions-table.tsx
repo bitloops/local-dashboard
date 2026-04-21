@@ -22,6 +22,7 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { DataTablePagination, DataTableToolbar } from '@/components/data-table'
+import { SESSIONS_LANDING_PAGE_SIZE } from '@/features/sessions/sessions-landing-constants'
 import type { DashboardInteractionSessionDto } from '../api-types'
 import { sessionColumns, type SessionRow } from './sessions-columns'
 
@@ -41,6 +42,11 @@ export function SessionsTable({ data, onSessionClick }: SessionsTableProps) {
   const table = useReactTable<SessionRow>({
     data,
     columns: sessionColumns,
+    initialState: {
+      pagination: {
+        pageSize: SESSIONS_LANDING_PAGE_SIZE,
+      },
+    },
     state: {
       sorting,
       columnVisibility,

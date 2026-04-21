@@ -231,6 +231,13 @@ export const DASHBOARD_INTERACTION_SESSIONS_QUERY = `
       lastEventAt
       turnCount
       checkpointCount
+      linkedCheckpoints {
+        checkpointId
+        commitSha
+        name
+        email
+        committedAt
+      }
     }
   }
 `
@@ -264,6 +271,13 @@ export const DASHBOARD_INTERACTION_SESSIONS_ONLY_QUERY = `
       lastEventAt
       turnCount
       checkpointCount
+      linkedCheckpoints {
+        checkpointId
+        commitSha
+        name
+        email
+        committedAt
+      }
     }
   }
 `

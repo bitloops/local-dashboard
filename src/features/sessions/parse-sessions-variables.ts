@@ -1,4 +1,4 @@
-import { DASHBOARD_PAGE_SIZE } from '@/features/dashboard/graphql/fetch-dashboard-data'
+import { SESSIONS_LANDING_PAGE_SIZE } from '@/features/sessions/sessions-landing-constants'
 
 export type ParsedSessionsVariables = {
   repoId: string | null
@@ -46,7 +46,7 @@ export function parseSessionsVariablesJson(
     const limit =
       typeof p.limit === 'number' && Number.isFinite(p.limit)
         ? p.limit
-        : DASHBOARD_PAGE_SIZE
+        : SESSIONS_LANDING_PAGE_SIZE
     const offset =
       typeof p.offset === 'number' && Number.isFinite(p.offset) ? p.offset : 0
     return { repoId, branch, limit, offset }
@@ -54,7 +54,7 @@ export function parseSessionsVariablesJson(
     return {
       repoId: null,
       branch: null,
-      limit: DASHBOARD_PAGE_SIZE,
+      limit: SESSIONS_LANDING_PAGE_SIZE,
       offset: 0,
     }
   }
