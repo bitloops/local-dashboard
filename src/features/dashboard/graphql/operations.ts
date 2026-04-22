@@ -311,12 +311,18 @@ export const DASHBOARD_INTERACTION_SESSION_DETAIL_QUERY = `
         }
         filePaths
         toolUses {
+          toolInvocationId
           toolUseId
           sessionId
           turnId
           toolKind
           taskDescription
-          subagentId
+          inputSummary
+          outputSummary
+          source
+          command
+          commandBinary
+          commandArgv
           transcriptPath
           startedAt
           endedAt
@@ -357,12 +363,18 @@ export const DASHBOARD_INTERACTION_SESSION_DETAIL_QUERY = `
         filesModified
         checkpointId
         toolUses {
+          toolInvocationId
           toolUseId
           sessionId
           turnId
           toolKind
           taskDescription
-          subagentId
+          inputSummary
+          outputSummary
+          source
+          command
+          commandBinary
+          commandArgv
           transcriptPath
           startedAt
           endedAt

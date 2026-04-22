@@ -4,7 +4,6 @@ import {
   type DashboardCheckpointSessionDetailDto,
   type DashboardInteractionEventDto,
   type DashboardInteractionSessionDetailResponse,
-  type DashboardInteractionToolUseDto,
   type DashboardInteractionTurnDto,
 } from '../api-types'
 import { CopyButton } from '@/components/copy-button'
@@ -14,12 +13,6 @@ import { Card, CardDescription, CardTitle } from '@/components/ui/card'
 import { Separator } from '@/components/ui/separator'
 import { Button } from '@/components/ui/button'
 import { Sheet, SheetContent } from '@/components/ui/sheet'
-import {
-  Accordion,
-  AccordionContent,
-  AccordionItem,
-  AccordionTrigger,
-} from '@/components/ui/accordion'
 import { XIcon } from 'lucide-react'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { PrismLight as SyntaxHighlighter } from 'react-syntax-highlighter'
@@ -37,6 +30,9 @@ import {
   parseTranscriptEntries,
   prettyPrintJson,
 } from './checkpoint-sheet-utils'
+import { InteractionToolUseEntry } from '@/features/dashboard/components/interaction-tool-use-entry'
+import { sortedSessionToolUses } from '@/features/dashboard/utils/session-tool-uses'
+import { TurnsTimeline } from '@/features/dashboard/components/turns-timeline'
 
 SyntaxHighlighter.registerLanguage('json', json)
 
@@ -146,27 +142,9 @@ function CheckpointDetailContentInner({
   const turns: DashboardInteractionTurnDto[] = interactionDetail?.turns ?? []
   const rawEvents: DashboardInteractionEventDto[] =
     interactionDetail?.raw_events ?? []
-
-  function flattenToolUses(): Array<
-    DashboardInteractionToolUseDto & {
-      scope: 'session' | 'turn'
-      turnId?: string
-    }
-  > {
-    const sessionTools =
-      interactionDetail?.summary?.tool_uses?.map((t) => ({
-        ...t,
-        scope: 'session' as const,
-      })) ?? []
-    const turnTools = turns.flatMap((turn) =>
-      (turn.tool_uses ?? []).map((t) => ({
-        ...t,
-        scope: 'turn' as const,
-        turnId: turn.turn_id,
-      })),
-    )
-    return [...sessionTools, ...turnTools]
-  }
+  const sessionToolUsesList = sortedSessionToolUses(
+    interactionDetail?.summary ?? null,
+  )
 
   const metadataJson = selectedCheckpoint
     ? JSON.stringify(
@@ -393,68 +371,11 @@ function CheckpointDetailContentInner({
                                         )}
                                       {interactionSource === 'api' &&
                                         turns.length > 0 && (
-                                          <Accordion
-                                            key={`turns-${selectedCheckpoint.id}-${selectedSessionTab}`}
-                                            type='single'
-                                            collapsible
-                                            className='flex w-full flex-col gap-3'
-                                          >
-                                            {turns.map((turn) => (
-                                              <AccordionItem
-                                                key={turn.turn_id}
-                                                value={turn.turn_id}
-                                                variant='card'
-                                              >
-                                                <AccordionTrigger className='px-4 py-3 hover:bg-muted/50 hover:no-underline [&[data-state=open]]:bg-muted/40'>
-                                                  <div className='flex min-w-0 flex-1 items-start justify-between gap-2 text-start'>
-                                                    <div className='min-w-0'>
-                                                      <p className='text-sm font-medium'>
-                                                        Turn {turn.turn_number}
-                                                      </p>
-                                                      <p className='line-clamp-2 text-xs text-muted-foreground'>
-                                                        {formatPromptForDisplay(
-                                                          turn.prompt ??
-                                                            turn.summary ??
-                                                            '',
-                                                        ) || '-'}
-                                                      </p>
-                                                    </div>
-                                                    <div className='flex shrink-0 flex-col items-end gap-1 pe-1'>
-                                                      {turn.checkpoint_id && (
-                                                        <Badge variant='secondary'>
-                                                          checkpoint
-                                                        </Badge>
-                                                      )}
-                                                      <div className='flex flex-wrap items-center justify-end gap-1'>
-                                                        {turn.model && (
-                                                          <Badge
-                                                            variant='outline'
-                                                            className='max-w-[140px] truncate'
-                                                          >
-                                                            {turn.model}
-                                                          </Badge>
-                                                        )}
-                                                        <Badge variant='outline'>
-                                                          {
-                                                            turn.files_modified
-                                                              .length
-                                                          }{' '}
-                                                          files
-                                                        </Badge>
-                                                      </div>
-                                                    </div>
-                                                  </div>
-                                                </AccordionTrigger>
-                                                <AccordionContent className='border-t border-border px-4 pb-4 pt-4'>
-                                                  <TurnDetailContent
-                                                    turn={turn}
-                                                    rawEvents={rawEvents}
-                                                    userName={userName}
-                                                  />
-                                                </AccordionContent>
-                                              </AccordionItem>
-                                            ))}
-                                          </Accordion>
+                                          <TurnsTimeline
+                                            turns={turns}
+                                            rawEvents={rawEvents}
+                                            userName={userName}
+                                          />
                                         )}
                                     </div>
                                   )}
@@ -468,45 +389,24 @@ function CheckpointDetailContentInner({
                                       )}
                                       {interactionSource === 'api' && (
                                         <>
-                                          {flattenToolUses().length === 0 ? (
+                                          {sessionToolUsesList.length === 0 ? (
                                             <p className='text-sm text-muted-foreground'>
                                               No tool use entries were returned
                                               for this session.
                                             </p>
                                           ) : (
                                             <div className='space-y-2'>
-                                              {flattenToolUses().map((tool) => (
-                                                <div
-                                                  key={`${tool.scope}-${tool.tool_use_id}`}
-                                                  className='rounded-md border bg-background px-3 py-2'
-                                                >
-                                                  <div className='flex flex-wrap items-center gap-2'>
-                                                    <Badge variant='secondary'>
-                                                      {tool.tool_kind ?? 'tool'}
-                                                    </Badge>
-                                                    {tool.turnId && (
-                                                      <Badge variant='outline'>
-                                                        turn
-                                                      </Badge>
-                                                    )}
-                                                    {tool.started_at && (
-                                                      <Badge variant='outline'>
-                                                        {formatDateTime(
-                                                          tool.started_at,
-                                                        )}
-                                                      </Badge>
-                                                    )}
-                                                  </div>
-                                                  {tool.task_description && (
-                                                    <p className='mt-1 text-xs text-muted-foreground whitespace-pre-wrap break-words'>
-                                                      {tool.task_description}
-                                                    </p>
-                                                  )}
-                                                  <p className='mt-1 text-[11px] font-mono text-muted-foreground break-all'>
-                                                    {tool.tool_use_id}
-                                                  </p>
-                                                </div>
-                                              ))}
+                                              {sessionToolUsesList.map(
+                                                (tool) => (
+                                                  <InteractionToolUseEntry
+                                                    key={
+                                                      tool.tool_invocation_id ||
+                                                      `${tool.tool_use_id}-${tool.started_at ?? ''}`
+                                                    }
+                                                    tool={tool}
+                                                  />
+                                                ),
+                                              )}
                                             </div>
                                           )}
                                         </>
