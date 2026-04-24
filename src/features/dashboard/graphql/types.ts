@@ -119,12 +119,18 @@ export type DashboardInteractionTokenUsageNode = {
 }
 
 export type DashboardInteractionToolUseNode = {
+  toolInvocationId: string
   toolUseId: string
   sessionId: string
   turnId?: string | null
   toolKind?: string | null
   taskDescription?: string | null
-  subagentId?: string | null
+  inputSummary?: string | null
+  outputSummary?: string | null
+  source?: string | null
+  command?: string | null
+  commandBinary?: string | null
+  commandArgv?: string[] | null
   transcriptPath?: string | null
   startedAt?: string | null
   endedAt?: string | null

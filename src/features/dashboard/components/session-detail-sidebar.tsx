@@ -2,8 +2,6 @@ import { lazy, startTransition, Suspense, useEffect, useState } from 'react'
 import {
   type DashboardInteractionSessionDetailResponse,
   type DashboardInteractionSessionDto,
-  type DashboardInteractionToolUseDto,
-  type DashboardInteractionTurnDto,
 } from '../api-types'
 import { CopyButton } from '@/components/copy-button'
 import { Badge } from '@/components/ui/badge'
@@ -11,12 +9,6 @@ import { Button } from '@/components/ui/button'
 import { CardDescription, CardTitle } from '@/components/ui/card'
 import { Separator } from '@/components/ui/separator'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import {
-  Accordion,
-  AccordionContent,
-  AccordionItem,
-  AccordionTrigger,
-} from '@/components/ui/accordion'
 import { XIcon } from 'lucide-react'
 import { fetchDashboardInteractionSessionDetail } from '../graphql/fetch-dashboard-data'
 import { formatAgentLabel } from '../utils'
@@ -24,8 +16,10 @@ import {
   formatDateTime,
   formatPromptForDisplay,
 } from './checkpoint-sheet-utils'
+import { InteractionToolUseEntry } from '@/features/dashboard/components/interaction-tool-use-entry'
+import { sortedSessionToolUses } from '@/features/dashboard/utils/session-tool-uses'
 import { FileTree } from './file-tree'
-import { TurnDetailContent } from './checkpoint-sheet'
+import { TurnsTimeline } from '@/features/dashboard/components/turns-timeline'
 
 const TokenUsageChart = lazy(() =>
   import('./token-usage-chart').then((m) => ({ default: m.TokenUsageChart })),
@@ -151,30 +145,6 @@ function SessionSummaryView({
   )
 }
 
-function flattenToolUses(
-  interactionDetail: DashboardInteractionSessionDetailResponse | null,
-  turns: DashboardInteractionTurnDto[],
-): Array<
-  DashboardInteractionToolUseDto & {
-    scope: 'session' | 'turn'
-    turnId?: string
-  }
-> {
-  const sessionTools =
-    interactionDetail?.summary?.tool_uses?.map((t) => ({
-      ...t,
-      scope: 'session' as const,
-    })) ?? []
-  const turnTools = turns.flatMap((turn) =>
-    (turn.tool_uses ?? []).map((t) => ({
-      ...t,
-      scope: 'turn' as const,
-      turnId: turn.turn_id,
-    })),
-  )
-  return [...sessionTools, ...turnTools]
-}
-
 type SessionDetailSidebarProps = {
   sessionId: string | null
   sessionSummary: DashboardInteractionSessionDto | null
@@ -213,6 +183,7 @@ export function SessionDetailSidebar({
     startTransition(() => {
       setInteractionSource('loading')
       setInteractionError(null)
+      setInteractionDetail(null)
     })
 
     fetchDashboardInteractionSessionDetail({ repoId, sessionId })
@@ -238,7 +209,11 @@ export function SessionDetailSidebar({
   const summary = interactionDetail?.summary ?? sessionSummary
   const turns = interactionDetail?.turns ?? []
   const rawEvents = interactionDetail?.raw_events ?? []
-  const tools = flattenToolUses(interactionDetail, turns)
+  /** List query does not fetch `toolUses`; only session detail does. Avoid showing empty until detail returns. */
+  const sessionToolsList =
+    interactionDetail?.summary != null
+      ? sortedSessionToolUses(interactionDetail.summary)
+      : null
 
   return (
     <>
@@ -289,93 +264,36 @@ export function SessionDetailSidebar({
                   {turns.length === 0 ? (
                     <p className='text-sm text-muted-foreground'>No turns.</p>
                   ) : (
-                    <Accordion
-                      key={summary.session_id}
-                      type='single'
-                      collapsible
-                      className='flex w-full flex-col gap-3'
-                    >
-                      {turns.map((turn) => (
-                        <AccordionItem
-                          key={turn.turn_id}
-                          value={turn.turn_id}
-                          variant='card'
-                        >
-                          <AccordionTrigger className='px-4 py-3 hover:bg-muted/50 hover:no-underline [&[data-state=open]]:bg-muted/40'>
-                            <div className='flex min-w-0 flex-1 items-start justify-between gap-2 text-start'>
-                              <div className='min-w-0'>
-                                <p className='text-sm font-medium'>
-                                  {turn.turn_number}
-                                </p>
-                                <p className='line-clamp-2 text-xs text-muted-foreground'>
-                                  {formatPromptForDisplay(
-                                    turn.prompt ?? turn.summary ?? '',
-                                  ) || '-'}
-                                </p>
-                              </div>
-                              <div className='flex shrink-0 flex-col items-end gap-1 pe-1'>
-                                {turn.checkpoint_id && (
-                                  <Badge variant='secondary'>checkpoint</Badge>
-                                )}
-                                <div className='flex flex-wrap items-center justify-end gap-1'>
-                                  {turn.model && (
-                                    <Badge
-                                      variant='outline'
-                                      className='max-w-[140px] truncate'
-                                    >
-                                      {turn.model}
-                                    </Badge>
-                                  )}
-                                  <Badge variant='outline'>
-                                    {turn.files_modified.length} files
-                                  </Badge>
-                                </div>
-                              </div>
-                            </div>
-                          </AccordionTrigger>
-                          <AccordionContent className='border-t border-border px-4 pb-4 pt-4'>
-                            <TurnDetailContent
-                              turn={turn}
-                              rawEvents={rawEvents}
-                              userName={userName}
-                            />
-                          </AccordionContent>
-                        </AccordionItem>
-                      ))}
-                    </Accordion>
+                    <TurnsTimeline
+                      turns={turns}
+                      rawEvents={rawEvents}
+                      userName={userName}
+                    />
                   )}
                 </TabsContent>
                 <TabsContent value='tools' className='mt-0 space-y-2'>
-                  {tools.length === 0 ? (
+                  {interactionSource === 'error' ? (
+                    <p className='text-sm text-muted-foreground'>
+                      Could not load session detail; tool uses are unavailable.
+                    </p>
+                  ) : interactionSource === 'loading' ||
+                    sessionToolsList === null ? (
+                    <p className='text-sm text-muted-foreground'>
+                      Loading tool uses…
+                    </p>
+                  ) : sessionToolsList.length === 0 ? (
                     <p className='text-sm text-muted-foreground'>
                       No tool use entries.
                     </p>
                   ) : (
-                    tools.map((tool) => (
-                      <div
-                        key={`${tool.scope}-${tool.tool_use_id}-${tool.turnId ?? ''}`}
-                        className='rounded-md border bg-background px-3 py-2'
-                      >
-                        <div className='flex flex-wrap items-center gap-2'>
-                          <Badge variant='secondary'>
-                            {tool.tool_kind ?? 'tool'}
-                          </Badge>
-                          {tool.turnId && <Badge variant='outline'>turn</Badge>}
-                          {tool.started_at && (
-                            <Badge variant='outline'>
-                              {formatDateTime(tool.started_at)}
-                            </Badge>
-                          )}
-                        </div>
-                        {tool.task_description && (
-                          <p className='mt-1 text-xs text-muted-foreground whitespace-pre-wrap break-words'>
-                            {tool.task_description}
-                          </p>
-                        )}
-                        <p className='mt-1 break-all font-mono text-[11px] text-muted-foreground'>
-                          {tool.tool_use_id}
-                        </p>
-                      </div>
+                    sessionToolsList.map((tool) => (
+                      <InteractionToolUseEntry
+                        key={
+                          tool.tool_invocation_id ||
+                          `${tool.tool_use_id}-${tool.started_at ?? ''}`
+                        }
+                        tool={tool}
+                      />
                     ))
                   )}
                 </TabsContent>

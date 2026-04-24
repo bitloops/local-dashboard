@@ -185,7 +185,7 @@ export function SessionsRepoBranchFilters({
       )}
       <div className='flex min-w-0 flex-1 flex-wrap items-center gap-2 sm:gap-3'>
         <label className='flex min-w-[min(100%,12rem)] flex-1 items-center gap-1.5 sm:min-w-[14rem]'>
-          <span className='w-9 shrink-0 text-[11px] text-muted-foreground'>
+          <span className='w-14 shrink-0 pe-1 text-[11px] text-muted-foreground'>
             Repo
           </span>
           <Select
@@ -215,7 +215,7 @@ export function SessionsRepoBranchFilters({
           </Select>
         </label>
         <label className='flex min-w-[min(100%,10rem)] flex-1 items-center gap-1.5 sm:min-w-[12rem]'>
-          <span className='w-9 shrink-0 text-[11px] text-muted-foreground'>
+          <span className='w-14 shrink-0 pe-1 text-[11px] text-muted-foreground'>
             Branch
           </span>
           <Select

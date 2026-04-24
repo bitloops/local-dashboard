@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { DASHBOARD_PAGE_SIZE } from '@/features/dashboard/graphql/fetch-dashboard-data'
+import { SESSIONS_LANDING_PAGE_SIZE } from '@/features/sessions/sessions-landing-constants'
 import {
   parseSessionsVariablesJson,
   resolveSessionsRepoId,
@@ -55,7 +55,7 @@ describe('parseSessionsVariablesJson', () => {
     ).toEqual({
       repoId: null,
       branch: null,
-      limit: DASHBOARD_PAGE_SIZE,
+      limit: SESSIONS_LANDING_PAGE_SIZE,
       offset: 0,
     })
   })
@@ -82,7 +82,7 @@ describe('parseSessionsVariablesJson', () => {
     expect(parseSessionsVariablesJson('not json')).toEqual({
       repoId: null,
       branch: null,
-      limit: DASHBOARD_PAGE_SIZE,
+      limit: SESSIONS_LANDING_PAGE_SIZE,
       offset: 0,
     })
   })

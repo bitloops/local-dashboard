@@ -1,9 +1,10 @@
-import { DASHBOARD_PAGE_SIZE } from '@/features/dashboard/graphql/fetch-dashboard-data'
 import { DASHBOARD_INTERACTION_SESSIONS_ONLY_QUERY } from '@/features/dashboard/graphql/operations'
+import { SESSIONS_LANDING_PAGE_SIZE } from '@/features/sessions/sessions-landing-constants'
 
 /** Default GraphQL document for the Sessions landing explorer: `interactionSessions` only. */
-export const SESSIONS_LANDING_DEFAULT_QUERY =
-  DASHBOARD_INTERACTION_SESSIONS_ONLY_QUERY
+export const SESSIONS_LANDING_DEFAULT_QUERY = `# Run queries against session data (${SESSIONS_LANDING_PAGE_SIZE} sessions per page by default).
+
+${DASHBOARD_INTERACTION_SESSIONS_ONLY_QUERY}`
 
 /**
  * Variables for the sessions default query — matches
@@ -17,7 +18,7 @@ export function getDefaultInteractionSessionsVariables(
   options?: { limit?: number; offset?: number },
 ): string {
   const b = branch?.trim()
-  const limit = options?.limit ?? DASHBOARD_PAGE_SIZE
+  const limit = options?.limit ?? SESSIONS_LANDING_PAGE_SIZE
   const offset = options?.offset ?? 0
   return JSON.stringify(
     {

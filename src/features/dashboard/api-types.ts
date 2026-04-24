@@ -111,12 +111,18 @@ export type DashboardInteractionCommitAuthorDto = {
 }
 
 export type DashboardInteractionToolUseDto = {
+  tool_invocation_id: string
   tool_use_id: string
   session_id: string
   turn_id: string | null
   tool_kind: string | null
   task_description: string | null
-  subagent_id: string | null
+  input_summary: string | null
+  output_summary: string | null
+  source: string | null
+  command: string | null
+  command_binary: string | null
+  command_argv: string[]
   transcript_path: string | null
   started_at: string | null
   ended_at: string | null
