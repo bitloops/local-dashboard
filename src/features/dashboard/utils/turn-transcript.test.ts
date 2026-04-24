@@ -1,3 +1,7 @@
+import type {
+  DashboardInteractionEventDto,
+  DashboardInteractionTurnDto,
+} from '@/features/dashboard/api-types'
 import { parseTranscriptEntries } from '@/features/dashboard/components/checkpoint-sheet-utils'
 import { describe, expect, it } from 'vitest'
 import {
@@ -28,7 +32,7 @@ function assistantTextLine(text: string, uuid: string, timestamp: string) {
 
 describe('getTurnTranscriptEntries', () => {
   it('uses the latest turn_end transcript fragment', () => {
-    const rawEvents = [
+    const rawEvents: DashboardInteractionEventDto[] = [
       {
         event_id: 'e1',
         session_id: 's1',
@@ -68,7 +72,7 @@ describe('getTurnTranscriptEntries', () => {
       },
     ]
 
-    const entries = getTurnTranscriptEntries(rawEvents as any, {
+    const entries = getTurnTranscriptEntries(rawEvents, {
       turn_id: 't1',
     })
     expect(entries).toHaveLength(1)
@@ -105,7 +109,7 @@ describe('buildTranscriptSectionsForTurns', () => {
       assistantTextLine('answer two', 'a2', '2026-01-01T00:00:04Z'),
     ].join('\n')
 
-    const turns = [
+    const turns: DashboardInteractionTurnDto[] = [
       {
         turn_id: 'turn-a',
         session_id: 's1',
@@ -142,7 +146,7 @@ describe('buildTranscriptSectionsForTurns', () => {
       },
     ]
 
-    const rawEvents = [
+    const rawEvents: DashboardInteractionEventDto[] = [
       {
         event_id: 'e1',
         session_id: 's1',
@@ -173,10 +177,7 @@ describe('buildTranscriptSectionsForTurns', () => {
       },
     ]
 
-    const sections = buildTranscriptSectionsForTurns(
-      rawEvents as any,
-      turns as any,
-    )
+    const sections = buildTranscriptSectionsForTurns(rawEvents, turns)
     expect(sections).toHaveLength(2)
     const t1 = sections.find((s) => s.turn.turn_id === 'turn-a')!
     const t2 = sections.find((s) => s.turn.turn_id === 'turn-b')!
