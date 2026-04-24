@@ -1,3 +1,9 @@
+## [0.0.9]
+
+### Fixed
+
+- Improved session compatibility and tool reporting for OpenCode
+
 ## [0.0.8]
 
 ### Added

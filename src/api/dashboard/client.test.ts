@@ -516,6 +516,91 @@ describe('subscribeDashboardGraphQL', () => {
     })
   })
 
+  it('reports an error when WebSocket is unavailable', () => {
+    vi.stubGlobal('WebSocket', undefined)
+    const onError = vi.fn()
+
+    const unsubscribe = subscribeDashboardGraphQL(
+      'subscription DashboardInteractionUpdates { interactionUpdates { repoId } }',
+      undefined,
+      { onData: vi.fn(), onError },
+    )
+
+    expect(onError).toHaveBeenCalledWith(
+      expect.objectContaining({
+        message: 'WebSocket is not available in this environment.',
+      }),
+    )
+    expect(unsubscribe()).toBeUndefined()
+  })
+
+  it('surfaces GraphQL errors from subscription payloads', async () => {
+    const onData = vi.fn()
+    const onError = vi.fn()
+    const unsubscribe = subscribeDashboardGraphQL(
+      'subscription DashboardInteractionUpdates { interactionUpdates { repoId } }',
+      undefined,
+      { onData, onError },
+    )
+
+    const socket = MockWebSocket.instances[0]
+    socket?.emitOpen()
+    socket?.emitMessage({ type: 'connection_ack' })
+    await flushMicrotasks()
+
+    const subscribeMessage = JSON.parse(socket?.sent[1] ?? '{}') as {
+      id?: string
+    }
+    socket?.emitMessage({
+      type: 'next',
+      id: subscribeMessage.id,
+      payload: {
+        errors: [{ message: 'Subscription denied' }],
+      },
+    })
+    await flushMicrotasks()
+
+    expect(onData).not.toHaveBeenCalled()
+    expect(onError).toHaveBeenCalledWith(
+      expect.objectContaining({
+        message: 'Subscription denied',
+        graphQLErrors: [{ message: 'Subscription denied' }],
+      }),
+    )
+
+    unsubscribe()
+  })
+
+  it('ignores subscription payloads that contain neither data nor errors', async () => {
+    const onData = vi.fn()
+    const onError = vi.fn()
+    const unsubscribe = subscribeDashboardGraphQL(
+      'subscription DashboardInteractionUpdates { interactionUpdates { repoId } }',
+      undefined,
+      { onData, onError },
+    )
+
+    const socket = MockWebSocket.instances[0]
+    socket?.emitOpen()
+    socket?.emitMessage({ type: 'connection_ack' })
+    await flushMicrotasks()
+
+    const subscribeMessage = JSON.parse(socket?.sent[1] ?? '{}') as {
+      id?: string
+    }
+    socket?.emitMessage({
+      type: 'next',
+      id: subscribeMessage.id,
+      payload: {},
+    })
+    await flushMicrotasks()
+
+    expect(onData).not.toHaveBeenCalled()
+    expect(onError).not.toHaveBeenCalled()
+
+    unsubscribe()
+  })
+
   it('stops retrying when the socket keeps closing before the GraphQL handshake completes', async () => {
     vi.useFakeTimers()
 

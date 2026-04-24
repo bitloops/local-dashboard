@@ -224,6 +224,40 @@ describe('query-explorer slice', () => {
           '{\n  "repo": "new/repo",\n  "branch": "develop",\n  "commitsFirst": 10\n}',
       })
     })
+
+    it('does not sync custom variable objects', () => {
+      expect(
+        syncQueryExplorerVariablesWithDashboardSelection(
+          '{"repo":"old/repo","after":"cursor"}',
+          'new/repo',
+          'develop',
+        ),
+      ).toEqual({ updated: false })
+    })
+
+    it('does not sync invalid or non-object variables', () => {
+      expect(
+        syncQueryExplorerVariablesWithDashboardSelection(
+          'not json',
+          'new/repo',
+          'develop',
+        ),
+      ).toEqual({ updated: false })
+      expect(
+        syncQueryExplorerVariablesWithDashboardSelection(
+          'null',
+          'new/repo',
+          'develop',
+        ),
+      ).toEqual({ updated: false })
+      expect(
+        syncQueryExplorerVariablesWithDashboardSelection(
+          '["repo"]',
+          'new/repo',
+          'develop',
+        ),
+      ).toEqual({ updated: false })
+    })
   })
 
   describe('dashboard repo sync', () => {
@@ -270,6 +304,30 @@ describe('query-explorer slice', () => {
 
       expect(rootStore.getState().variables).toBe(
         '{\n  "repo": "acme/demo",\n  "branch": null,\n  "commitsFirst": 10\n}',
+      )
+    })
+
+    it('uses an empty repo variable when the selected repo is not in options', () => {
+      const rootStore = createRootStore()
+
+      rootStore.getState().setRepoOptions(repoOptions)
+      rootStore.getState().setSelectedRepoId('missing-repo')
+
+      expect(rootStore.getState().variables).toBe(
+        '{\n  "repo": "",\n  "branch": null,\n  "commitsFirst": 10\n}',
+      )
+    })
+
+    it('leaves custom query explorer variables unchanged on dashboard selection changes', () => {
+      const rootStore = createRootStore()
+
+      rootStore.getState().setVariables('{"repo":"old/repo","after":"cursor"}')
+      rootStore.getState().setRepoOptions(repoOptions)
+      rootStore.getState().setSelectedRepoId('repo-1')
+      rootStore.getState().setSelectedBranch('main')
+
+      expect(rootStore.getState().variables).toBe(
+        '{"repo":"old/repo","after":"cursor"}',
       )
     })
   })
@@ -465,6 +523,17 @@ describe('query-explorer slice', () => {
       expect(store.getState().schema).toBeNull()
       expect(store.getState().schemaLoading).toBe(false)
       expect(store.getState().schemaError).toBe('Network error')
+    })
+
+    it('uses the fallback schema error when the thrown error has no message', async () => {
+      vi.mocked(getQuerySchema).mockRejectedValue(new Error('   '))
+
+      store.getState().loadSchema()
+      await vi.mocked(getQuerySchema).mock.results[0]?.value?.catch(() => {})
+
+      expect(store.getState().schema).toBeNull()
+      expect(store.getState().schemaLoading).toBe(false)
+      expect(store.getState().schemaError).toBe('Failed to load query schema')
     })
 
     it('does not fetch when schema is already set', async () => {
