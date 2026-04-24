@@ -30,4 +30,28 @@ describe('mapDashboardResultDataToSessionRows', () => {
     expect(rows[0]?.agent_type).toBe('claude-code')
     expect(rows[0]?.turn_count).toBe(2)
   })
+
+  it('orders sessions by startedAt descending (newest first) regardless of API order', () => {
+    const older = {
+      sessionId: 'older',
+      branch: 'main' as const,
+      actor: null,
+      agentType: 'claude-code',
+      model: null,
+      firstPrompt: null,
+      startedAt: '2025-01-01T00:00:00.000Z',
+      lastEventAt: null,
+      turnCount: 1,
+      checkpointCount: 0,
+    }
+    const newer = {
+      ...older,
+      sessionId: 'newer',
+      startedAt: '2025-01-10T00:00:00.000Z',
+    }
+    const rows = mapDashboardResultDataToSessionRows({
+      interactionSessions: [older, newer],
+    })
+    expect(rows.map((r) => r.session_id)).toEqual(['newer', 'older'])
+  })
 })

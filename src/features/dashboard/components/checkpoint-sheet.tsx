@@ -30,7 +30,7 @@ import {
   parseTranscriptEntries,
   prettyPrintJson,
 } from './checkpoint-sheet-utils'
-import { InteractionToolUseEntry } from '@/features/dashboard/components/interaction-tool-use-entry'
+import { SessionToolUseList } from '@/features/dashboard/components/session-tool-use-list'
 import { sortedSessionToolUses } from '@/features/dashboard/utils/session-tool-uses'
 import { TurnsTimeline } from '@/features/dashboard/components/turns-timeline'
 
@@ -388,28 +388,12 @@ function CheckpointDetailContentInner({
                                         </p>
                                       )}
                                       {interactionSource === 'api' && (
-                                        <>
-                                          {sessionToolUsesList.length === 0 ? (
-                                            <p className='text-sm text-muted-foreground'>
-                                              No tool use entries were returned
-                                              for this session.
-                                            </p>
-                                          ) : (
-                                            <div className='space-y-2'>
-                                              {sessionToolUsesList.map(
-                                                (tool) => (
-                                                  <InteractionToolUseEntry
-                                                    key={
-                                                      tool.tool_invocation_id ||
-                                                      `${tool.tool_use_id}-${tool.started_at ?? ''}`
-                                                    }
-                                                    tool={tool}
-                                                  />
-                                                ),
-                                              )}
-                                            </div>
-                                          )}
-                                        </>
+                                        <SessionToolUseList
+                                          tools={sessionToolUsesList}
+                                          turns={turns}
+                                          rawEvents={rawEvents}
+                                          emptyMessage='No tool use entries were returned for this session.'
+                                        />
                                       )}
                                     </div>
                                   )}

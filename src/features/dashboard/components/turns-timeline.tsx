@@ -157,7 +157,7 @@ export function TurnsTimeline({
           <section
             key={`${turn.session_id}-${turn.turn_number}-${turn.turn_id}`}
             aria-label={`Turn ${turn.turn_number}`}
-            className='space-y-2'
+            className='space-y-1'
           >
             {index > 0 ? <Separator className='mb-8' /> : null}
 
@@ -172,14 +172,19 @@ export function TurnsTimeline({
                   sessionId={turn.session_id}
                   agentName={formatAgentLabel(turn.agent_type)}
                   userName={userName}
+                  hideToolTraces
                 />
               )}
             </div>
 
-            <div className='border-t border-border/50 pt-2'>
+            {/*
+              Align with chat text column: avatar (size-6) + gap-2, same as ml-8 tool/system rows
+              in ChatTranscript.
+            */}
+            <div className='min-w-0 pl-8 pt-0.5'>
               <button
                 type='button'
-                className='text-xs text-muted-foreground underline-offset-4 hover:text-foreground hover:underline'
+                className='text-left text-xs text-muted-foreground underline-offset-4 hover:text-foreground hover:underline'
                 aria-expanded={isOpen}
                 aria-controls={detailsId}
                 onClick={() =>
@@ -191,18 +196,18 @@ export function TurnsTimeline({
               >
                 {isOpen ? 'Hide details' : 'Show details'}
               </button>
-            </div>
 
-            {isOpen ? (
-              <div
-                id={detailsId}
-                role='region'
-                aria-label={`Turn ${turn.turn_number} details`}
-                className='border-t border-border/40 pt-4'
-              >
-                <TurnDetailsPanel turn={turn} />
-              </div>
-            ) : null}
+              {isOpen ? (
+                <div
+                  id={detailsId}
+                  role='region'
+                  aria-label={`Turn ${turn.turn_number} details`}
+                  className='pt-2'
+                >
+                  <TurnDetailsPanel turn={turn} />
+                </div>
+              ) : null}
+            </div>
           </section>
         )
       })}

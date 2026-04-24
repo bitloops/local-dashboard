@@ -43,6 +43,8 @@ export function SessionsTable({ data, onSessionClick }: SessionsTableProps) {
     data,
     columns: sessionColumns,
     initialState: {
+      /** Newest started first (same as session row mapping from the API). */
+      sorting: [{ id: 'started_at', desc: true }],
       pagination: {
         pageSize: SESSIONS_LANDING_PAGE_SIZE,
       },

@@ -312,10 +312,22 @@ export function mapDashboardCheckpointDetail(
   }
 }
 
+/** Newest `started_at` first; `session_id` is a stable tie-breaker. */
+function compareDashboardSessionsByStartTime(
+  a: DashboardInteractionSessionDto,
+  b: DashboardInteractionSessionDto,
+): number {
+  const t = b.started_at.localeCompare(a.started_at)
+  if (t !== 0) return t
+  return a.session_id.localeCompare(b.session_id)
+}
+
 export function mapDashboardInteractionSessions(
   data: DashboardInteractionSessionsQueryData,
 ): DashboardInteractionSessionDto[] {
-  return (data.interactionSessions ?? []).map(mapInteractionSession)
+  const rows = (data.interactionSessions ?? []).map(mapInteractionSession)
+  rows.sort(compareDashboardSessionsByStartTime)
+  return rows
 }
 
 export function mapDashboardInteractionSessionDetail(

@@ -1,118 +1,9 @@
 import { useState } from 'react'
 import { Terminal, UserCircle } from 'lucide-react'
-import { PrismLight as SyntaxHighlighter } from 'react-syntax-highlighter'
-import json from 'react-syntax-highlighter/dist/esm/languages/prism/json'
-import javascript from 'react-syntax-highlighter/dist/esm/languages/prism/javascript'
-import bash from 'react-syntax-highlighter/dist/esm/languages/prism/bash'
-import typescript from 'react-syntax-highlighter/dist/esm/languages/prism/typescript'
-import { prettyPrintJson } from './checkpoint-sheet-utils'
 import type { TranscriptMessage } from './checkpoint-sheet-utils'
 import { AgentIcon } from './agent-icon'
 import { formatDisplayName, isSystemVariant } from './chat-utils'
-import { codeBlockStyle } from './code-block-style'
-
-SyntaxHighlighter.registerLanguage('json', json)
-SyntaxHighlighter.registerLanguage('javascript', javascript)
-SyntaxHighlighter.registerLanguage('bash', bash)
-SyntaxHighlighter.registerLanguage('typescript', typescript)
-
-const TRUNCATE_LENGTH = 300
-
-function tryParseJson(s: string): string | null {
-  const t = s.trim()
-  if (!t) return null
-  try {
-    JSON.parse(t)
-    return t
-  } catch {
-    return null
-  }
-}
-
-function detectLanguage(text: string): {
-  language: string
-  code: string
-  prefix?: string
-} {
-  const trimmed = text.trim()
-  if (!trimmed) return { language: 'plaintext', code: text }
-
-  const jsonPart = tryParseJson(trimmed)
-  if (jsonPart) return { language: 'json', code: prettyPrintJson(jsonPart) }
-
-  const toolPrefix = /^Tool:\s*\S+\n/s
-  const match = text.match(toolPrefix)
-  if (match) {
-    const after = text.slice(match[0].length).trim()
-    const jsonAfter = tryParseJson(after)
-    if (jsonAfter) {
-      return {
-        language: 'json',
-        code: prettyPrintJson(jsonAfter),
-        prefix: match[0],
-      }
-    }
-    if (/^\$|^#|^(echo|cat|cd|ls|npm|pnpm|yarn|git)\s/.test(after)) {
-      return { language: 'bash', code: after, prefix: match[0] }
-    }
-    return { language: 'javascript', code: after, prefix: match[0] }
-  }
-
-  if (/^\$|^#|^(echo|cat|cd|ls|npm|pnpm|yarn|git)\s/.test(trimmed)) {
-    return { language: 'bash', code: text }
-  }
-  if (
-    /\b(function|=>|const|let|var|import|export)\b/.test(trimmed) ||
-    trimmed.startsWith('{') ||
-    trimmed.startsWith('[')
-  ) {
-    return { language: 'javascript', code: text }
-  }
-  return { language: 'plaintext', code: text }
-}
-
-function ToolMessageContent({ text }: { text: string }) {
-  const { language, code, prefix } = detectLanguage(text)
-
-  if (language === 'plaintext') {
-    return (
-      <p className='text-[11px] text-muted-foreground whitespace-pre-wrap break-words'>
-        {text}
-      </p>
-    )
-  }
-
-  return (
-    <span className='text-[11px]'>
-      {prefix && (
-        <span className='whitespace-pre-wrap break-words text-muted-foreground'>
-          {prefix}
-        </span>
-      )}
-      <SyntaxHighlighter
-        language={language}
-        style={codeBlockStyle}
-        customStyle={{
-          margin: 0,
-          padding: 0,
-          background: 'transparent',
-          fontSize: '11px',
-          whiteSpace: 'pre-wrap',
-          wordBreak: 'break-word',
-          overflowWrap: 'anywhere',
-          minWidth: 0,
-          maxWidth: '100%',
-        }}
-        codeTagProps={{ style: { fontSize: '11px' } }}
-        PreTag='span'
-        showLineNumbers={false}
-        wrapLongLines
-      >
-        {code}
-      </SyntaxHighlighter>
-    </span>
-  )
-}
+import { ToolMessageContent, ToolTraceCallResponse } from './tool-trace-pair'
 
 type TranscriptNode =
   | { type: 'single'; message: TranscriptMessage }
@@ -155,41 +46,15 @@ function ToolPairBlock({
   result: TranscriptMessage | null
 }) {
   return (
-    <div className='ml-8 min-w-0 w-[calc(100%-2rem)]'>
-      <div className='min-w-0 overflow-hidden rounded-md border border-border bg-muted/20 pt-1 text-[11px]'>
-        <div className='flex w-full items-center gap-1.5 border-b border-border py-1 px-2'>
-          <Terminal
-            className='size-3 shrink-0 text-muted-foreground'
-            aria-hidden
-          />
-          <span className='font-medium text-muted-foreground'>Call</span>
-        </div>
-        <div className='w-full overflow-x-auto px-2 pt-1 mb-2'>
-          <ToolMessageContent text={use.text} />
-        </div>
-        {result !== null && (
-          <>
-            <div
-              className='w-full border-b border-border'
-              role='separator'
-              aria-hidden
-            />
-            <div className='w-full border-b border-border py-1 px-2'>
-              <span className='font-medium text-muted-foreground'>
-                Response
-              </span>
-            </div>
-            <div
-              className={`w-full overflow-x-auto px-2 pt-1 pb-1.5 ${result.isError ? 'bg-destructive/10' : ''}`}
-            >
-              <ToolMessageContent text={result.text} />
-            </div>
-          </>
-        )}
-      </div>
-    </div>
+    <ToolTraceCallResponse
+      callText={use.text}
+      responseText={result?.text}
+      responseIsError={result?.isError}
+    />
   )
 }
+
+const TRUNCATE_LENGTH = 300
 
 type ChatBubbleProps = {
   message: TranscriptMessage
@@ -302,6 +167,11 @@ type ChatTranscriptProps = {
   sessionId: string
   agentName: string
   userName: string
+  /**
+   * When true, drop tool_use / tool_result lines so the Turns view is chat+thinking only;
+   * tool details belong on the Tool use tab.
+   */
+  hideToolTraces?: boolean
 }
 
 export function ChatTranscript({
@@ -309,8 +179,15 @@ export function ChatTranscript({
   sessionId,
   agentName,
   userName,
+  hideToolTraces = false,
 }: ChatTranscriptProps) {
-  if (entries.length === 0) {
+  const visible = hideToolTraces
+    ? entries.filter(
+        (e) => e.variant !== 'tool_use' && e.variant !== 'tool_result',
+      )
+    : entries
+
+  if (visible.length === 0) {
     return (
       <p className='text-sm text-muted-foreground'>
         No transcript entries available.
@@ -318,7 +195,7 @@ export function ChatTranscript({
     )
   }
 
-  const nodes = groupToolPairs(entries)
+  const nodes = groupToolPairs(visible)
 
   return (
     <div className='w-full min-w-0 space-y-3'>

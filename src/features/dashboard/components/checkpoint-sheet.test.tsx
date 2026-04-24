@@ -82,8 +82,18 @@ describe('parseTranscriptEntries', () => {
       type: 'user',
       message: {
         content: [
-          { type: 'tool_result', content: 'total 32', is_error: false },
-          { type: 'tool_result', content: 'Error', is_error: true },
+          {
+            type: 'tool_result',
+            tool_use_id: 'toolu_1',
+            content: 'total 32',
+            is_error: false,
+          },
+          {
+            type: 'tool_result',
+            tool_use_id: 'toolu_2',
+            content: 'Error',
+            is_error: true,
+          },
         ],
       },
       timestamp: '2025-03-04T10:00:04.000Z',
@@ -96,12 +106,14 @@ describe('parseTranscriptEntries', () => {
       variant: 'tool_result',
       text: 'total 32',
       isError: false,
+      toolUseId: 'toolu_1',
     })
     expect(entries[1]).toMatchObject({
       actor: 'assistant',
       variant: 'tool_result',
       text: 'Error',
       isError: true,
+      toolUseId: 'toolu_2',
     })
   })
 
@@ -112,7 +124,12 @@ describe('parseTranscriptEntries', () => {
         content: [
           { type: 'thinking', thinking: 'The user is asking...' },
           { type: 'text', text: 'I need to find the code first.' },
-          { type: 'tool_use', name: 'Glob', input: { pattern: '**/*.js' } },
+          {
+            type: 'tool_use',
+            id: 'toolu_glob_1',
+            name: 'Glob',
+            input: { pattern: '**/*.js' },
+          },
         ],
       },
       timestamp: '2025-03-04T10:00:05.000Z',
@@ -134,6 +151,7 @@ describe('parseTranscriptEntries', () => {
       actor: 'assistant',
       variant: 'tool_use',
       text: 'Tool: Glob\n{\n  "pattern": "**/*.js"\n}',
+      toolUseId: 'toolu_glob_1',
     })
   })
 
