@@ -44,6 +44,7 @@ export type TranscriptMessage = {
   variant: 'chat' | 'thinking' | 'tool_use' | 'tool_result'
   text: string
   isError?: boolean
+  toolUseId?: string
 }
 
 function genId(index: number): string {
@@ -53,6 +54,16 @@ function genId(index: number): string {
 function toText(content: unknown): string {
   if (typeof content === 'string') return content
   return JSON.stringify(content ?? '', null, 2)
+}
+
+function readToolUseId(block: Record<string, unknown>): string | undefined {
+  for (const key of ['tool_use_id', 'toolUseId', 'id']) {
+    const value = block[key]
+    if (typeof value === 'string' && value.trim()) {
+      return value.trim()
+    }
+  }
+  return undefined
 }
 
 function extractTextBlocks(content: unknown): string[] {
@@ -130,6 +141,7 @@ export const parseTranscriptEntries = (jsonl: string): TranscriptMessage[] => {
                 variant: 'tool_result',
                 text: toText(content),
                 isError,
+                toolUseId: readToolUseId(b),
               })
             })
           }
@@ -172,6 +184,7 @@ export const parseTranscriptEntries = (jsonl: string): TranscriptMessage[] => {
               actor: 'assistant',
               variant: 'tool_use',
               text: `Tool: ${b.name}\n${input}`,
+              toolUseId: readToolUseId(b),
             })
           }
         })

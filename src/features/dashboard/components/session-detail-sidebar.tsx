@@ -16,7 +16,7 @@ import {
   formatDateTime,
   formatPromptForDisplay,
 } from './checkpoint-sheet-utils'
-import { InteractionToolUseEntry } from '@/features/dashboard/components/interaction-tool-use-entry'
+import { SessionToolUseList } from '@/features/dashboard/components/session-tool-use-list'
 import { sortedSessionToolUses } from '@/features/dashboard/utils/session-tool-uses'
 import { FileTree } from './file-tree'
 import { TurnsTimeline } from '@/features/dashboard/components/turns-timeline'
@@ -281,20 +281,13 @@ export function SessionDetailSidebar({
                     <p className='text-sm text-muted-foreground'>
                       Loading tool uses…
                     </p>
-                  ) : sessionToolsList.length === 0 ? (
-                    <p className='text-sm text-muted-foreground'>
-                      No tool use entries.
-                    </p>
                   ) : (
-                    sessionToolsList.map((tool) => (
-                      <InteractionToolUseEntry
-                        key={
-                          tool.tool_invocation_id ||
-                          `${tool.tool_use_id}-${tool.started_at ?? ''}`
-                        }
-                        tool={tool}
-                      />
-                    ))
+                    <SessionToolUseList
+                      tools={sessionToolsList}
+                      turns={turns}
+                      rawEvents={rawEvents}
+                      emptyMessage='No tool use entries.'
+                    />
                   )}
                 </TabsContent>
               </Tabs>

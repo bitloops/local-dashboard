@@ -167,6 +167,30 @@ describe('ChatTranscript', () => {
     expect(screen.getByText(/src\/a\.js/)).toBeInTheDocument()
   })
 
+  it('omits tool_use and tool_result when hideToolTraces is true', () => {
+    const entries = [
+      msg({ id: '1', actor: 'user', variant: 'chat', text: 'Hi' }),
+      msg({
+        id: '2',
+        actor: 'assistant',
+        variant: 'tool_use',
+        text: 'Tool: x\n{}',
+      }),
+      msg({
+        id: '3',
+        actor: 'assistant',
+        variant: 'tool_result',
+        text: 'out',
+      }),
+    ]
+    render(
+      <ChatTranscript entries={entries} {...defaultProps} hideToolTraces />,
+    )
+    expect(screen.getByText('Hi')).toBeInTheDocument()
+    expect(screen.queryByText('Call')).not.toBeInTheDocument()
+    expect(screen.queryByText('out')).not.toBeInTheDocument()
+  })
+
   it('shows thinking with icon and content on one line', () => {
     const entries = [
       msg({
