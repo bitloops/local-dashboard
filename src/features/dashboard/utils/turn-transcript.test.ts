@@ -68,7 +68,9 @@ describe('getTurnTranscriptEntries', () => {
       },
     ]
 
-    const entries = getTurnTranscriptEntries(rawEvents as any, { turn_id: 't1' })
+    const entries = getTurnTranscriptEntries(rawEvents as any, {
+      turn_id: 't1',
+    })
     expect(entries).toHaveLength(1)
     expect(entries[0]!.actor).toBe('user')
     expect(entries[0]!.text).toContain('hi')
@@ -171,7 +173,10 @@ describe('buildTranscriptSectionsForTurns', () => {
       },
     ]
 
-    const sections = buildTranscriptSectionsForTurns(rawEvents as any, turns as any)
+    const sections = buildTranscriptSectionsForTurns(
+      rawEvents as any,
+      turns as any,
+    )
     expect(sections).toHaveLength(2)
     const t1 = sections.find((s) => s.turn.turn_id === 'turn-a')!
     const t2 = sections.find((s) => s.turn.turn_id === 'turn-b')!

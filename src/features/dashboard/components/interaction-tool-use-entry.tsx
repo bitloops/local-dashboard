@@ -16,7 +16,9 @@ type InteractionToolUseEntryProps = {
   tool: DashboardInteractionToolUseDto
 }
 
-export function InteractionToolUseEntry({ tool }: InteractionToolUseEntryProps) {
+export function InteractionToolUseEntry({
+  tool,
+}: InteractionToolUseEntryProps) {
   const td = tool.task_description?.trim() ?? ''
   const input = tool.input_summary?.trim() ?? ''
   const output = tool.output_summary?.trim() ?? ''

@@ -35,7 +35,9 @@ function TurnDetailsPanel({ turn }: { turn: DashboardInteractionTurnDto }) {
   return (
     <div className='space-y-4'>
       <div className='flex flex-wrap items-center gap-2'>
-        <span className='text-xs text-muted-foreground'>Turn {turn.turn_number}</span>
+        <span className='text-xs text-muted-foreground'>
+          Turn {turn.turn_number}
+        </span>
         <Badge variant='secondary'>{formatAgentLabel(turn.agent_type)}</Badge>
         {turn.model ? (
           <Badge variant='outline' className='max-w-[200px] truncate'>
@@ -46,7 +48,9 @@ function TurnDetailsPanel({ turn }: { turn: DashboardInteractionTurnDto }) {
         {turn.ended_at ? (
           <Badge variant='outline'>ended {formatDateTime(turn.ended_at)}</Badge>
         ) : null}
-        {turn.checkpoint_id ? <Badge variant='secondary'>checkpoint</Badge> : null}
+        {turn.checkpoint_id ? (
+          <Badge variant='secondary'>checkpoint</Badge>
+        ) : null}
         {turn.branch?.trim() ? (
           <Badge variant='outline' className='max-w-[220px] truncate'>
             branch:{turn.branch.trim()}
@@ -132,7 +136,11 @@ function TurnDetailsPanel({ turn }: { turn: DashboardInteractionTurnDto }) {
   )
 }
 
-export function TurnsTimeline({ turns, rawEvents, userName }: TurnsTimelineProps) {
+export function TurnsTimeline({
+  turns,
+  rawEvents,
+  userName,
+}: TurnsTimelineProps) {
   const [openTurnIds, setOpenTurnIds] = useState<Record<string, boolean>>({})
 
   const sections = useMemo(
