@@ -421,6 +421,107 @@ function BoundaryLabel({
   )
 }
 
+function SelectionMarker({
+  width,
+  depth,
+  height,
+  label,
+}: {
+  width: number
+  depth: number
+  height: number
+  label: string
+}) {
+  const haloRef = useRef<THREE.MeshBasicMaterial>(null)
+  const crownRef = useRef<THREE.MeshBasicMaterial>(null)
+  const radius = Math.max(width, depth) * 0.72
+  const cornerX = width / 2 + 0.24
+  const cornerZ = depth / 2 + 0.24
+  const postHeight = height + 0.85
+
+  useFrame(({ clock }) => {
+    const pulse = (Math.sin(clock.elapsedTime * 2.4) + 1) / 2
+    if (haloRef.current != null) {
+      haloRef.current.opacity = 0.24 + pulse * 0.08
+    }
+    if (crownRef.current != null) {
+      crownRef.current.opacity = 0.46 + pulse * 0.1
+    }
+  })
+
+  return (
+    <group>
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.1, 0]}>
+        <torusGeometry args={[radius, 0.075, 10, 72]} />
+        <meshBasicMaterial
+          ref={haloRef}
+          color='#2F7EBB'
+          transparent
+          opacity={0.28}
+          depthWrite={false}
+        />
+      </mesh>
+
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.14, 0]}>
+        <ringGeometry args={[radius * 0.78, radius * 1.02, 72]} />
+        <meshBasicMaterial
+          color='#BEE8FF'
+          transparent
+          opacity={0.14}
+          side={THREE.DoubleSide}
+          depthWrite={false}
+        />
+      </mesh>
+
+      {[
+        [-cornerX, -cornerZ],
+        [cornerX, -cornerZ],
+        [-cornerX, cornerZ],
+        [cornerX, cornerZ],
+      ].map(([x, z]) => (
+        <mesh key={`${x}:${z}`} position={[x, postHeight / 2 + 0.12, z]}>
+          <cylinderGeometry args={[0.045, 0.045, postHeight, 8]} />
+          <meshBasicMaterial
+            color='#1B5E8F'
+            transparent
+            opacity={0.72}
+            depthWrite={false}
+          />
+        </mesh>
+      ))}
+
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, height + 0.72, 0]}>
+        <torusGeometry args={[radius * 0.62, 0.045, 8, 56]} />
+        <meshBasicMaterial
+          ref={crownRef}
+          color='#BEE8FF'
+          transparent
+          opacity={0.52}
+          depthWrite={false}
+        />
+      </mesh>
+
+      <Billboard position={[0, height + 3.2, 0]}>
+        <Text
+          fontSize={0.82}
+          color='#0F314A'
+          anchorX='center'
+          anchorY='middle'
+          maxWidth={10}
+          textAlign='center'
+          outlineWidth={0.04}
+          outlineColor='#F7FBFF'
+          material-transparent
+          material-opacity={0.96}
+          material-depthWrite={false}
+        >
+          {label}
+        </Text>
+      </Billboard>
+    </group>
+  )
+}
+
 function BuildingStack({
   building,
   scene,
@@ -473,6 +574,15 @@ function BuildingStack({
 
   return (
     <group position={[centre.x, building.plot.y, centre.z]}>
+      {selected && (
+        <SelectionMarker
+          width={interactiveWidth}
+          depth={interactiveDepth}
+          height={building.height}
+          label='Selected'
+        />
+      )}
+
       <mesh position={[0, 0.06, 0]} receiveShadow>
         <cylinderGeometry
           args={[
