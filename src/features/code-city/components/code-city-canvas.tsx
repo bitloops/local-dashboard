@@ -17,6 +17,7 @@ import type {
 } from '../schema'
 import {
   getBuildingById,
+  getFolderLabelOpacity,
   getLabelOpacity,
   getPlotCentre,
   isCodeCityArcVisible,
@@ -311,27 +312,43 @@ function DistrictLabel({
   scene: CodeCitySceneModel
   zoomDistance: number
 }) {
-  const opacity = getLabelOpacity('district', zoomDistance, scene)
+  const opacity = getFolderLabelOpacity(district.depth, zoomDistance, scene)
   if (opacity <= 0.05) {
     return null
   }
 
   const centre = getPlotCentre(district.plot)
+  const isTopLevel = district.depth === 0
+  const labelPosition = isTopLevel
+    ? ([
+        centre.x,
+        district.plot.y + 2.1,
+        district.plot.z + Math.min(2.2, district.plot.depth * 0.18),
+      ] as [number, number, number])
+    : ([centre.x, district.plot.y + 1.55 + district.depth * 0.28, centre.z] as [
+        number,
+        number,
+        number,
+      ])
 
   return (
-    <Text
-      position={[centre.x, district.plot.y + 0.16, centre.z]}
-      rotation={[-Math.PI / 2, 0, 0]}
-      fontSize={1.8}
-      color='#29445C'
-      anchorX='center'
-      anchorY='middle'
-      material-transparent
-      material-opacity={opacity}
-      material-depthWrite={false}
-    >
-      {district.label}
-    </Text>
+    <Billboard position={labelPosition}>
+      <Text
+        fontSize={isTopLevel ? 1.3 : 0.95}
+        color={isTopLevel ? '#1F3850' : '#29445C'}
+        anchorX='center'
+        anchorY='middle'
+        maxWidth={Math.max(7, Math.min(13, district.plot.width * 0.72))}
+        textAlign='center'
+        outlineWidth={isTopLevel ? 0.035 : 0.025}
+        outlineColor='#F7FBFF'
+        material-transparent
+        material-opacity={opacity}
+        material-depthWrite={false}
+      >
+        {district.label}
+      </Text>
+    </Billboard>
   )
 }
 

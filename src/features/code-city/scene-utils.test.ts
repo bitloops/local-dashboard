@@ -3,6 +3,7 @@ import { getFixtureScene } from './fixtures'
 import {
   getCodeCitySearchResults,
   getCodeCityZoomTier,
+  getFolderLabelOpacity,
   getLabelOpacity,
   isCodeCityArcVisible,
 } from './scene-utils'
@@ -54,6 +55,19 @@ describe('CodeCity scene helpers', () => {
 
     expect(getLabelOpacity('boundary', 74, scene)).toBe(0)
     expect(getLabelOpacity('zone', 74, scene)).toBe(0)
+  })
+
+  it('keeps top-level folder labels readable across zoom levels', () => {
+    const scene = getFixtureScene('layered-world')
+    expect(scene).not.toBeNull()
+    if (scene == null) {
+      return
+    }
+
+    expect(getFolderLabelOpacity(0, 260, scene)).toBeGreaterThan(0.85)
+    expect(getFolderLabelOpacity(0, 72, scene)).toBeGreaterThan(0.85)
+    expect(getFolderLabelOpacity(1, 140, scene)).toBeGreaterThan(0)
+    expect(getFolderLabelOpacity(1, 260, scene)).toBe(0)
   })
 
   it('shows only the appropriate arc classes for selection and overlay state', () => {

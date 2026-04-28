@@ -300,6 +300,29 @@ export function getLabelOpacity(
   }
 }
 
+export function getFolderLabelOpacity(
+  depth: number,
+  distance: number,
+  scene: CodeCitySceneModel,
+) {
+  const { labelDistances } = scene.config
+
+  if (depth === 0) {
+    return 0.9
+  }
+
+  if (depth === 1) {
+    return (
+      0.78 * fadeBetween(distance, labelDistances.detail, labelDistances.zone)
+    )
+  }
+
+  return (
+    0.62 *
+    fadeBetween(distance, labelDistances.detail * 0.65, labelDistances.building)
+  )
+}
+
 export function isCodeCityArcVisible(
   arc: CodeCityArc,
   options: {
