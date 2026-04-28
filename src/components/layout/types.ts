@@ -1,13 +1,17 @@
 type Team = {
   name: string
-  logo: React.ElementType
+  logo: React.ComponentType<{
+    className?: string
+  }>
   plan: string
 }
 
 type BaseNavItem = {
   title: string
   badge?: string
-  icon?: React.ElementType
+  icon?: React.ComponentType<{
+    className?: string
+  }>
 }
 
 type NavLink = BaseNavItem & {

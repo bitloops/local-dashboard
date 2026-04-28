@@ -4,6 +4,7 @@ import {
   Settings,
   HelpCircle,
   Command,
+  Building2,
 } from 'lucide-react'
 import { type SidebarData } from '../types'
 
@@ -28,6 +29,11 @@ export const sidebarData: SidebarData = {
           title: 'Query Explorer',
           url: '/explorer',
           icon: Search,
+        },
+        {
+          title: 'CodeCity',
+          url: '/code-city',
+          icon: Building2,
         },
       ],
     },

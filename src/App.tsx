@@ -8,6 +8,7 @@ import { SkipToMain } from '@/components/skip-to-main'
 import { Sessions } from '@/features/sessions'
 import { QueryExplorer } from '@/features/query-explorer'
 import { SettingsPage } from '@/features/settings/page'
+import { CodeCity } from '@/features/code-city'
 import { ComingSoon } from '@/components/coming-soon'
 
 function PageRouter() {
@@ -15,6 +16,7 @@ function PageRouter() {
 
   if (pathname === '/' || pathname === '') return <Sessions />
   if (pathname === '/explorer') return <QueryExplorer />
+  if (pathname === '/code-city') return <CodeCity />
   if (pathname.startsWith('/settings')) return <SettingsPage />
   if (pathname === '/help-center') return <ComingSoon />
 

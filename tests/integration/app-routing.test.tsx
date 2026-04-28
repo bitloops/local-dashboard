@@ -1,3 +1,4 @@
+import { vi } from 'vitest'
 import { describe, expect, it } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
@@ -5,6 +6,15 @@ import { ThemeProvider } from '@/context/theme-provider'
 import { FontProvider } from '@/context/font-provider'
 import { NavigationProvider } from '@/context/navigation-provider'
 import { App } from '@/App'
+
+vi.mock('@/features/code-city', () => ({
+  CodeCity: () => (
+    <>
+      <h1>CodeCity</h1>
+      <p>Mocked CodeCity route.</p>
+    </>
+  ),
+}))
 
 function renderApp() {
   return render(
@@ -64,6 +74,7 @@ describe('App routing integration', () => {
     expect(
       screen.getByRole('link', { name: /Query Explorer/i }),
     ).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: /CodeCity/i })).toBeInTheDocument()
   })
 
   it('navigates to Query Explorer when Query Explorer link is clicked', async () => {
@@ -87,5 +98,14 @@ describe('App routing integration', () => {
     expect(
       screen.getByRole('heading', { name: 'Sessions', level: 1 }),
     ).toBeInTheDocument()
+  })
+
+  it('navigates to CodeCity when the sidebar link is clicked', async () => {
+    renderApp()
+    await userEvent.click(screen.getByRole('link', { name: /CodeCity/i }))
+    expect(
+      screen.getByRole('heading', { name: 'CodeCity' }),
+    ).toBeInTheDocument()
+    expect(screen.getByText('Mocked CodeCity route.')).toBeInTheDocument()
   })
 })

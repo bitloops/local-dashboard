@@ -18,7 +18,9 @@ import { useSidebar } from '@/components/ui/use-sidebar'
 type TeamSwitcherProps = {
   teams: {
     name: string
-    logo: React.ElementType
+    logo: React.ComponentType<{
+      className?: string
+    }>
     plan: string
   }[]
 }
