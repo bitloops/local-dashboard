@@ -340,6 +340,13 @@ export function isCodeCityArcVisible(
     return false
   }
 
+  if (
+    selectedBuildingId == null ||
+    (arc.fromId !== selectedBuildingId && arc.toId !== selectedBuildingId)
+  ) {
+    return false
+  }
+
   if (arc.arcType === 'cross-boundary') {
     return showOverlays
   }
@@ -348,10 +355,7 @@ export function isCodeCityArcVisible(
     return showOverlays
   }
 
-  return (
-    selectedBuildingId != null &&
-    (arc.fromId === selectedBuildingId || arc.toId === selectedBuildingId)
-  )
+  return true
 }
 
 export function getSceneSummary(

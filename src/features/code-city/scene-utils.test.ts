@@ -104,17 +104,9 @@ describe('CodeCity scene helpers', () => {
     ).toBe(true)
 
     expect(
-      isCodeCityArcVisible(violationArc, {
-        selectedBuildingId: null,
+      isCodeCityArcVisible(dependencyArc, {
+        selectedBuildingId: dependencyArc.toId,
         showOverlays: false,
-        zoomDistance: 80,
-      }),
-    ).toBe(false)
-
-    expect(
-      isCodeCityArcVisible(violationArc, {
-        selectedBuildingId: null,
-        showOverlays: true,
         zoomDistance: 80,
       }),
     ).toBe(true)
@@ -122,6 +114,30 @@ describe('CodeCity scene helpers', () => {
     expect(
       isCodeCityArcVisible(crossBoundaryArc, {
         selectedBuildingId: null,
+        showOverlays: true,
+        zoomDistance: 260,
+      }),
+    ).toBe(false)
+
+    expect(
+      isCodeCityArcVisible(violationArc, {
+        selectedBuildingId: violationArc.fromId,
+        showOverlays: false,
+        zoomDistance: 80,
+      }),
+    ).toBe(false)
+
+    expect(
+      isCodeCityArcVisible(violationArc, {
+        selectedBuildingId: violationArc.fromId,
+        showOverlays: true,
+        zoomDistance: 80,
+      }),
+    ).toBe(true)
+
+    expect(
+      isCodeCityArcVisible(crossBoundaryArc, {
+        selectedBuildingId: crossBoundaryArc.toId,
         showOverlays: true,
         zoomDistance: 260,
       }),

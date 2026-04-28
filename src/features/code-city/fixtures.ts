@@ -20,13 +20,14 @@ export type CodeCityDatasetOption = {
   summary: string
 }
 
-const HEALTHY = '#6B8FA3'
-const MODERATE = '#D4A04A'
-const HIGH_RISK = '#C23B22'
-const NO_DATA = '#888888'
-const VIOLATION = '#E04040'
-const CROSS_BOUNDARY_LOW = '#A8B8C8'
-const CROSS_BOUNDARY_HIGH = '#FF8C00'
+const HEALTHY = '#22A66A'
+const MODERATE = '#D5D957'
+const HIGH_RISK = '#E0444E'
+const CRITICAL_RISK = '#B91F35'
+const NO_DATA = '#8C96A3'
+const VIOLATION = '#D63E4A'
+const CROSS_BOUNDARY_LOW = '#6F8798'
+const CROSS_BOUNDARY_HIGH = '#E07832'
 
 const generatedAt = '2026-04-28T21:00:00.000Z'
 
@@ -50,11 +51,11 @@ const legend: CodeCityLegend = {
     {
       dimension: 'Floor colour',
       metric: 'Health',
-      description: 'Cool floors are stable; warmer floors show churn and risk.',
+      description: 'Green floors are healthy; red floors show low health.',
     },
   ],
   arcColours: {
-    dependency: '#7A8DA9',
+    dependency: '#5E7186',
     violation: VIOLATION,
     crossBoundary: CROSS_BOUNDARY_HIGH,
   },
@@ -123,11 +124,15 @@ function mixHex(first: string, second: string, weight: number) {
 }
 
 function getHealthColour(risk: number) {
-  if (risk <= 0.5) {
-    return mixHex(HEALTHY, MODERATE, risk / 0.5)
+  if (risk <= 0.38) {
+    return mixHex(HEALTHY, MODERATE, risk / 0.38)
   }
 
-  return mixHex(MODERATE, HIGH_RISK, (risk - 0.5) / 0.5)
+  if (risk <= 0.58) {
+    return MODERATE
+  }
+
+  return mixHex(HIGH_RISK, CRITICAL_RISK, (risk - 0.58) / 0.42)
 }
 
 function slugify(value: string) {
@@ -177,8 +182,108 @@ function polarPlot(
   return plot(x, z, width, depth, y)
 }
 
+function resizePlotByImportance(
+  sourcePlot: CodeCityPlot,
+  importance: number,
+  filePath: string,
+  isTest: boolean,
+): CodeCityPlot {
+  const centreX = sourcePlot.x + sourcePlot.width / 2
+  const centreZ = sourcePlot.z + sourcePlot.depth / 2
+  const sourceArea = sourcePlot.width * sourcePlot.depth
+  const scale = isTest
+    ? 0.52 + importance * 0.82
+    : 0.44 + Math.pow(importance, 1.18) * 1.72
+  const area = sourceArea * scale
+  const aspect = clamp(
+    (sourcePlot.width / sourcePlot.depth) *
+      seeded(`${filePath}:plot-aspect`, 0.72, 1.34),
+    0.55,
+    1.85,
+  )
+  const width = Math.sqrt(area * aspect)
+  const depth = area / width
+
+  return {
+    ...sourcePlot,
+    x: Number((centreX - width / 2).toFixed(2)),
+    z: Number((centreZ - depth / 2).toFixed(2)),
+    width: Number(width.toFixed(2)),
+    depth: Number(depth.toFixed(2)),
+  }
+}
+
 function floorCountForBuilding(filePath: string) {
   return 2 + (hashString(filePath) % 3)
+}
+
+function toWords(value: string) {
+  return value
+    .replace(/\.[^.]+$/u, '')
+    .split(/[^a-zA-Z0-9]+/u)
+    .filter(Boolean)
+}
+
+function toPascalCase(value: string) {
+  const words = toWords(value)
+  if (words.length === 0) {
+    return 'Artefact'
+  }
+
+  return words
+    .map((word) => `${word.charAt(0).toUpperCase()}${word.slice(1)}`)
+    .join('')
+}
+
+function toCamelCase(value: string) {
+  const pascal = toPascalCase(value)
+  return `${pascal.charAt(0).toLowerCase()}${pascal.slice(1)}`
+}
+
+function createArtefactName(
+  filePath: string,
+  artefactKind: string,
+  index: number,
+) {
+  const fileName = filePath.split('/').at(-1) ?? filePath
+  const pascalName = toPascalCase(fileName)
+  const camelName = toCamelCase(fileName)
+  const functionNames = [
+    `get${pascalName}Details`,
+    `build${pascalName}`,
+    `validate${pascalName}`,
+    `map${pascalName}Result`,
+  ]
+
+  switch (artefactKind) {
+    case 'aggregate':
+    case 'class':
+      return pascalName
+    case 'adapter':
+      return `${pascalName}Adapter`
+    case 'contract':
+      return `${pascalName}Contract`
+    case 'event':
+      return `${pascalName}Event`
+    case 'interface':
+      return `${pascalName}Port`
+    case 'module':
+      return `${pascalName}Module`
+    case 'policy':
+      return `evaluate${pascalName}`
+    case 'query':
+      return `load${pascalName}`
+    case 'rule':
+      return `assert${pascalName}`
+    case 'stage':
+      return `${camelName}Stage`
+    case 'value-object':
+      return `${pascalName}Value`
+    case 'function':
+      return functionNames[index % functionNames.length]!
+    default:
+      return `${camelName}${index + 1}`
+  }
 }
 
 function createFloors(
@@ -195,6 +300,8 @@ function createFloors(
   const defaultKinds = ['function', 'class', 'interface', 'query', 'adapter']
 
   return Array.from({ length: count }, (_, index) => {
+    const artefactKind =
+      artefactKinds?.[index] ?? defaultKinds[index % defaultKinds.length]!
     const floorRisk = clamp(
       healthRisk + seeded(`${filePath}:floor:${index}`, -0.16, 0.18),
       0,
@@ -206,9 +313,8 @@ function createFloors(
 
     return {
       id: `${buildingId(filePath, String(index))}-floor`,
-      artefactName: `${index + 1}. ${filePath.split('/').at(-1) ?? 'artefact'}`,
-      artefactKind:
-        artefactKinds?.[index] ?? defaultKinds[index % defaultKinds.length]!,
+      artefactName: createArtefactName(filePath, artefactKind, index),
+      artefactKind,
       loc: Math.max(8, Math.round(seeded(`${filePath}:loc:${index}`, 8, 42))),
       height: Math.max(0.6, baseHeight),
       colour: insufficientData ? NO_DATA : getHealthColour(floorRisk),
@@ -276,11 +382,18 @@ function createBuilding(args: {
     Number(seeded(`${args.filePath}:risk`, 0.12, 0.92).toFixed(2))
   const height =
     args.height ?? Number(seeded(`${args.filePath}:height`, 7, 28).toFixed(2))
+  const isTest = args.isTest ?? false
+  const resizedPlot = resizePlotByImportance(
+    args.plot,
+    importance,
+    args.filePath,
+    isTest,
+  )
   const floors = createFloors(
     args.filePath,
     height,
     healthRisk,
-    args.isTest ?? false,
+    isTest,
     args.artefactKinds,
   )
 
@@ -292,10 +405,10 @@ function createBuilding(args: {
     importance,
     healthRisk,
     height,
-    footprint: Number((args.plot.width * args.plot.depth).toFixed(2)),
-    plot: args.plot,
+    footprint: Number((resizedPlot.width * resizedPlot.depth).toFixed(2)),
+    plot: resizedPlot,
     zoneAgreement: args.zoneAgreement ?? 'aligned',
-    isTest: args.isTest ?? false,
+    isTest,
     floors,
     incomingArcIds: [],
     outgoingArcIds: [],
@@ -457,7 +570,7 @@ function createSharedBoundary(
       radius: 17,
       height: 1.2,
       waterInset: 4,
-      tint: '#D9EAF4',
+      tint: '#E5F0EA',
     },
     zones: [zone],
     sharedLibrary: {
@@ -688,7 +801,7 @@ function createHexBoundary(
       radius: 38,
       height: 1.2,
       waterInset: 4.5,
-      tint: '#DBE9F6',
+      tint: '#E7F2F0',
     },
     zones: [
       {
@@ -1012,7 +1125,7 @@ function createLayeredBoundary(
       depth,
       height: 1.2,
       waterInset: 3.8,
-      tint: '#DCE7F0',
+      tint: '#E8EEF3',
     },
     zones: [
       infrastructureZone,
@@ -1102,7 +1215,7 @@ function createModularBoundary(
       depth: 44,
       height: 1.2,
       waterInset: 4,
-      tint: '#D8EAF1',
+      tint: '#E4F0F1',
     },
     zones: [
       moduleZone(
@@ -1274,7 +1387,7 @@ function createPipeBoundary(
       depth: 30,
       height: 1.2,
       waterInset: 3.5,
-      tint: '#DCEBF6',
+      tint: '#E7F1EC',
     },
     zones,
     sharedLibrary: {
@@ -1315,7 +1428,7 @@ function createMudBoundary(
       radius: 31,
       height: 1.2,
       waterInset: 3.8,
-      tint: '#D7E4EE',
+      tint: '#ECEEF2',
     },
     zones: [
       {
