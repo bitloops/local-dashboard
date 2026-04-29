@@ -31,7 +31,7 @@ export const sidebarData: SidebarData = {
           icon: Search,
         },
         {
-          title: 'CodeCity',
+          title: 'Code Atlas',
           url: '/code-city',
           icon: Building2,
         },

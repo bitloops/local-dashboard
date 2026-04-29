@@ -10,8 +10,8 @@ import { App } from '@/App'
 vi.mock('@/features/code-city', () => ({
   CodeCity: () => (
     <>
-      <h1>CodeCity</h1>
-      <p>Mocked CodeCity route.</p>
+      <h1>Code Atlas</h1>
+      <p>Mocked Code Atlas route.</p>
     </>
   ),
 }))
@@ -74,7 +74,9 @@ describe('App routing integration', () => {
     expect(
       screen.getByRole('link', { name: /Query Explorer/i }),
     ).toBeInTheDocument()
-    expect(screen.getByRole('link', { name: /CodeCity/i })).toBeInTheDocument()
+    expect(
+      screen.getByRole('link', { name: /Code Atlas/i }),
+    ).toBeInTheDocument()
   })
 
   it('navigates to Query Explorer when Query Explorer link is clicked', async () => {
@@ -100,12 +102,12 @@ describe('App routing integration', () => {
     ).toBeInTheDocument()
   })
 
-  it('navigates to CodeCity when the sidebar link is clicked', async () => {
+  it('navigates to Code Atlas when the sidebar link is clicked', async () => {
     renderApp()
-    await userEvent.click(screen.getByRole('link', { name: /CodeCity/i }))
+    await userEvent.click(screen.getByRole('link', { name: /Code Atlas/i }))
     expect(
-      screen.getByRole('heading', { name: 'CodeCity' }),
+      screen.getByRole('heading', { name: 'Code Atlas' }),
     ).toBeInTheDocument()
-    expect(screen.getByText('Mocked CodeCity route.')).toBeInTheDocument()
+    expect(screen.getByText('Mocked Code Atlas route.')).toBeInTheDocument()
   })
 })

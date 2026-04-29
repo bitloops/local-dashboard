@@ -50,7 +50,7 @@ describe('CodeCity page', () => {
     renderPage()
 
     expect(
-      screen.getByRole('heading', { name: 'CodeCity' }),
+      screen.getByRole('heading', { name: 'Code Atlas' }),
     ).toBeInTheDocument()
     expect(screen.getByTestId('code-city-mock-badge')).toBeInTheDocument()
 
@@ -86,7 +86,7 @@ describe('CodeCity page', () => {
     })
 
     expect(
-      await screen.findByText('No CodeCity data available'),
+      await screen.findByText('No Code Atlas data available'),
     ).toBeInTheDocument()
   })
 
@@ -98,7 +98,7 @@ describe('CodeCity page', () => {
     })
 
     expect(
-      await screen.findByText('Could not load CodeCity'),
+      await screen.findByText('Could not load Code Atlas'),
     ).toBeInTheDocument()
     expect(screen.getByText('Fixture load failed')).toBeInTheDocument()
   })

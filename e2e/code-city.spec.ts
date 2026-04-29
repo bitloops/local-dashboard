@@ -71,7 +71,7 @@ async function expectCodeCityCanvasRendered(sceneCard: Locator) {
     .toBe(true)
 }
 
-test('CodeCity loads a fixture, searches, toggles overlays, and updates the inspector', async ({
+test('Code Atlas loads a fixture, searches, toggles overlays, and updates the inspector', async ({
   page,
 }) => {
   const runtimeErrors: string[] = []
@@ -86,7 +86,7 @@ test('CodeCity loads a fixture, searches, toggles overlays, and updates the insp
 
   await page.goto('/code-city')
 
-  await expect(page.getByRole('heading', { name: 'CodeCity' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Code Atlas' })).toBeVisible()
   await expectCodeCityCanvasRendered(page.getByTestId('code-city-scene-card'))
 
   await page.getByTestId('code-city-search-input').fill('order-aggregate')

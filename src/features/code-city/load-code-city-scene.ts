@@ -20,7 +20,7 @@ export async function loadCodeCityScene({
 
   if (scene == null) {
     throw new Error(
-      `Unknown CodeCity dataset "${datasetId}". Available datasets: ${codeCityFixtureCatalogue
+      `Unknown Code Atlas dataset "${datasetId}". Available datasets: ${codeCityFixtureCatalogue
         .map((item) => item.id)
         .join(', ')}`,
     )

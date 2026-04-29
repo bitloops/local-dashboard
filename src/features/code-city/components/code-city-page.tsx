@@ -166,7 +166,7 @@ export function CodeCityPage({
           error:
             error instanceof Error
               ? error.message
-              : 'Could not load the CodeCity scene.',
+              : 'Could not load the Code Atlas scene.',
         })
       })
 
@@ -254,7 +254,7 @@ export function CodeCityPage({
         <div className='mb-6 flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between'>
           <div>
             <div className='flex items-center gap-3'>
-              <h1 className='text-2xl font-bold tracking-tight'>CodeCity</h1>
+              <h1 className='text-2xl font-bold tracking-tight'>Code Atlas</h1>
               <Badge
                 variant='outline'
                 data-testid='code-city-mock-badge'
@@ -264,7 +264,7 @@ export function CodeCityPage({
               </Badge>
             </div>
             <p className='mt-2 max-w-3xl text-sm text-muted-foreground'>
-              Explore clean-room CodeCity fixtures that mirror the intended
+              Explore clean-room Code Atlas fixtures that mirror the intended
               Bitloops metric model: load-bearing footprints, stacked artefact
               floors, health colour, districts, and architectural overlays.
             </p>
@@ -452,7 +452,7 @@ export function CodeCityPage({
             {sceneState.status === 'error' && (
               <Card className='border-red-200 bg-red-50/80 dark:border-red-400/30 dark:bg-red-950/25'>
                 <CardHeader>
-                  <CardTitle>Could not load CodeCity</CardTitle>
+                  <CardTitle>Could not load Code Atlas</CardTitle>
                   <CardDescription>{sceneState.error}</CardDescription>
                 </CardHeader>
                 <CardContent>
@@ -468,7 +468,7 @@ export function CodeCityPage({
               scene.boundaries.length === 0 && (
                 <Card>
                   <CardHeader>
-                    <CardTitle>No CodeCity data available</CardTitle>
+                    <CardTitle>No Code Atlas data available</CardTitle>
                     <CardDescription>
                       The selected dataset contains no boundaries to render.
                     </CardDescription>
