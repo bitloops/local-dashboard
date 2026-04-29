@@ -2,8 +2,11 @@ import { type ElementRef, Suspense, useEffect, useMemo, useRef } from 'react'
 import { Canvas, type ThreeEvent, useFrame, useThree } from '@react-three/fiber'
 import {
   Billboard,
+  ContactShadows,
+  Edges,
   OrbitControls,
   QuadraticBezierLine,
+  RoundedBox,
   Text,
 } from '@react-three/drei'
 import * as THREE from 'three'
@@ -51,28 +54,40 @@ type CodeCityCanvasProps = {
   onZoomDistanceChange: (distance: number) => void
 }
 
+const TRON_BACKGROUND = '#030812'
+const TRON_SURFACE = '#0A1424'
+const TRON_WATER = '#062A3C'
+const TRON_GRID = '#123D59'
+const TRON_GRID_MAJOR = '#1CF4FF'
+const TRON_CYAN = '#52F6FF'
+const TRON_BLUE = '#2D8CFF'
+const TRON_MINT = '#50FFC2'
+const TRON_LABEL = '#DDFDFF'
+const TRON_WARNING = '#FF4F7B'
+const BUILDING_BASE_CLEARANCE = 0.18
+
 function zoneTint(zoneType: CodeCityZone['zoneType']) {
   switch (zoneType) {
     case 'core':
-      return '#C9D8EA'
+      return '#103451'
     case 'application':
-      return '#CFE7DD'
+      return '#113E3A'
     case 'ports':
-      return '#CBE6EA'
+      return '#102C46'
     case 'periphery':
-      return '#E5EEDD'
+      return '#17273A'
     case 'edge':
-      return '#F3F1E8'
+      return '#20243A'
     case 'module':
-      return '#C8E4DE'
+      return '#103A40'
     case 'stage':
-      return '#D5E5F2'
+      return '#132E4B'
     case 'shared':
-      return '#F2DFAE'
+      return '#332B57'
     case 'test':
-      return '#DCE2EA'
+      return '#222A37'
     case 'chaos':
-      return '#EAD4D0'
+      return '#3B1F33'
   }
 }
 
@@ -82,12 +97,10 @@ function arcColour(scene: CodeCitySceneModel, arc: CodeCityArc) {
   }
 
   if (arc.arcType === 'cross-boundary') {
-    return arc.strength >= 0.8
-      ? scene.config.colours.crossBoundaryArcHigh
-      : scene.config.colours.crossBoundaryArcLow
+    return arc.strength >= 0.8 ? '#FFB14A' : TRON_BLUE
   }
 
-  return scene.legend.arcColours.dependency
+  return TRON_CYAN
 }
 
 function supportsWebGL() {
@@ -107,6 +120,34 @@ function shapeOpacity(boundary: CodeCityBoundary) {
   return boundary.sharedLibrary.isSharedLibrary ? 0.88 : 0.96
 }
 
+function bevelRadius(width: number, depth: number, max = 0.22) {
+  return Math.min(max, Math.max(0.04, Math.min(width, depth) * 0.08))
+}
+
+function floorEdgeColour(
+  floor: CodeCityBuilding['floors'][number],
+  selected: boolean,
+  hovered: boolean,
+) {
+  if (selected || hovered) {
+    return TRON_LABEL
+  }
+
+  if (floor.insufficientData) {
+    return '#A7B1C2'
+  }
+
+  if (floor.healthRisk >= 0.7) {
+    return TRON_WARNING
+  }
+
+  if (floor.healthRisk <= 0.38) {
+    return TRON_MINT
+  }
+
+  return TRON_CYAN
+}
+
 function BoundaryGround({ boundary }: { boundary: CodeCityBoundary }) {
   const tint = boundary.ground.tint
   const { centre } = boundary.ground
@@ -124,12 +165,15 @@ function BoundaryGround({ boundary }: { boundary: CodeCityBoundary }) {
             ]}
           />
           <meshStandardMaterial
-            color='#B7D3D9'
-            metalness={0.04}
-            roughness={0.78}
+            color={TRON_WATER}
+            emissive='#06445B'
+            emissiveIntensity={0.3}
+            metalness={0.08}
+            roughness={0.62}
             transparent
-            opacity={0.82}
+            opacity={0.9}
           />
+          <Edges color='#0C85A8' threshold={14} />
         </mesh>
         <mesh castShadow receiveShadow position={[0, 0.22, 0]}>
           <cylinderGeometry
@@ -141,12 +185,15 @@ function BoundaryGround({ boundary }: { boundary: CodeCityBoundary }) {
             ]}
           />
           <meshStandardMaterial
-            color={tint}
-            metalness={0.04}
-            roughness={0.72}
+            color={TRON_SURFACE}
+            emissive={tint}
+            emissiveIntensity={0.04}
+            metalness={0.08}
+            roughness={0.7}
             transparent
             opacity={shapeOpacity(boundary)}
           />
+          <Edges color='#176684' threshold={14} />
         </mesh>
       </group>
     )
@@ -154,39 +201,83 @@ function BoundaryGround({ boundary }: { boundary: CodeCityBoundary }) {
 
   return (
     <group position={[centre.x, centre.y, centre.z]}>
-      <mesh receiveShadow>
-        <boxGeometry
-          args={[
-            boundary.ground.width! + boundary.ground.waterInset * 2,
-            boundary.ground.height * 0.7,
-            boundary.ground.depth! + boundary.ground.waterInset * 2,
-          ]}
-        />
+      <RoundedBox
+        args={[
+          boundary.ground.width! + boundary.ground.waterInset * 2,
+          boundary.ground.height * 0.7,
+          boundary.ground.depth! + boundary.ground.waterInset * 2,
+        ]}
+        radius={1.8}
+        smoothness={6}
+        receiveShadow
+      >
         <meshStandardMaterial
-          color='#B7D3D9'
-          metalness={0.04}
-          roughness={0.78}
+          color={TRON_WATER}
+          emissive='#06445B'
+          emissiveIntensity={0.3}
+          metalness={0.08}
+          roughness={0.62}
           transparent
-          opacity={0.82}
+          opacity={0.9}
         />
-      </mesh>
-      <mesh castShadow receiveShadow position={[0, 0.22, 0]}>
-        <boxGeometry
-          args={[
-            boundary.ground.width!,
-            boundary.ground.height,
-            boundary.ground.depth!,
-          ]}
-        />
+        <Edges color='#0C85A8' threshold={14} />
+      </RoundedBox>
+      <RoundedBox
+        args={[
+          boundary.ground.width!,
+          boundary.ground.height,
+          boundary.ground.depth!,
+        ]}
+        radius={1.35}
+        smoothness={8}
+        castShadow
+        receiveShadow
+        position={[0, 0.22, 0]}
+      >
         <meshStandardMaterial
-          color={tint}
-          metalness={0.04}
-          roughness={0.72}
+          color={TRON_SURFACE}
+          emissive={tint}
+          emissiveIntensity={0.04}
+          metalness={0.08}
+          roughness={0.7}
           transparent
           opacity={shapeOpacity(boundary)}
         />
-      </mesh>
+        <Edges color='#176684' threshold={14} />
+      </RoundedBox>
     </group>
+  )
+}
+
+function ZonePad({
+  width,
+  depth,
+  tint,
+  opacity,
+}: {
+  width: number
+  depth: number
+  tint: string
+  opacity: number
+}) {
+  return (
+    <RoundedBox
+      args={[width, 0.075, depth]}
+      radius={bevelRadius(width, depth, 0.7)}
+      smoothness={5}
+      receiveShadow
+    >
+      <meshStandardMaterial
+        color={tint}
+        emissive={tint}
+        emissiveIntensity={0.12}
+        transparent
+        opacity={opacity * 0.74}
+        roughness={0.78}
+        metalness={0.08}
+      />
+      <Edges color={TRON_CYAN} threshold={14} />
+    </RoundedBox>
   )
 }
 
@@ -199,21 +290,24 @@ function ZoneSurface({ zone }: { zone: CodeCityZone }) {
       <mesh
         position={[
           zone.shape.centre.x,
-          zone.elevation + 0.02,
+          zone.elevation - 0.045,
           zone.shape.centre.z,
         ]}
         receiveShadow
       >
         <cylinderGeometry
-          args={[zone.shape.radius!, zone.shape.radius!, 0.14, 48]}
+          args={[zone.shape.radius!, zone.shape.radius!, 0.075, 48]}
         />
         <meshStandardMaterial
           color={tint}
+          emissive={tint}
+          emissiveIntensity={0.1}
           transparent
-          opacity={opacity * 0.72}
-          roughness={0.92}
-          metalness={0.02}
+          opacity={opacity * 0.52}
+          roughness={0.78}
+          metalness={0.08}
         />
+        <Edges color={TRON_BLUE} threshold={14} />
       </mesh>
     )
   }
@@ -227,44 +321,92 @@ function ZoneSurface({ zone }: { zone: CodeCityZone }) {
       <mesh
         position={[
           zone.shape.centre.x,
-          zone.elevation + 0.02,
+          zone.elevation - 0.045,
           zone.shape.centre.z,
         ]}
         receiveShadow
       >
         <cylinderGeometry
-          args={[zone.shape.radius!, zone.shape.radius!, 0.14, 40]}
+          args={[zone.shape.radius!, zone.shape.radius!, 0.075, 40]}
         />
         <meshStandardMaterial
           color={tint}
+          emissive={tint}
+          emissiveIntensity={0.1}
           transparent
-          opacity={opacity}
-          roughness={0.92}
-          metalness={0.02}
+          opacity={opacity * 0.7}
+          roughness={0.78}
+          metalness={0.08}
         />
+        <Edges color={TRON_CYAN} threshold={14} />
       </mesh>
     )
   }
 
   return (
-    <mesh
+    <group
       position={[
         zone.shape.centre.x,
-        zone.elevation + 0.03,
+        zone.elevation - 0.04,
         zone.shape.centre.z,
       ]}
       rotation={[0, zone.shape.rotation, 0]}
-      receiveShadow
     >
-      <boxGeometry args={[zone.shape.width!, 0.16, zone.shape.depth!]} />
-      <meshStandardMaterial
-        color={tint}
-        transparent
+      <ZonePad
+        width={zone.shape.width!}
+        depth={zone.shape.depth!}
+        tint={tint}
         opacity={opacity}
-        roughness={0.92}
-        metalness={0.02}
       />
-    </mesh>
+    </group>
+  )
+}
+
+function getDistrictLabelPosition(
+  district: CodeCityDistrict,
+): [number, number, number] {
+  const centre = getPlotCentre(district.plot)
+  const isTopLevel = district.depth === 0
+
+  return isTopLevel
+    ? [
+        centre.x,
+        district.plot.y + 2.1,
+        district.plot.z + Math.min(2.2, district.plot.depth * 0.18),
+      ]
+    : [centre.x, district.plot.y + 1.55 + district.depth * 0.28, centre.z]
+}
+
+function FolderAnchor({ district }: { district: CodeCityDistrict }) {
+  const [x, , z] = getDistrictLabelPosition(district)
+  const isTopLevel = district.depth === 0
+  const colour = isTopLevel ? TRON_CYAN : TRON_BLUE
+  const radius = isTopLevel ? 0.62 : 0.42
+  const y = district.plot.y + 0.16
+
+  return (
+    <group position={[x, y, z]} rotation={[0, Math.PI / 6, 0]}>
+      <mesh>
+        <cylinderGeometry args={[radius, radius, 0.06, 6]} />
+        <meshBasicMaterial
+          color={colour}
+          transparent
+          opacity={isTopLevel ? 0.58 : 0.38}
+          depthWrite={false}
+          toneMapped={false}
+        />
+      </mesh>
+      <mesh position={[0, 0.48, 0]}>
+        <cylinderGeometry args={[0.022, 0.022, 0.9, 6]} />
+        <meshBasicMaterial
+          color={colour}
+          transparent
+          opacity={isTopLevel ? 0.52 : 0.34}
+          depthWrite={false}
+          toneMapped={false}
+        />
+      </mesh>
+    </group>
   )
 }
 
@@ -282,31 +424,20 @@ function DistrictLabel({
     return null
   }
 
-  const centre = getPlotCentre(district.plot)
   const isTopLevel = district.depth === 0
-  const labelPosition = isTopLevel
-    ? ([
-        centre.x,
-        district.plot.y + 2.1,
-        district.plot.z + Math.min(2.2, district.plot.depth * 0.18),
-      ] as [number, number, number])
-    : ([centre.x, district.plot.y + 1.55 + district.depth * 0.28, centre.z] as [
-        number,
-        number,
-        number,
-      ])
+  const labelPosition = getDistrictLabelPosition(district)
 
   return (
     <Billboard position={labelPosition}>
       <Text
         fontSize={isTopLevel ? 1.3 : 0.95}
-        color={isTopLevel ? '#213B4A' : '#2F5360'}
+        color={isTopLevel ? TRON_LABEL : '#B9F8FF'}
         anchorX='center'
         anchorY='middle'
         maxWidth={Math.max(7, Math.min(13, district.plot.width * 0.72))}
         textAlign='center'
-        outlineWidth={isTopLevel ? 0.035 : 0.025}
-        outlineColor='#F9FBF6'
+        outlineWidth={isTopLevel ? 0.045 : 0.035}
+        outlineColor='#020812'
         material-transparent
         material-opacity={opacity}
         material-depthWrite={false}
@@ -340,12 +471,14 @@ function ZoneLabel({
       ]}
       rotation={[-Math.PI / 2, 0, 0]}
       fontSize={2.4}
-      color='#2C5060'
+      color='#9CF7FF'
       anchorX='center'
       anchorY='middle'
       material-transparent
       material-opacity={opacity}
       material-depthWrite={false}
+      outlineWidth={0.04}
+      outlineColor='#020812'
     >
       {zone.name}
     </Text>
@@ -374,12 +507,14 @@ function BoundaryLabel({
         boundary.labelAnchor.z,
       ]}
       fontSize={4.2}
-      color='#203947'
+      color={TRON_LABEL}
       anchorX='center'
       anchorY='middle'
       material-transparent
       material-opacity={opacity}
       material-depthWrite={false}
+      outlineWidth={0.06}
+      outlineColor='#020812'
     >
       {boundary.name}
     </Text>
@@ -416,20 +551,22 @@ function SelectionMarker({
         <boxGeometry args={[width + 1.1, 0.08, depth + 1.1]} />
         <meshBasicMaterial
           ref={baseRef}
-          color='#8FDED8'
+          color={TRON_CYAN}
           transparent
-          opacity={0.24}
+          opacity={0.2}
           depthWrite={false}
+          toneMapped={false}
         />
       </mesh>
 
       <mesh position={[0, 0.15, 0]}>
         <boxGeometry args={[width + 0.35, 0.08, depth + 0.35]} />
         <meshBasicMaterial
-          color='#2E7FA6'
+          color={TRON_BLUE}
           transparent
-          opacity={0.22}
+          opacity={0.3}
           depthWrite={false}
+          toneMapped={false}
         />
       </mesh>
 
@@ -442,10 +579,11 @@ function SelectionMarker({
         <mesh key={`${x}:${z}`} position={[x, postHeight / 2 + 0.12, z]}>
           <cylinderGeometry args={[0.045, 0.045, postHeight, 8]} />
           <meshBasicMaterial
-            color='#1D6F8A'
+            color={TRON_CYAN}
             transparent
-            opacity={0.72}
+            opacity={0.82}
             depthWrite={false}
+            toneMapped={false}
           />
         </mesh>
       ))}
@@ -459,10 +597,11 @@ function SelectionMarker({
         <mesh key={`rail:${x}:${z}`} position={[x, railY, z]}>
           <boxGeometry args={[railWidth, 0.075, railDepth]} />
           <meshBasicMaterial
-            color='#BFE9E7'
+            color={TRON_LABEL}
             transparent
-            opacity={0.56}
+            opacity={0.66}
             depthWrite={false}
+            toneMapped={false}
           />
         </mesh>
       ))}
@@ -470,13 +609,13 @@ function SelectionMarker({
       <Billboard position={[0, height + 3.2, 0]}>
         <Text
           fontSize={0.82}
-          color='#163848'
+          color={TRON_LABEL}
           anchorX='center'
           anchorY='middle'
           maxWidth={10}
           textAlign='center'
           outlineWidth={0.04}
-          outlineColor='#F9FBF6'
+          outlineColor='#020812'
           material-transparent
           material-opacity={0.96}
           material-depthWrite={false}
@@ -522,7 +661,7 @@ function BuildingStack({
     showLabels && (selected || hovered || building.importance >= 0.72)
   const centre = getPlotCentre(building.plot)
   const highlightColour =
-    selected || hovered ? '#5F94A7' : building.isTest ? '#A8B3C0' : '#9AB4B5'
+    selected || hovered ? TRON_CYAN : building.isTest ? '#78879D' : TRON_BLUE
 
   const handlePointerMove = (event: ThreeEvent<PointerEvent>) => {
     event.stopPropagation()
@@ -536,7 +675,7 @@ function BuildingStack({
     document.body.style.cursor = ''
   }
 
-  let floorBottom = 0
+  let floorBottom = BUILDING_BASE_CLEARANCE
 
   return (
     <group position={[centre.x, building.plot.y, centre.z]}>
@@ -544,24 +683,26 @@ function BuildingStack({
         <SelectionMarker
           width={interactiveWidth}
           depth={interactiveDepth}
-          height={building.height}
+          height={building.height + BUILDING_BASE_CLEARANCE}
           label='Selected'
         />
       )}
 
-      <mesh position={[0, 0.06, 0]} receiveShadow>
+      <mesh position={[0, 0.03, 0]} receiveShadow>
         <cylinderGeometry
           args={[
             Math.max(building.plot.width, building.plot.depth) * 0.48,
             Math.max(building.plot.width, building.plot.depth) * 0.48,
-            0.12,
+            0.06,
             24,
           ]}
         />
         <meshStandardMaterial
           color={highlightColour}
+          emissive={highlightColour}
+          emissiveIntensity={selected ? 0.38 : hovered ? 0.24 : 0.12}
           transparent
-          opacity={selected ? 0.58 : hovered ? 0.34 : 0.16}
+          opacity={selected ? 0.64 : hovered ? 0.38 : 0.18}
         />
       </mesh>
 
@@ -573,18 +714,28 @@ function BuildingStack({
 
         return (
           <group key={floor.id}>
-            <mesh position={[0, positionY, 0]} castShadow>
-              <boxGeometry
-                args={[interactiveWidth, floorHeight, interactiveDepth]}
-              />
+            <RoundedBox
+              position={[0, positionY, 0]}
+              args={[interactiveWidth, floorHeight, interactiveDepth]}
+              radius={bevelRadius(interactiveWidth, interactiveDepth, 0.16)}
+              smoothness={3}
+              castShadow
+              receiveShadow
+            >
               <meshStandardMaterial
                 color={building.isTest ? '#9FAAB8' : floor.colour}
-                metalness={0.05}
-                roughness={0.68}
+                metalness={building.isTest ? 0.02 : 0.08}
+                roughness={0.58}
                 transparent
                 opacity={buildingOpacity}
+                emissive={building.isTest ? '#304057' : floor.colour}
+                emissiveIntensity={selected ? 0.32 : hovered ? 0.24 : 0.16}
               />
-            </mesh>
+              <Edges
+                color={floorEdgeColour(floor, selected, hovered)}
+                threshold={14}
+              />
+            </RoundedBox>
             {showLabels && selected && detailOpacity > 0.05 && (
               <Billboard
                 position={[0, positionY, interactiveDepth / 2 + 1.1]}
@@ -592,13 +743,13 @@ function BuildingStack({
               >
                 <Text
                   fontSize={0.9}
-                  color='#173848'
+                  color={TRON_LABEL}
                   anchorX='center'
                   anchorY='middle'
                   maxWidth={8}
                   textAlign='center'
                   outlineWidth={0.02}
-                  outlineColor='#F9FBF6'
+                  outlineColor='#020812'
                   material-transparent
                   material-opacity={detailOpacity}
                   material-depthWrite={false}
@@ -612,7 +763,7 @@ function BuildingStack({
       })}
 
       <mesh
-        position={[0, building.height / 2 + 0.08, 0]}
+        position={[0, BUILDING_BASE_CLEARANCE + building.height / 2, 0]}
         onClick={(event) => {
           event.stopPropagation()
           onSelectBuilding(building.id)
@@ -633,16 +784,18 @@ function BuildingStack({
       </mesh>
 
       {shouldShowBuildingLabel && labelOpacity > 0.05 && (
-        <Billboard position={[0, building.height + 1.5, 0]}>
+        <Billboard
+          position={[0, building.height + BUILDING_BASE_CLEARANCE + 1.5, 0]}
+        >
           <Text
             fontSize={1.1}
-            color='#173848'
+            color={TRON_LABEL}
             anchorX='center'
             anchorY='middle'
             maxWidth={9}
             textAlign='center'
             outlineWidth={0.03}
-            outlineColor='#F9FBF6'
+            outlineColor='#020812'
             material-transparent
             material-opacity={selected || hovered ? 1 : labelOpacity}
             material-depthWrite={false}
@@ -682,23 +835,7 @@ function DistrictContent({
 }) {
   return (
     <>
-      <mesh
-        position={[
-          district.plot.x + district.plot.width / 2,
-          district.plot.y + 0.025,
-          district.plot.z + district.plot.depth / 2,
-        ]}
-        rotation={[-Math.PI / 2, 0, 0]}
-        receiveShadow
-      >
-        <planeGeometry args={[district.plot.width, district.plot.depth]} />
-        <meshStandardMaterial
-          color='#FAFBF6'
-          transparent
-          opacity={district.depth === 0 ? 0.28 : 0.18}
-          side={THREE.DoubleSide}
-        />
-      </mesh>
+      <FolderAnchor district={district} />
       {showLabels && (
         <DistrictLabel
           district={district}
@@ -797,29 +934,30 @@ function BoundaryScene({
   )
 }
 
-function collectPropPoints(boundaries: CodeCityBoundary[]) {
-  const points: Array<{
-    trunk: THREE.Vector3
-    canopy: THREE.Vector3
-    canopyScale: number
+function collectCircuitNodes(boundaries: CodeCityBoundary[]) {
+  const nodes: Array<{
+    position: THREE.Vector3
+    scale: THREE.Vector3
+    rotationY: number
   }> = []
 
   for (const boundary of boundaries) {
     const hash = boundary.id.length + boundary.name.length
+    const y = boundary.ground.centre.y + boundary.ground.height / 2 + 0.18
 
     if (boundary.ground.kind === 'disc') {
-      const radius = boundary.ground.radius! + 2
-      const count = boundary.sharedLibrary.isSharedLibrary ? 12 : 20
+      const radius = boundary.ground.radius! + boundary.ground.waterInset * 0.55
+      const count = boundary.sharedLibrary.isSharedLibrary ? 10 : 16
 
       for (let index = 0; index < count; index += 1) {
         const angle = ((index + hash * 0.17) / count) * Math.PI * 2
-        const distance = radius + (index % 3) * 1.6
+        const distance = radius + (index % 2) * 0.9
         const x = boundary.ground.centre.x + Math.cos(angle) * distance
         const z = boundary.ground.centre.z + Math.sin(angle) * distance
-        points.push({
-          trunk: new THREE.Vector3(x, -0.12, z),
-          canopy: new THREE.Vector3(x, 0.75, z),
-          canopyScale: 0.65 + (index % 4) * 0.12,
+        nodes.push({
+          position: new THREE.Vector3(x, y, z),
+          scale: new THREE.Vector3(0.42 + (index % 3) * 0.08, 0.08, 1.7),
+          rotationY: angle,
         })
       }
 
@@ -828,7 +966,7 @@ function collectPropPoints(boundaries: CodeCityBoundary[]) {
 
     const width = boundary.ground.width!
     const depth = boundary.ground.depth!
-    const count = 18
+    const count = 14
 
     for (let index = 0; index < count; index += 1) {
       const side = index % 4
@@ -850,68 +988,132 @@ function collectPropPoints(boundaries: CodeCityBoundary[]) {
         (side < 2 ? xOffset : side === 2 ? xOffset : xOffset)
       const z = boundary.ground.centre.z + (side < 2 ? zOffset : zOffset)
 
-      points.push({
-        trunk: new THREE.Vector3(x, -0.12, z),
-        canopy: new THREE.Vector3(x, 0.75, z),
-        canopyScale: 0.6 + (index % 3) * 0.14,
+      nodes.push({
+        position: new THREE.Vector3(x, y, z),
+        scale: new THREE.Vector3(1.4, 0.08, 0.38 + (index % 3) * 0.08),
+        rotationY: side < 2 ? 0 : Math.PI / 2,
       })
     }
   }
 
-  return points
+  return nodes
 }
 
-function DecorativeProps({ boundaries }: { boundaries: CodeCityBoundary[] }) {
-  const points = useMemo(() => collectPropPoints(boundaries), [boundaries])
-  const trunkRef = useRef<THREE.InstancedMesh>(null)
-  const canopyRef = useRef<THREE.InstancedMesh>(null)
+function CircuitDetailLayer({
+  boundaries,
+}: {
+  boundaries: CodeCityBoundary[]
+}) {
+  const nodes = useMemo(() => collectCircuitNodes(boundaries), [boundaries])
+  const nodeRef = useRef<THREE.InstancedMesh>(null)
 
   useEffect(() => {
-    const trunkMesh = trunkRef.current
-    const canopyMesh = canopyRef.current
-    if (trunkMesh == null || canopyMesh == null) {
+    const nodeMesh = nodeRef.current
+    if (nodeMesh == null) {
       return
     }
 
-    const trunkDummy = new THREE.Object3D()
-    const canopyDummy = new THREE.Object3D()
+    const nodeDummy = new THREE.Object3D()
 
-    points.forEach((point, index) => {
-      trunkDummy.position.copy(point.trunk)
-      trunkDummy.scale.setScalar(1)
-      trunkDummy.updateMatrix()
-      trunkMesh.setMatrixAt(index, trunkDummy.matrix)
-
-      canopyDummy.position.copy(point.canopy)
-      canopyDummy.scale.setScalar(point.canopyScale)
-      canopyDummy.updateMatrix()
-      canopyMesh.setMatrixAt(index, canopyDummy.matrix)
+    nodes.forEach((node, index) => {
+      nodeDummy.position.copy(node.position)
+      nodeDummy.rotation.set(0, node.rotationY, 0)
+      nodeDummy.scale.copy(node.scale)
+      nodeDummy.updateMatrix()
+      nodeMesh.setMatrixAt(index, nodeDummy.matrix)
     })
 
-    trunkMesh.instanceMatrix.needsUpdate = true
-    canopyMesh.instanceMatrix.needsUpdate = true
-  }, [points])
+    nodeMesh.instanceMatrix.needsUpdate = true
+  }, [nodes])
 
   return (
-    <group>
-      <instancedMesh
-        ref={trunkRef}
-        args={[undefined, undefined, points.length]}
-        castShadow
-        receiveShadow
-      >
-        <cylinderGeometry args={[0.14, 0.18, 1.3, 6]} />
-        <meshStandardMaterial color='#6F5A4B' roughness={0.95} />
-      </instancedMesh>
-      <instancedMesh
-        ref={canopyRef}
-        args={[undefined, undefined, points.length]}
-        castShadow
-        receiveShadow
-      >
-        <sphereGeometry args={[0.82, 10, 10]} />
-        <meshStandardMaterial color='#84CBB6' roughness={0.85} />
-      </instancedMesh>
+    <instancedMesh ref={nodeRef} args={[undefined, undefined, nodes.length]}>
+      <boxGeometry args={[1, 1, 1]} />
+      <meshBasicMaterial
+        color={TRON_CYAN}
+        transparent
+        opacity={0.5}
+        depthWrite={false}
+        toneMapped={false}
+      />
+    </instancedMesh>
+  )
+}
+
+function createGridGeometry(
+  size: number,
+  divisions: number,
+  majorEvery: number,
+) {
+  const positions: number[] = []
+  const half = size / 2
+  const step = size / divisions
+
+  for (let index = 0; index <= divisions; index += 1) {
+    if (index % majorEvery === 0) {
+      continue
+    }
+
+    const offset = -half + index * step
+    positions.push(-half, 0, offset, half, 0, offset)
+    positions.push(offset, 0, -half, offset, 0, half)
+  }
+
+  const geometry = new THREE.BufferGeometry()
+  geometry.setAttribute(
+    'position',
+    new THREE.Float32BufferAttribute(positions, 3),
+  )
+  return geometry
+}
+
+function createMajorGridGeometry(
+  size: number,
+  divisions: number,
+  majorEvery: number,
+) {
+  const positions: number[] = []
+  const half = size / 2
+  const step = size / divisions
+
+  for (let index = 0; index <= divisions; index += majorEvery) {
+    const offset = -half + index * step
+    positions.push(-half, 0, offset, half, 0, offset)
+    positions.push(offset, 0, -half, offset, 0, half)
+  }
+
+  const geometry = new THREE.BufferGeometry()
+  geometry.setAttribute(
+    'position',
+    new THREE.Float32BufferAttribute(positions, 3),
+  )
+  return geometry
+}
+
+function TronGroundGrid() {
+  const minorGrid = useMemo(() => createGridGeometry(380, 76, 8), [])
+  const majorGrid = useMemo(() => createMajorGridGeometry(380, 76, 8), [])
+
+  return (
+    <group position={[0, -2.58, 0]}>
+      <lineSegments geometry={minorGrid}>
+        <lineBasicMaterial
+          color={TRON_GRID}
+          transparent
+          opacity={0.34}
+          depthWrite={false}
+          toneMapped={false}
+        />
+      </lineSegments>
+      <lineSegments geometry={majorGrid}>
+        <lineBasicMaterial
+          color={TRON_GRID_MAJOR}
+          transparent
+          opacity={0.32}
+          depthWrite={false}
+          toneMapped={false}
+        />
+      </lineSegments>
     </group>
   )
 }
@@ -986,9 +1188,9 @@ function ArcLayer({
                 (start.z + end.z) / 2,
               ]}
               color={arcColour(scene, arc)}
-              lineWidth={arc.arcType === 'cross-boundary' ? 2.6 : 1.7}
+              lineWidth={arc.arcType === 'cross-boundary' ? 3.2 : 2.2}
               transparent
-              opacity={arc.arcType === 'violation' ? 0.9 : 0.72}
+              opacity={arc.arcType === 'violation' ? 0.96 : 0.84}
             />
           )
         })}
@@ -1015,7 +1217,7 @@ function CameraDirector({
   const { camera, gl } = useThree()
 
   useEffect(() => {
-    gl.setClearColor('#F3F6F0')
+    gl.setClearColor(TRON_BACKGROUND)
   }, [gl])
 
   useEffect(() => {
@@ -1137,14 +1339,21 @@ function SceneContents({
 
   return (
     <>
-      <ambientLight intensity={0.85} />
-      <hemisphereLight intensity={0.55} color='#FFFDF7' groundColor='#B8D4D0' />
+      <ambientLight intensity={0.38} />
+      <hemisphereLight intensity={0.34} color='#D5FCFF' groundColor='#06101D' />
       <directionalLight
         position={[120, 160, 60]}
-        intensity={1.22}
+        intensity={0.86}
         castShadow
         shadow-mapSize-width={2048}
         shadow-mapSize-height={2048}
+        shadow-bias={-0.00008}
+        shadow-normalBias={0.035}
+      />
+      <directionalLight
+        position={[-90, 70, -120]}
+        intensity={0.45}
+        color={TRON_CYAN}
       />
       <mesh
         rotation={[-Math.PI / 2, 0, 0]}
@@ -1152,9 +1361,24 @@ function SceneContents({
         receiveShadow
       >
         <circleGeometry args={[260, 96]} />
-        <meshStandardMaterial color='#F0F4EC' roughness={0.98} />
+        <meshStandardMaterial
+          color='#050C16'
+          emissive='#02050A'
+          emissiveIntensity={0.45}
+          roughness={0.98}
+        />
       </mesh>
-      {showProps && <DecorativeProps boundaries={visibleBoundaries} />}
+      <TronGroundGrid />
+      <ContactShadows
+        position={[0, -2.68, 0]}
+        opacity={0.5}
+        scale={420}
+        blur={2.5}
+        far={80}
+        resolution={1024}
+        color='#020711'
+      />
+      {showProps && <CircuitDetailLayer boundaries={visibleBoundaries} />}
       {visibleBoundaries.map((boundary) => (
         <BoundaryScene
           key={boundary.id}
@@ -1206,12 +1430,14 @@ export function CodeCityCanvas({
 
   return (
     <div
-      className='relative h-[68svh] min-h-[520px] overflow-hidden rounded-[1.25rem] bg-[radial-gradient(circle_at_top,#fffdf6_0%,#edf4ec_52%,#d5e8e5_100%)]'
+      className='relative h-[68svh] min-h-[520px] overflow-hidden rounded-[1.25rem] border border-cyan-300/20 bg-[radial-gradient(circle_at_top,#10223b_0%,#06101f_44%,#02060d_100%)] shadow-[0_24px_80px_-42px_rgba(82,246,255,0.4)]'
       data-testid='code-city-scene-card'
     >
       {webglSupported ? (
         <Canvas
           shadows
+          dpr={[1, 2]}
+          gl={{ antialias: true, powerPreference: 'high-performance' }}
           camera={{
             position: initialPosition as [number, number, number],
             fov: 42,
@@ -1259,12 +1485,21 @@ export function CodeCityCanvas({
         </div>
       )}
 
+      <div
+        className='pointer-events-none absolute inset-0 opacity-65 mix-blend-screen'
+        style={{
+          backgroundImage:
+            'radial-gradient(circle at 50% 20%, rgba(82, 246, 255, 0.18), transparent 34%), linear-gradient(rgba(82, 246, 255, 0.06) 1px, transparent 1px)',
+          backgroundSize: '100% 100%, 100% 7px',
+        }}
+      />
+
       <div className='pointer-events-none absolute inset-x-0 top-0 flex items-start justify-between p-4'>
-        <div className='rounded-full border border-white/60 bg-white/75 px-3 py-1 text-xs font-medium text-slate-600 shadow-sm backdrop-blur'>
+        <div className='rounded-full border border-cyan-300/25 bg-slate-950/68 px-3 py-1 text-xs font-medium text-cyan-50 shadow-[0_0_24px_rgba(82,246,255,0.16)] backdrop-blur'>
           Orbit, pan, zoom, and select buildings to reveal dependency arcs.
         </div>
         {selectedBuilding != null && (
-          <div className='rounded-full border border-white/60 bg-white/75 px-3 py-1 text-xs font-medium text-slate-600 shadow-sm backdrop-blur'>
+          <div className='rounded-full border border-cyan-300/30 bg-slate-950/72 px-3 py-1 text-xs font-medium text-cyan-50 shadow-[0_0_28px_rgba(82,246,255,0.2)] backdrop-blur'>
             Selected: {selectedBuilding.label}
           </div>
         )}
@@ -1272,7 +1507,7 @@ export function CodeCityCanvas({
 
       {hoveredBuilding != null && (
         <div
-          className='pointer-events-none absolute z-20 w-64 rounded-2xl border border-white/70 bg-white/92 p-3 text-sm shadow-[0_16px_35px_-20px_rgba(15,23,42,0.45)] backdrop-blur dark:border-white/10 dark:bg-slate-950/88'
+          className='pointer-events-none absolute z-20 w-64 rounded-2xl border border-cyan-300/25 bg-slate-950/88 p-3 text-sm text-cyan-50 shadow-[0_18px_45px_-18px_rgba(82,246,255,0.35)] backdrop-blur'
           style={{
             left:
               hoverScreenPoint == null
@@ -1285,18 +1520,18 @@ export function CodeCityCanvas({
           }}
         >
           <p className='font-semibold'>{hoveredBuilding.label}</p>
-          <p className='mt-1 break-all text-xs text-muted-foreground'>
+          <p className='mt-1 break-all text-xs text-cyan-100/68'>
             {hoveredBuilding.filePath}
           </p>
           <div className='mt-3 grid grid-cols-2 gap-2 text-xs'>
-            <div className='rounded-xl bg-slate-100/80 p-2 dark:bg-white/5'>
-              <p className='text-muted-foreground'>Importance</p>
+            <div className='rounded-xl bg-cyan-300/8 p-2'>
+              <p className='text-cyan-100/68'>Importance</p>
               <p className='mt-1 font-semibold'>
                 {Math.round(hoveredBuilding.importance * 100)}%
               </p>
             </div>
-            <div className='rounded-xl bg-slate-100/80 p-2 dark:bg-white/5'>
-              <p className='text-muted-foreground'>Risk</p>
+            <div className='rounded-xl bg-cyan-300/8 p-2'>
+              <p className='text-cyan-100/68'>Risk</p>
               <p className='mt-1 font-semibold'>
                 {Math.round(hoveredBuilding.healthRisk * 100)}%
               </p>
