@@ -49,6 +49,43 @@ describe('CodeCity UI store', () => {
     )
   })
 
+  it('focuses a building facade for floor-level reading', () => {
+    const store = createCodeCityUiStore()
+    const scene = getFixtureScene('star-shared-kernel')
+    expect(scene).not.toBeNull()
+    if (scene == null) {
+      return
+    }
+
+    const targetBuilding = getSceneBuildings(scene).find(
+      (building) => building.filePath === 'src/domain/order-aggregate.ts',
+    )
+    const targetBuildingId = targetBuilding?.id
+    expect(targetBuildingId).toBeDefined()
+    if (targetBuilding == null || targetBuildingId == null) {
+      return
+    }
+
+    store.getState().focusBuilding(scene, targetBuildingId, {
+      focusCamera: true,
+      cameraMode: 'facade',
+    })
+
+    const state = store.getState()
+    expect(state.selectedBuildingId).toBe(targetBuildingId)
+    expect(state.cameraFocus?.label).toBe('order-aggregate.ts facade')
+    const cameraFocus = state.cameraFocus
+    expect(cameraFocus).not.toBeNull()
+    if (cameraFocus == null) {
+      return
+    }
+    expect(cameraFocus.position[1]).toBe(cameraFocus.target[1])
+    expect(
+      Math.abs(cameraFocus.position[0] - cameraFocus.target[0]) +
+        Math.abs(cameraFocus.position[2] - cameraFocus.target[2]),
+    ).toBeGreaterThan(targetBuilding.height)
+  })
+
   it('resolves preset focus into camera state', () => {
     const store = createCodeCityUiStore()
     const scene = getFixtureScene('tangled-world')

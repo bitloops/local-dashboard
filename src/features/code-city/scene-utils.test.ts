@@ -1,12 +1,48 @@
 import { describe, expect, it } from 'vitest'
 import { getFixtureScene } from './fixtures'
+import type {
+  CodeCityBuilding,
+  CodeCityDistrict,
+  CodeCitySceneModel,
+} from './schema'
 import {
+  createBuildingFacadeCameraFocus,
   getCodeCitySearchResults,
   getCodeCityZoomTier,
   getFolderLabelOpacity,
   getLabelOpacity,
+  getPlotCentre,
+  getSceneBuildings,
   isCodeCityArcVisible,
 } from './scene-utils'
+
+function stripSceneToBuilding(scene: CodeCitySceneModel, buildingId: string) {
+  const keepTargetOnly = (district: CodeCityDistrict) => {
+    const retainedChildren: CodeCityDistrict['children'] = []
+
+    district.children.forEach((child) => {
+      if (child.nodeType === 'building') {
+        if (child.id === buildingId) {
+          retainedChildren.push(child)
+        }
+        return
+      }
+
+      keepTargetOnly(child)
+      if (child.children.length > 0) {
+        retainedChildren.push(child)
+      }
+    })
+
+    district.children = retainedChildren
+  }
+
+  scene.boundaries.forEach((boundary) => {
+    boundary.zones.forEach((zone) => {
+      zone.districts.forEach(keepTargetOnly)
+    })
+  })
+}
 
 describe('CodeCity scene helpers', () => {
   it('ranks direct label matches ahead of path-only matches', () => {
@@ -68,6 +104,72 @@ describe('CodeCity scene helpers', () => {
     expect(getFolderLabelOpacity(0, 72, scene)).toBeGreaterThan(0.85)
     expect(getFolderLabelOpacity(1, 140, scene)).toBeGreaterThan(0)
     expect(getFolderLabelOpacity(1, 260, scene)).toBe(0)
+  })
+
+  it('creates a front-facing facade camera target for selected buildings', () => {
+    const scene = getFixtureScene('star-shared-kernel')
+    expect(scene).not.toBeNull()
+    if (scene == null) {
+      return
+    }
+
+    const building = getSceneBuildings(scene).find(
+      (candidate) => candidate.filePath === 'src/domain/order-aggregate.ts',
+    )
+
+    expect(building).toBeDefined()
+    if (building == null) {
+      return
+    }
+
+    const focus = createBuildingFacadeCameraFocus(scene, building)
+    expect(focus.label).toBe('order-aggregate.ts facade')
+    expect(focus.position.y).toBe(focus.target.y)
+    expect(
+      Math.abs(focus.position.x - focus.target.x) +
+        Math.abs(focus.position.z - focus.target.z),
+    ).toBeGreaterThan(building.height)
+  })
+
+  it('chooses the least blocked facade side for selected buildings', () => {
+    const scene = getFixtureScene('star-shared-kernel')
+    expect(scene).not.toBeNull()
+    if (scene == null) {
+      return
+    }
+
+    const isolatedScene = structuredClone(scene) as CodeCitySceneModel
+    const building = getSceneBuildings(isolatedScene).find(
+      (candidate) => candidate.filePath === 'src/domain/order-aggregate.ts',
+    )
+
+    expect(building).toBeDefined()
+    if (building == null) {
+      return
+    }
+
+    stripSceneToBuilding(isolatedScene, building.id)
+
+    const centre = getPlotCentre(building.plot)
+    const blocker: CodeCityBuilding = {
+      ...building,
+      id: `${building.id}:south-blocker`,
+      filePath: 'src/domain/south-blocker.ts',
+      label: 'south-blocker.ts',
+      plot: {
+        ...building.plot,
+        x: centre.x - building.plot.width / 2,
+        z: centre.z + building.plot.depth / 2 + 0.45,
+        width: building.plot.width,
+        depth: 3,
+      },
+      height: building.height * 1.2,
+    }
+
+    isolatedScene.boundaries[0]!.zones[0]!.districts[0]!.children.push(blocker)
+
+    const focus = createBuildingFacadeCameraFocus(isolatedScene, building)
+    expect(focus.position.z).toBeLessThan(focus.target.z)
   })
 
   it('shows only the appropriate arc classes for selection and overlay state', () => {

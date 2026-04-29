@@ -2,6 +2,7 @@ import { createStore } from 'zustand'
 import { useStore as useZustandStore } from 'zustand'
 import type { CodeCitySceneModel, CodeCityVector3 } from './schema'
 import {
+  createBuildingFacadeCameraFocus,
   createBuildingCameraFocus,
   createPresetCameraFocus,
   getBuildingById,
@@ -58,6 +59,7 @@ export type CodeCityUiState = {
     buildingId: string | null,
     options?: {
       focusCamera?: boolean
+      cameraMode?: 'oblique' | 'facade'
     },
   ) => void
   focusPreset: (scene: CodeCitySceneModel, presetId: string | null) => void
@@ -191,7 +193,9 @@ export function createCodeCityUiStore(
           selectedBuildingId: building.id,
           activePresetId: null,
           cameraFocus: buildCameraFocus(
-            createBuildingCameraFocus(building),
+            options.cameraMode === 'facade'
+              ? createBuildingFacadeCameraFocus(scene, building)
+              : createBuildingCameraFocus(building),
             focusSequence,
           ),
         }

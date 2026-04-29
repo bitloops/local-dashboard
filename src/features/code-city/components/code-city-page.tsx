@@ -222,6 +222,17 @@ export function CodeCityPage({
     focusBuilding(scene, buildingId)
   }
 
+  const handleSceneInspection = (buildingId: string) => {
+    if (scene == null) {
+      return
+    }
+
+    focusBuilding(scene, buildingId, {
+      focusCamera: true,
+      cameraMode: 'facade',
+    })
+  }
+
   const handleCameraControlStart = () => {
     setActivePresetId(null)
     setCameraFocus(null)
@@ -480,6 +491,7 @@ export function CodeCityPage({
                   cameraFocus={cameraFocus}
                   zoomDistance={zoomDistance}
                   onSelectBuilding={handleSceneSelection}
+                  onInspectBuilding={handleSceneInspection}
                   onHoverBuilding={setHoveredBuilding}
                   onCameraControlStart={handleCameraControlStart}
                   onZoomDistanceChange={setZoomDistance}

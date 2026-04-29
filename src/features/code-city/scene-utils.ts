@@ -35,6 +35,21 @@ export type CodeCitySceneSummary = {
   sharedBoundaryCount: number
 }
 
+type CodeCityFacadeSide = {
+  id: 'south' | 'north' | 'east' | 'west'
+  direction: {
+    x: -1 | 0 | 1
+    z: -1 | 0 | 1
+  }
+}
+
+const facadeSides: CodeCityFacadeSide[] = [
+  { id: 'south', direction: { x: 0, z: 1 } },
+  { id: 'north', direction: { x: 0, z: -1 } },
+  { id: 'east', direction: { x: 1, z: 0 } },
+  { id: 'west', direction: { x: -1, z: 0 } },
+]
+
 function walkDistrictChildren(
   district: CodeCityDistrict,
   visitor: (building: CodeCityBuilding, district: CodeCityDistrict) => void,
@@ -129,6 +144,114 @@ export function createBuildingCameraFocus(
     target: {
       x: centre.x,
       y: building.plot.y + Math.min(building.height * 0.5, 12),
+      z: centre.z,
+    },
+  }
+}
+
+function clamp(value: number, min: number, max: number) {
+  return Math.max(min, Math.min(max, value))
+}
+
+function scoreFacadeSide(
+  building: CodeCityBuilding,
+  side: CodeCityFacadeSide,
+  buildings: CodeCityBuilding[],
+  distance: number,
+) {
+  const centre = getPlotCentre(building.plot)
+  const facesX = side.direction.x !== 0
+  const targetHalfAlong = facesX
+    ? building.plot.width / 2
+    : building.plot.depth / 2
+  const targetHalfLateral = facesX
+    ? building.plot.depth / 2
+    : building.plot.width / 2
+
+  return buildings.reduce((score, otherBuilding) => {
+    if (otherBuilding.id === building.id) {
+      return score
+    }
+
+    const otherCentre = getPlotCentre(otherBuilding.plot)
+    const deltaX = otherCentre.x - centre.x
+    const deltaZ = otherCentre.z - centre.z
+    const along = deltaX * side.direction.x + deltaZ * side.direction.z
+
+    if (along <= 0) {
+      return score
+    }
+
+    const otherHalfAlong = facesX
+      ? otherBuilding.plot.width / 2
+      : otherBuilding.plot.depth / 2
+    const otherHalfLateral = facesX
+      ? otherBuilding.plot.depth / 2
+      : otherBuilding.plot.width / 2
+    const gap = along - targetHalfAlong - otherHalfAlong
+
+    if (gap > distance) {
+      return score
+    }
+
+    const lateral = Math.abs(facesX ? deltaZ : deltaX)
+    const corridorHalfWidth = targetHalfLateral + otherHalfLateral + 1.4
+
+    if (lateral > corridorHalfWidth) {
+      return score
+    }
+
+    const lateralOverlap = 1 - lateral / corridorHalfWidth
+    const proximity = 1 - clamp(gap / distance, 0, 1)
+    const heightWeight = clamp(
+      otherBuilding.height / building.height,
+      0.35,
+      1.6,
+    )
+
+    return score + lateralOverlap * proximity * heightWeight
+  }, 0)
+}
+
+function chooseLeastBlockedFacadeSide(
+  scene: CodeCitySceneModel,
+  building: CodeCityBuilding,
+  distance: number,
+) {
+  const buildings = getSceneBuildings(scene, { includeTests: true })
+
+  return facadeSides.reduce(
+    (bestSide, side) => {
+      const score = scoreFacadeSide(building, side, buildings, distance)
+      return score < bestSide.score ? { side, score } : bestSide
+    },
+    {
+      side: facadeSides[0]!,
+      score: Number.POSITIVE_INFINITY,
+    },
+  ).side
+}
+
+export function createBuildingFacadeCameraFocus(
+  scene: CodeCitySceneModel,
+  building: CodeCityBuilding,
+): CodeCityCameraFocusTarget {
+  const centre = getPlotCentre(building.plot)
+  const widthBias = Math.max(building.plot.width, building.plot.depth)
+  const distance = Math.max(10, building.height * 1.34, widthBias * 2.4)
+  const targetY = building.plot.y + building.height * 0.52
+  const side = chooseLeastBlockedFacadeSide(scene, building, distance)
+
+  return {
+    label: `${building.label} facade`,
+    position: {
+      x: centre.x + side.direction.x * distance,
+      y: targetY,
+      z: centre.z + side.direction.z * distance,
+    },
+    target: {
+      x: centre.x,
+      y: targetY,
       z: centre.z,
     },
   }

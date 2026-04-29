@@ -43,6 +43,7 @@ type CodeCityCanvasProps = {
   cameraFocus: CodeCityCameraFocus | null
   zoomDistance: number
   onSelectBuilding: (buildingId: string | null) => void
+  onInspectBuilding: (buildingId: string) => void
   onHoverBuilding: (
     buildingId: string | null,
     point?: {
@@ -763,6 +764,7 @@ function BuildingStack({
   hovered,
   showLabels,
   onSelectBuilding,
+  onInspectBuilding,
   onHoverBuilding,
 }: {
   building: CodeCityBuilding
@@ -772,6 +774,7 @@ function BuildingStack({
   hovered: boolean
   showLabels: boolean
   onSelectBuilding: (buildingId: string | null) => void
+  onInspectBuilding: (buildingId: string) => void
   onHoverBuilding: (
     buildingId: string | null,
     point?: {
@@ -882,6 +885,10 @@ function BuildingStack({
           event.stopPropagation()
           onSelectBuilding(building.id)
         }}
+        onDoubleClick={(event) => {
+          event.stopPropagation()
+          onInspectBuilding(building.id)
+        }}
         onPointerOver={handlePointerMove}
         onPointerMove={handlePointerMove}
         onPointerOut={handlePointerOut}
@@ -930,6 +937,7 @@ function DistrictContent({
   hoveredBuildingId,
   showLabels,
   onSelectBuilding,
+  onInspectBuilding,
   onHoverBuilding,
 }: {
   district: CodeCityDistrict
@@ -939,6 +947,7 @@ function DistrictContent({
   hoveredBuildingId: string | null
   showLabels: boolean
   onSelectBuilding: (buildingId: string | null) => void
+  onInspectBuilding: (buildingId: string) => void
   onHoverBuilding: (
     buildingId: string | null,
     point?: {
@@ -968,6 +977,7 @@ function DistrictContent({
             hoveredBuildingId={hoveredBuildingId}
             showLabels={showLabels}
             onSelectBuilding={onSelectBuilding}
+            onInspectBuilding={onInspectBuilding}
             onHoverBuilding={onHoverBuilding}
           />
         ) : (
@@ -980,6 +990,7 @@ function DistrictContent({
             hovered={hoveredBuildingId === child.id}
             showLabels={showLabels}
             onSelectBuilding={onSelectBuilding}
+            onInspectBuilding={onInspectBuilding}
             onHoverBuilding={onHoverBuilding}
           />
         ),
@@ -996,6 +1007,7 @@ function BoundaryScene({
   hoveredBuildingId,
   showLabels,
   onSelectBuilding,
+  onInspectBuilding,
   onHoverBuilding,
 }: {
   boundary: CodeCityBoundary
@@ -1005,6 +1017,7 @@ function BoundaryScene({
   hoveredBuildingId: string | null
   showLabels: boolean
   onSelectBuilding: (buildingId: string | null) => void
+  onInspectBuilding: (buildingId: string) => void
   onHoverBuilding: (
     buildingId: string | null,
     point?: {
@@ -1039,6 +1052,7 @@ function BoundaryScene({
               hoveredBuildingId={hoveredBuildingId}
               showLabels={showLabels}
               onSelectBuilding={onSelectBuilding}
+              onInspectBuilding={onInspectBuilding}
               onHoverBuilding={onHoverBuilding}
             />
           ))}
@@ -1433,6 +1447,7 @@ function SceneContents({
   showOverlays,
   zoomDistance,
   onSelectBuilding,
+  onInspectBuilding,
   onHoverBuilding,
 }: Omit<
   CodeCityCanvasProps,
@@ -1504,6 +1519,7 @@ function SceneContents({
           hoveredBuildingId={hoveredBuildingId}
           showLabels={showLabels}
           onSelectBuilding={onSelectBuilding}
+          onInspectBuilding={onInspectBuilding}
           onHoverBuilding={onHoverBuilding}
         />
       ))}
@@ -1529,6 +1545,7 @@ export function CodeCityCanvas({
   cameraFocus,
   zoomDistance,
   onSelectBuilding,
+  onInspectBuilding,
   onHoverBuilding,
   onCameraControlStart,
   onZoomDistanceChange,
@@ -1578,6 +1595,7 @@ export function CodeCityCanvas({
               showOverlays={showOverlays}
               zoomDistance={zoomDistance}
               onSelectBuilding={onSelectBuilding}
+              onInspectBuilding={onInspectBuilding}
               onHoverBuilding={onHoverBuilding}
             />
           </Suspense>
@@ -1611,7 +1629,8 @@ export function CodeCityCanvas({
 
       <div className='pointer-events-none absolute inset-x-0 top-0 flex items-start justify-between p-4'>
         <div className='rounded-full border border-cyan-300/25 bg-slate-950/68 px-3 py-1 text-xs font-medium text-cyan-50 shadow-[0_0_24px_rgba(82,246,255,0.16)] backdrop-blur'>
-          Orbit, pan, zoom, and select buildings to reveal dependency arcs.
+          Orbit, pan, zoom, select buildings, and double-click a building for
+          floor-reading mode.
         </div>
         {selectedBuilding != null && (
           <div className='rounded-full border border-cyan-300/30 bg-slate-950/72 px-3 py-1 text-xs font-medium text-cyan-50 shadow-[0_0_28px_rgba(82,246,255,0.2)] backdrop-blur'>
