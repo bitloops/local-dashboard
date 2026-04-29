@@ -1,4 +1,13 @@
-import { type ElementRef, Suspense, useEffect, useMemo, useRef } from 'react'
+import {
+  type ElementRef,
+  memo,
+  Suspense,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react'
 import { Canvas, type ThreeEvent, useFrame, useThree } from '@react-three/fiber'
 import {
   Billboard,
@@ -25,10 +34,12 @@ import {
   getBoundaryGroundLevels,
   getBuildingById,
   getCodeCitySceneFrame,
+  getCodeCityZoomTier,
   getDistrictTerrain,
   getFolderLabelOpacity,
   getLabelOpacity,
   getPlotCentre,
+  getSceneBuildings,
   getZoneSurfaceCentreY,
   getZoneSurfaceTopY,
   isCodeCityArcVisible,
@@ -36,15 +47,11 @@ import {
 } from '../scene-utils'
 import type { CodeCityCameraFocus } from '../store'
 import type { CodeCitySceneFrame } from '../scene-utils'
+import { scheduleIdleTask } from '../idle'
 
 type CodeCityCanvasProps = {
   scene: CodeCitySceneModel
   selectedBuildingId: string | null
-  hoveredBuildingId: string | null
-  hoverScreenPoint: {
-    x: number
-    y: number
-  } | null
   showLabels: boolean
   showTests: boolean
   showProps: boolean
@@ -53,13 +60,6 @@ type CodeCityCanvasProps = {
   zoomDistance: number
   onSelectBuilding: (buildingId: string | null) => void
   onInspectBuilding: (buildingId: string) => void
-  onHoverBuilding: (
-    buildingId: string | null,
-    point?: {
-      x: number
-      y: number
-    } | null,
-  ) => void
   onCameraControlStart: () => void
   onZoomDistanceChange: (distance: number) => void
 }
@@ -83,6 +83,12 @@ const BUILDING_BASE_CLEARANCE =
   BUILDING_FLOOR_GAP_ABOVE_FOUNDATION
 const CAMERA_MIN_DISTANCE = 6
 const MIN_CAMERA_MAX_DISTANCE = 340
+const LARGE_SCENE_BUILDING_THRESHOLD = 360
+const PROGRESSIVE_INITIAL_BUILDING_BUDGET = 220
+const PROGRESSIVE_RENDER_CHUNK_SIZE = 120
+const PROGRESSIVE_RENDER_IDLE_TIMEOUT_MS = 120
+const ZOOM_DISTANCE_REPORT_INTERVAL_MS = 180
+const ZOOM_DISTANCE_REPORT_MIN_DELTA = 10
 
 function zoneTint(zoneType: CodeCityZone['zoneType']) {
   switch (zoneType) {
@@ -132,6 +138,77 @@ function supportsWebGL() {
     canvas.getContext('webgl') ||
     canvas.getContext('experimental-webgl'),
   )
+}
+
+function clipDistrictByBuildingBudget(
+  district: CodeCityDistrict,
+  budget: {
+    remaining: number
+  },
+  pinnedBuildingIds: Set<string>,
+): CodeCityDistrict | null {
+  const children: CodeCityDistrict['children'] = []
+
+  for (const child of district.children) {
+    if (child.nodeType === 'building') {
+      const pinned = pinnedBuildingIds.has(child.id)
+      if (budget.remaining <= 0 && !pinned) {
+        continue
+      }
+
+      if (!pinned) {
+        budget.remaining -= 1
+      }
+      children.push(child)
+      continue
+    }
+
+    const clippedDistrict = clipDistrictByBuildingBudget(
+      child,
+      budget,
+      pinnedBuildingIds,
+    )
+    if (clippedDistrict != null) {
+      children.push(clippedDistrict)
+    }
+  }
+
+  if (children.length === 0) {
+    return null
+  }
+
+  return children.length === district.children.length
+    ? district
+    : {
+        ...district,
+        children,
+      }
+}
+
+function clipBoundariesByBuildingBudget(
+  boundaries: CodeCityBoundary[],
+  renderBudget: number,
+  pinnedBuildingIds: Set<string>,
+) {
+  if (!Number.isFinite(renderBudget)) {
+    return boundaries
+  }
+
+  const budget = {
+    remaining: Math.max(0, Math.floor(renderBudget)),
+  }
+
+  return boundaries.map((boundary) => ({
+    ...boundary,
+    zones: boundary.zones.map((zone) => ({
+      ...zone,
+      districts: zone.districts
+        .map((district) =>
+          clipDistrictByBuildingBudget(district, budget, pinnedBuildingIds),
+        )
+        .filter((district): district is CodeCityDistrict => district != null),
+    })),
+  }))
 }
 
 function bevelRadius(width: number, depth: number, max = 0.22) {
@@ -891,9 +968,11 @@ function BuildingStack({
   const highlightColour =
     selected || hovered ? TRON_CYAN : building.isTest ? '#78879D' : TRON_BLUE
 
-  const handlePointerMove = (event: ThreeEvent<PointerEvent>) => {
+  const handlePointerOver = (event: ThreeEvent<PointerEvent>) => {
     event.stopPropagation()
-    onHoverBuilding(building.id, { x: event.clientX, y: event.clientY })
+    if (!hovered) {
+      onHoverBuilding(building.id, { x: event.clientX, y: event.clientY })
+    }
     document.body.style.cursor = 'pointer'
   }
 
@@ -1019,8 +1098,7 @@ function BuildingStack({
           event.stopPropagation()
           onInspectBuilding(building.id)
         }}
-        onPointerOver={handlePointerMove}
-        onPointerMove={handlePointerMove}
+        onPointerOver={handlePointerOver}
         onPointerOut={handlePointerOut}
       >
         <boxGeometry
@@ -1058,6 +1136,8 @@ function BuildingStack({
     </group>
   )
 }
+
+const MemoizedBuildingStack = memo(BuildingStack)
 
 function DistrictContent({
   district,
@@ -1122,7 +1202,7 @@ function DistrictContent({
             onHoverBuilding={onHoverBuilding}
           />
         ) : (
-          <BuildingStack
+          <MemoizedBuildingStack
             key={child.id}
             building={child}
             scene={scene}
@@ -1412,18 +1492,20 @@ function TronGroundGrid({ frame }: { frame: CodeCitySceneFrame }) {
 
 function ArcLayer({
   scene,
+  boundaries,
   selectedBuildingId,
   showOverlays,
   zoomDistance,
 }: {
   scene: CodeCitySceneModel
+  boundaries: CodeCityBoundary[]
   selectedBuildingId: string | null
   showOverlays: boolean
   zoomDistance: number
 }) {
   const buildingsById = useMemo(() => {
     const index = new Map<string, CodeCityBuilding>()
-    for (const boundary of scene.boundaries) {
+    for (const boundary of boundaries) {
       for (const zone of boundary.zones) {
         for (const district of zone.districts) {
           const visit = (node: CodeCityDistrict) => {
@@ -1442,7 +1524,7 @@ function ArcLayer({
       }
     }
     return index
-  }, [scene])
+  }, [boundaries])
   const buildingBaseYById = useMemo(
     () => getBuildingRenderBaseYById(scene),
     [scene],
@@ -1524,6 +1606,9 @@ function CameraDirector({
   const desiredTarget = useRef(new THREE.Vector3())
   const activeFlightSequence = useRef<number | null>(null)
   const lastReportedZoomDistance = useRef<number | null>(null)
+  const lastReportedZoomTier = useRef<string | null>(null)
+  const lastZoomReportAt = useRef(0)
+  const initialisedSceneId = useRef<string | null>(null)
   const { camera, gl } = useThree()
 
   useEffect(() => {
@@ -1531,11 +1616,18 @@ function CameraDirector({
   }, [gl])
 
   useEffect(() => {
+    // Three.js camera instances are mutable external objects; keep the projection range in sync with the scene frame.
+    // eslint-disable-next-line react-hooks/immutability
     camera.far = frame.cameraFar
     camera.updateProjectionMatrix()
   }, [camera, frame.cameraFar])
 
   useEffect(() => {
+    if (initialisedSceneId.current === scene.id) {
+      return
+    }
+
+    initialisedSceneId.current = scene.id
     const initialPreset = resolveCodeCityCameraPreset(scene, null)
     const initialPosition = focus?.position ?? [
       initialPreset?.position.x ?? 0,
@@ -1558,6 +1650,11 @@ function CameraDirector({
       lastReportedZoomDistance.current = camera.position.distanceTo(
         controlsRef.current.target,
       )
+      lastReportedZoomTier.current = getCodeCityZoomTier(
+        lastReportedZoomDistance.current,
+        scene,
+      )
+      lastZoomReportAt.current = performance.now()
       onZoomDistanceChange(lastReportedZoomDistance.current)
     }
   }, [camera, focus?.position, focus?.target, onZoomDistanceChange, scene])
@@ -1595,11 +1692,20 @@ function CameraDirector({
     controls.update()
 
     const distance = camera.position.distanceTo(controls.target)
-    if (
-      lastReportedZoomDistance.current == null ||
-      Math.abs(distance - lastReportedZoomDistance.current) >= 1.5
-    ) {
+    const nextZoomTier = getCodeCityZoomTier(distance, scene)
+    const lastDistance = lastReportedZoomDistance.current
+    const now = performance.now()
+    const zoomTierChanged = nextZoomTier !== lastReportedZoomTier.current
+    const reportIntervalElapsed =
+      now - lastZoomReportAt.current >= ZOOM_DISTANCE_REPORT_INTERVAL_MS
+    const reportDistanceChanged =
+      lastDistance == null ||
+      Math.abs(distance - lastDistance) >= ZOOM_DISTANCE_REPORT_MIN_DELTA
+
+    if (zoomTierChanged || (reportIntervalElapsed && reportDistanceChanged)) {
       lastReportedZoomDistance.current = distance
+      lastReportedZoomTier.current = nextZoomTier
+      lastZoomReportAt.current = now
       onZoomDistanceChange(distance)
     }
   })
@@ -1634,26 +1740,50 @@ function SceneContents({
   showOverlays,
   zoomDistance,
   frame,
+  renderBudget,
   onSelectBuilding,
   onInspectBuilding,
   onHoverBuilding,
 }: Omit<
   CodeCityCanvasProps,
-  | 'cameraFocus'
-  | 'hoverScreenPoint'
-  | 'onCameraControlStart'
-  | 'onZoomDistanceChange'
-> & { frame: CodeCitySceneFrame }) {
-  const visibleBoundaries = useMemo(
-    () =>
-      scene.boundaries.map((boundary) => ({
-        ...boundary,
-        zones: boundary.zones.filter((zone) =>
-          showTests ? true : zone.zoneType !== 'test',
-        ),
-      })),
-    [scene.boundaries, showTests],
-  )
+  'cameraFocus' | 'onCameraControlStart' | 'onZoomDistanceChange'
+> & {
+  frame: CodeCitySceneFrame
+  hoveredBuildingId: string | null
+  renderBudget: number
+  onHoverBuilding: (
+    buildingId: string | null,
+    point?: {
+      x: number
+      y: number
+    } | null,
+  ) => void
+}) {
+  const visibleBoundaries = useMemo(() => {
+    const filteredBoundaries = scene.boundaries.map((boundary) => ({
+      ...boundary,
+      zones: boundary.zones.filter((zone) =>
+        showTests ? true : zone.zoneType !== 'test',
+      ),
+    }))
+    const pinnedBuildingIds = new Set(
+      [selectedBuildingId, hoveredBuildingId].filter(
+        (buildingId): buildingId is string => buildingId != null,
+      ),
+    )
+
+    return clipBoundariesByBuildingBudget(
+      filteredBoundaries,
+      renderBudget,
+      pinnedBuildingIds,
+    )
+  }, [
+    hoveredBuildingId,
+    renderBudget,
+    scene.boundaries,
+    selectedBuildingId,
+    showTests,
+  ])
 
   return (
     <>
@@ -1713,6 +1843,7 @@ function SceneContents({
       ))}
       <ArcLayer
         scene={scene}
+        boundaries={visibleBoundaries}
         selectedBuildingId={selectedBuildingId}
         showOverlays={showOverlays}
         zoomDistance={zoomDistance}
@@ -1724,8 +1855,6 @@ function SceneContents({
 export function CodeCityCanvas({
   scene,
   selectedBuildingId,
-  hoveredBuildingId,
-  hoverScreenPoint,
   showLabels,
   showTests,
   showProps,
@@ -1734,20 +1863,99 @@ export function CodeCityCanvas({
   zoomDistance,
   onSelectBuilding,
   onInspectBuilding,
-  onHoverBuilding,
   onCameraControlStart,
   onZoomDistanceChange,
 }: CodeCityCanvasProps) {
   const fallbackPreset = resolveCodeCityCameraPreset(scene, null)
   const webglSupported = useMemo(() => supportsWebGL(), [])
   const frame = useMemo(() => getCodeCitySceneFrame(scene), [scene])
+  const totalRenderableBuildingCount = useMemo(
+    () => getSceneBuildings(scene, { includeTests: showTests }).length,
+    [scene, showTests],
+  )
+  const usesProgressiveRendering =
+    totalRenderableBuildingCount > LARGE_SCENE_BUILDING_THRESHOLD
+  const initialRenderBudget = usesProgressiveRendering
+    ? Math.min(
+        PROGRESSIVE_INITIAL_BUILDING_BUDGET,
+        totalRenderableBuildingCount,
+      )
+    : totalRenderableBuildingCount
+  const renderBudgetKey = `${scene.id}:${showTests ? 'tests' : 'no-tests'}:${totalRenderableBuildingCount}`
+  const [renderBudgetState, setRenderBudgetState] = useState(() => ({
+    budget: initialRenderBudget,
+    key: renderBudgetKey,
+  }))
+  const renderBudget =
+    renderBudgetState.key === renderBudgetKey
+      ? renderBudgetState.budget
+      : initialRenderBudget
+  const [hoverState, setHoverState] = useState<{
+    sceneId: string
+    buildingId: string
+    point: {
+      x: number
+      y: number
+    } | null
+  } | null>(null)
   const initialPosition = cameraFocus?.position ?? [
     fallbackPreset?.position.x ?? 0,
     fallbackPreset?.position.y ?? 150,
     fallbackPreset?.position.z ?? 150,
   ]
   const selectedBuilding = getBuildingById(scene, selectedBuildingId)
+  const activeHoverState = hoverState?.sceneId === scene.id ? hoverState : null
+  const hoveredBuildingId = activeHoverState?.buildingId ?? null
+  const hoverScreenPoint = activeHoverState?.point ?? null
   const hoveredBuilding = getBuildingById(scene, hoveredBuildingId)
+  const handleHoverBuilding = useCallback(
+    (
+      buildingId: string | null,
+      point?: {
+        x: number
+        y: number
+      } | null,
+    ) => {
+      setHoverState(
+        buildingId == null
+          ? null
+          : { sceneId: scene.id, buildingId, point: point ?? null },
+      )
+    },
+    [scene.id],
+  )
+
+  useEffect(() => {
+    if (
+      !usesProgressiveRendering ||
+      renderBudget >= totalRenderableBuildingCount
+    ) {
+      return
+    }
+
+    return scheduleIdleTask(() => {
+      setRenderBudgetState((currentState) => {
+        const currentBudget =
+          currentState.key === renderBudgetKey
+            ? currentState.budget
+            : initialRenderBudget
+
+        return {
+          key: renderBudgetKey,
+          budget: Math.min(
+            totalRenderableBuildingCount,
+            currentBudget + PROGRESSIVE_RENDER_CHUNK_SIZE,
+          ),
+        }
+      })
+    }, PROGRESSIVE_RENDER_IDLE_TIMEOUT_MS)
+  }, [
+    initialRenderBudget,
+    renderBudget,
+    renderBudgetKey,
+    totalRenderableBuildingCount,
+    usesProgressiveRendering,
+  ])
 
   return (
     <div
@@ -1785,9 +1993,10 @@ export function CodeCityCanvas({
               showOverlays={showOverlays}
               zoomDistance={zoomDistance}
               frame={frame}
+              renderBudget={renderBudget}
               onSelectBuilding={onSelectBuilding}
               onInspectBuilding={onInspectBuilding}
-              onHoverBuilding={onHoverBuilding}
+              onHoverBuilding={handleHoverBuilding}
             />
           </Suspense>
         </Canvas>

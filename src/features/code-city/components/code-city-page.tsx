@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { startTransition, useEffect, useMemo, useState } from 'react'
 import { Boxes, Camera, Database, MapPinned, Search } from 'lucide-react'
 import { Header } from '@/components/layout/header'
 import { Main } from '@/components/layout/main'
@@ -30,6 +30,7 @@ import {
   loadCodeCityScene,
   type LoadCodeCitySceneInput,
 } from '../load-code-city-scene'
+import { scheduleIdleTask } from '../idle'
 import type { CodeCitySceneModel } from '../schema'
 import {
   createBuildingCameraFocus,
@@ -47,6 +48,7 @@ import { useCodeCityStore } from '../store'
 const codeCityProjectPath =
   import.meta.env.VITE_CODE_CITY_PROJECT_PATH?.trim() || '.'
 const repoAutoValue = '__code_city_repo_auto__'
+const COARSE_CODE_CITY_BUILDING_LIMIT = 220
 
 type LoadState =
   | {
@@ -131,8 +133,6 @@ export function CodeCityPage({
   const selectedBuildingId = useCodeCityStore(
     (state) => state.selectedBuildingId,
   )
-  const hoveredBuildingId = useCodeCityStore((state) => state.hoveredBuildingId)
-  const hoverScreenPoint = useCodeCityStore((state) => state.hoverScreenPoint)
   const activePresetId = useCodeCityStore((state) => state.activePresetId)
   const showLabels = useCodeCityStore((state) => state.showLabels)
   const showTests = useCodeCityStore((state) => state.showTests)
@@ -147,9 +147,6 @@ export function CodeCityPage({
   const setActivePresetId = useCodeCityStore((state) => state.setActivePresetId)
   const setSelectedBuildingId = useCodeCityStore(
     (state) => state.setSelectedBuildingId,
-  )
-  const setHoveredBuilding = useCodeCityStore(
-    (state) => state.setHoveredBuilding,
   )
   const toggleLayer = useCodeCityStore((state) => state.toggleLayer)
   const setZoomDistance = useCodeCityStore((state) => state.setZoomDistance)
@@ -190,6 +187,17 @@ export function CodeCityPage({
         : null
   const [retryToken, setRetryToken] = useState(0)
   const loadKey = `${datasetId}:${sceneRepoId ?? 'auto'}:${codeCityProjectPath}:${retryToken}`
+  const [storedDetailLoadState, setDetailLoadState] = useState<{
+    loadKey: string
+    status: 'idle' | 'loading' | 'ready' | 'error'
+  }>({
+    loadKey,
+    status: 'idle',
+  })
+  const detailLoadState =
+    storedDetailLoadState.loadKey === loadKey
+      ? storedDetailLoadState.status
+      : 'idle'
   const [storedSceneState, setStoredSceneState] = useState<StoredLoadState>({
     ...loadingSceneState(),
     loadKey,
@@ -203,8 +211,14 @@ export function CodeCityPage({
     let cancelled = false
     const abortController = new AbortController()
 
-    setRepoLoadState('loading')
-    setRepoLoadError(null)
+    queueMicrotask(() => {
+      if (cancelled) {
+        return
+      }
+
+      setRepoLoadState('loading')
+      setRepoLoadError(null)
+    })
 
     void fetchDashboardRepositories({ signal: abortController.signal })
       .then((repositories) => {
@@ -250,32 +264,100 @@ export function CodeCityPage({
   }, [repoOptions, selectedDashboardRepoId, setSelectedDashboardRepoId])
 
   useEffect(() => {
+    let cancelled = false
+    const setStoredSceneStateDeferred = (state: StoredLoadState) => {
+      queueMicrotask(() => {
+        if (cancelled) {
+          return
+        }
+
+        setStoredSceneState(state)
+      })
+    }
+
     if (awaitingLiveRepository) {
-      setStoredSceneState({
+      setStoredSceneStateDeferred({
         ...loadingSceneState(),
         loadKey,
       })
-      return
+      return () => {
+        cancelled = true
+      }
     }
 
     if (liveRepositoryError != null) {
-      setStoredSceneState({
+      setStoredSceneStateDeferred({
         status: 'error',
         scene: null,
         error: liveRepositoryError,
         loadKey,
       })
-      return
+      return () => {
+        cancelled = true
+      }
     }
 
-    let cancelled = false
-    const abortController = new AbortController()
+    const initialAbortController = new AbortController()
+    const detailAbortController = new AbortController()
+    let cancelDetailSchedule: (() => void) | null = null
 
-    void loadScene({
+    const baseInput = {
       datasetId,
       repoId: sceneRepoId,
       projectPath: codeCityProjectPath,
-      signal: abortController.signal,
+    }
+
+    const loadFullScene = () => {
+      if (cancelled || !liveDataset) {
+        return
+      }
+
+      setDetailLoadState({
+        loadKey,
+        status: 'loading',
+      })
+
+      void loadScene({
+        ...baseInput,
+        signal: detailAbortController.signal,
+      })
+        .then((scene) => {
+          if (cancelled) {
+            return
+          }
+
+          startTransition(() => {
+            setStoredSceneState({
+              status: 'ready',
+              scene,
+              error: null,
+              loadKey,
+            })
+            setDetailLoadState({
+              loadKey,
+              status: 'ready',
+            })
+          })
+        })
+        .catch((error: unknown) => {
+          if (cancelled) {
+            return
+          }
+          if (error instanceof Error && error.name === 'AbortError') {
+            return
+          }
+
+          setDetailLoadState({
+            loadKey,
+            status: 'error',
+          })
+        })
+    }
+
+    void loadScene({
+      ...baseInput,
+      first: liveDataset ? COARSE_CODE_CITY_BUILDING_LIMIT : undefined,
+      signal: initialAbortController.signal,
     })
       .then((scene) => {
         if (cancelled) {
@@ -292,6 +374,10 @@ export function CodeCityPage({
         const defaultPreset = resolveCodeCityCameraPreset(scene, null)
         if (defaultPreset != null) {
           focusPreset(scene, defaultPreset.id)
+        }
+
+        if (liveDataset) {
+          cancelDetailSchedule = scheduleIdleTask(loadFullScene, 350)
         }
       })
       .catch((error: unknown) => {
@@ -315,12 +401,15 @@ export function CodeCityPage({
 
     return () => {
       cancelled = true
-      abortController.abort()
+      initialAbortController.abort()
+      detailAbortController.abort()
+      cancelDetailSchedule?.()
     }
   }, [
     awaitingLiveRepository,
     datasetId,
     focusPreset,
+    liveDataset,
     liveRepositoryError,
     loadKey,
     loadScene,
@@ -435,6 +524,11 @@ export function CodeCityPage({
           <div className='flex items-center gap-2 text-xs text-muted-foreground'>
             <Database className='size-4' />
             <span>{sourceSummary}</span>
+            {detailLoadState === 'loading' && (
+              <Badge variant='outline' className='rounded-full'>
+                Streaming detail
+              </Badge>
+            )}
           </div>
         </div>
 
@@ -677,8 +771,6 @@ export function CodeCityPage({
                 <CodeCityCanvas
                   scene={scene}
                   selectedBuildingId={selectedBuildingId}
-                  hoveredBuildingId={hoveredBuildingId}
-                  hoverScreenPoint={hoverScreenPoint}
                   showLabels={showLabels}
                   showTests={showTests}
                   showProps={showProps}
@@ -687,7 +779,6 @@ export function CodeCityPage({
                   zoomDistance={zoomDistance}
                   onSelectBuilding={handleSceneSelection}
                   onInspectBuilding={handleSceneInspection}
-                  onHoverBuilding={setHoveredBuilding}
                   onCameraControlStart={handleCameraControlStart}
                   onZoomDistanceChange={setZoomDistance}
                 />

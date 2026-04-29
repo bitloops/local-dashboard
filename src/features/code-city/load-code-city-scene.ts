@@ -7,6 +7,7 @@ export type LoadCodeCitySceneInput = {
   datasetId: string
   repoId?: string | null
   projectPath?: string
+  first?: number
   signal?: AbortSignal
 }
 
@@ -22,12 +23,14 @@ export async function loadCodeCityScene({
   datasetId,
   repoId,
   projectPath,
+  first,
   signal,
 }: LoadCodeCitySceneInput): Promise<CodeCitySceneModel> {
   if (isLiveCodeCityDataset(datasetId)) {
     return fetchDevqlCodeCityScene({
       repoId,
       projectPath,
+      first,
       signal,
     })
   }

@@ -1,5 +1,5 @@
 import type { ComponentProps } from 'react'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { ThemeProvider } from '@/context/theme-provider'
@@ -58,6 +58,11 @@ const dashboardRepositories = [
   },
 ]
 
+type IdleCallback = (deadline: {
+  didTimeout: boolean
+  timeRemaining: () => number
+}) => void
+
 function renderPage(props?: Partial<ComponentProps<typeof CodeCityPage>>) {
   return render(
     <ThemeProvider>
@@ -79,6 +84,10 @@ describe('CodeCity page', () => {
     rootStoreInstance.getState().clearDashboardCache()
     mockFetchDashboardRepositories.mockReset()
     mockFetchDashboardRepositories.mockResolvedValue(dashboardRepositories)
+  })
+
+  afterEach(() => {
+    vi.unstubAllGlobals()
   })
 
   it('renders controls and updates the inspector through guided search', async () => {
@@ -134,6 +143,64 @@ describe('CodeCity page', () => {
     expect(
       await screen.findByTestId('code-city-repo-select'),
     ).toHaveTextContent('bitloops/local-dashboard')
+  })
+
+  it('loads a coarse live scene before scheduling full detail', async () => {
+    const idleCallbacks: IdleCallback[] = []
+    vi.stubGlobal('requestIdleCallback', (callback: IdleCallback) => {
+      idleCallbacks.push(callback)
+      return idleCallbacks.length
+    })
+    vi.stubGlobal('cancelIdleCallback', vi.fn())
+
+    const scene = await loadFixtureScene()
+    const coarseScene = {
+      ...scene,
+      id: 'coarse-live-scene',
+      title: 'Coarse Atlas',
+    }
+    const fullScene = {
+      ...scene,
+      id: 'full-live-scene',
+      title: 'Full Atlas',
+    }
+    const loadScene = vi
+      .fn<NonNullable<ComponentProps<typeof CodeCityPage>['loadScene']>>()
+      .mockResolvedValueOnce(coarseScene)
+      .mockResolvedValueOnce(fullScene)
+
+    renderPage({ loadScene })
+
+    expect(
+      within(await screen.findByTestId('mock-code-city-canvas')).getByText(
+        'Coarse Atlas',
+      ),
+    ).toBeInTheDocument()
+    expect(loadScene).toHaveBeenCalledTimes(1)
+    expect(loadScene.mock.calls[0]?.[0]).toEqual(
+      expect.objectContaining({
+        datasetId: 'live-devql-current',
+        first: 220,
+      }),
+    )
+    expect(idleCallbacks).toHaveLength(1)
+
+    idleCallbacks[0]?.({
+      didTimeout: false,
+      timeRemaining: () => 50,
+    })
+
+    await waitFor(() => {
+      expect(loadScene).toHaveBeenCalledTimes(2)
+    })
+    expect(loadScene.mock.calls[1]?.[0]?.first).toBeUndefined()
+    await waitFor(() => {
+      expect(
+        within(screen.getByTestId('mock-code-city-canvas')).getByText(
+          'Full Atlas',
+        ),
+      ).toBeInTheDocument()
+    })
   })
 
   it('shows an empty state when the loader returns no boundaries', async () => {
