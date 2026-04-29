@@ -65,6 +65,8 @@ const TRON_MINT = '#50FFC2'
 const TRON_LABEL = '#DDFDFF'
 const TRON_WARNING = '#FF4F7B'
 const BUILDING_BASE_CLEARANCE = 0.18
+const CAMERA_MIN_DISTANCE = 6
+const CAMERA_MAX_DISTANCE = 340
 
 function zoneTint(zoneType: CodeCityZone['zoneType']) {
   switch (zoneType) {
@@ -627,6 +629,132 @@ function SelectionMarker({
   )
 }
 
+function ArtefactFacePanel({
+  artefactName,
+  colour,
+  panelWidth,
+  panelHeight,
+}: {
+  artefactName: string
+  colour: string
+  panelWidth: number
+  panelHeight: number
+}) {
+  const fontSize = Math.min(0.34, Math.max(0.2, panelHeight * 0.48))
+
+  return (
+    <group>
+      <mesh position={[0, 0, 0]}>
+        <planeGeometry args={[panelWidth, panelHeight]} />
+        <meshBasicMaterial
+          color='#04101D'
+          transparent
+          opacity={0.84}
+          depthWrite={false}
+          toneMapped={false}
+        />
+      </mesh>
+      <mesh position={[0, panelHeight / 2 - 0.035, 0.018]}>
+        <boxGeometry args={[panelWidth, 0.045, 0.025]} />
+        <meshBasicMaterial
+          color={colour}
+          transparent
+          opacity={0.9}
+          depthWrite={false}
+          toneMapped={false}
+        />
+      </mesh>
+      <mesh position={[-panelWidth / 2 + 0.14, 0, 0.018]}>
+        <boxGeometry args={[0.1, Math.max(0.18, panelHeight - 0.16), 0.025]} />
+        <meshBasicMaterial
+          color={colour}
+          transparent
+          opacity={0.75}
+          depthWrite={false}
+          toneMapped={false}
+        />
+      </mesh>
+      <Text
+        position={[-panelWidth / 2 + 0.32, -0.005, 0.032]}
+        fontSize={fontSize}
+        color={TRON_LABEL}
+        anchorX='left'
+        anchorY='middle'
+        maxWidth={panelWidth - 0.55}
+        textAlign='left'
+        outlineWidth={0.014}
+        outlineColor='#020812'
+        material-depthWrite={false}
+      >
+        {artefactName}
+      </Text>
+    </group>
+  )
+}
+
+function FloorArtefactPanels({
+  floor,
+  width,
+  depth,
+  floorHeight,
+  positionY,
+}: {
+  floor: CodeCityBuilding['floors'][number]
+  width: number
+  depth: number
+  floorHeight: number
+  positionY: number
+}) {
+  const colour = floorEdgeColour(floor, true, false)
+  const panelHeight = Math.min(0.58, Math.max(0.34, floorHeight * 0.52))
+  const frontBackWidth = Math.max(width + 0.55, 4.2)
+  const sideWidth = Math.max(depth + 0.55, 4.2)
+  const offset = 0.065
+
+  return (
+    <group position={[0, positionY, 0]}>
+      <group position={[0, 0, depth / 2 + offset]}>
+        <ArtefactFacePanel
+          artefactName={floor.artefactName}
+          colour={colour}
+          panelWidth={frontBackWidth}
+          panelHeight={panelHeight}
+        />
+      </group>
+      <group position={[0, 0, -depth / 2 - offset]} rotation={[0, Math.PI, 0]}>
+        <ArtefactFacePanel
+          artefactName={floor.artefactName}
+          colour={colour}
+          panelWidth={frontBackWidth}
+          panelHeight={panelHeight}
+        />
+      </group>
+      <group
+        position={[width / 2 + offset, 0, 0]}
+        rotation={[0, Math.PI / 2, 0]}
+      >
+        <ArtefactFacePanel
+          artefactName={floor.artefactName}
+          colour={colour}
+          panelWidth={sideWidth}
+          panelHeight={panelHeight}
+        />
+      </group>
+      <group
+        position={[-width / 2 - offset, 0, 0]}
+        rotation={[0, -Math.PI / 2, 0]}
+      >
+        <ArtefactFacePanel
+          artefactName={floor.artefactName}
+          colour={colour}
+          panelWidth={sideWidth}
+          panelHeight={panelHeight}
+        />
+      </group>
+    </group>
+  )
+}
+
 function BuildingStack({
   building,
   scene,
@@ -656,7 +784,6 @@ function BuildingStack({
   const interactiveDepth = Math.max(0.6, building.plot.depth - 0.36)
   const buildingOpacity = building.isTest ? 0.76 : 1
   const labelOpacity = getLabelOpacity('building', zoomDistance, scene)
-  const detailOpacity = getLabelOpacity('detail', zoomDistance, scene)
   const shouldShowBuildingLabel =
     showLabels && (selected || hovered || building.importance >= 0.72)
   const centre = getPlotCentre(building.plot)
@@ -736,27 +863,14 @@ function BuildingStack({
                 threshold={14}
               />
             </RoundedBox>
-            {showLabels && selected && detailOpacity > 0.05 && (
-              <Billboard
-                position={[0, positionY, interactiveDepth / 2 + 1.1]}
-                follow
-              >
-                <Text
-                  fontSize={0.9}
-                  color={TRON_LABEL}
-                  anchorX='center'
-                  anchorY='middle'
-                  maxWidth={8}
-                  textAlign='center'
-                  outlineWidth={0.02}
-                  outlineColor='#020812'
-                  material-transparent
-                  material-opacity={detailOpacity}
-                  material-depthWrite={false}
-                >
-                  {floor.artefactName}
-                </Text>
-              </Billboard>
+            {showLabels && selected && (
+              <FloorArtefactPanels
+                floor={floor}
+                width={interactiveWidth}
+                depth={interactiveDepth}
+                floorHeight={floorHeight}
+                positionY={positionY}
+              />
             )}
           </group>
         )
@@ -1300,8 +1414,9 @@ function CameraDirector({
       makeDefault
       enableDamping
       dampingFactor={0.09}
-      minDistance={20}
-      maxDistance={300}
+      minDistance={CAMERA_MIN_DISTANCE}
+      maxDistance={CAMERA_MAX_DISTANCE}
+      zoomSpeed={1.2}
       maxPolarAngle={Math.PI / 2.04}
       onStart={handleControlStart}
     />

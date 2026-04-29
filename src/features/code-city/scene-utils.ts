@@ -116,15 +116,15 @@ export function createBuildingCameraFocus(
 ): CodeCityCameraFocusTarget {
   const centre = getPlotCentre(building.plot)
   const widthBias = Math.max(building.plot.width, building.plot.depth)
-  const distance = 18 + widthBias * 1.35
-  const height = Math.max(18, building.height + 10)
+  const distance = 9 + widthBias * 0.82
+  const height = Math.max(9, building.height * 0.72 + 5)
 
   return {
     label: building.label,
     position: {
       x: centre.x + distance,
       y: building.plot.y + height,
-      z: centre.z + distance * 0.35,
+      z: centre.z + distance * 0.42,
     },
     target: {
       x: centre.x,

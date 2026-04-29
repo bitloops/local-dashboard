@@ -28,11 +28,12 @@ describe('CodeCity UI store', () => {
       return
     }
 
-    const targetBuildingId = getSceneBuildings(scene).find(
+    const targetBuilding = getSceneBuildings(scene).find(
       (building) => building.filePath === 'src/domain/order-aggregate.ts',
-    )?.id
+    )
+    const targetBuildingId = targetBuilding?.id
     expect(targetBuildingId).toBeDefined()
-    if (targetBuildingId == null) {
+    if (targetBuilding == null || targetBuildingId == null) {
       return
     }
 
@@ -43,7 +44,9 @@ describe('CodeCity UI store', () => {
     const state = store.getState()
     expect(state.selectedBuildingId).toBe(targetBuildingId)
     expect(state.cameraFocus?.label).toBe('order-aggregate.ts')
-    expect(state.cameraFocus?.position[1]).toBeGreaterThan(20)
+    expect(state.cameraFocus?.position[1]).toBeGreaterThan(
+      targetBuilding.plot.y + targetBuilding.height,
+    )
   })
 
   it('resolves preset focus into camera state', () => {
