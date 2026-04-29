@@ -7,12 +7,16 @@ import type {
 } from './schema'
 import {
   createBuildingFacadeCameraFocus,
+  getBuildingRenderBaseYById,
+  getBoundaryGroundLevels,
+  getCodeCitySceneFrame,
   getCodeCitySearchResults,
   getCodeCityZoomTier,
   getFolderLabelOpacity,
   getLabelOpacity,
   getPlotCentre,
   getSceneBuildings,
+  getZoneSurfaceTopY,
   isCodeCityArcVisible,
 } from './scene-utils'
 
@@ -104,6 +108,73 @@ describe('CodeCity scene helpers', () => {
     expect(getFolderLabelOpacity(0, 72, scene)).toBeGreaterThan(0.85)
     expect(getFolderLabelOpacity(1, 140, scene)).toBeGreaterThan(0)
     expect(getFolderLabelOpacity(1, 260, scene)).toBe(0)
+  })
+
+  it('frames long, skinny live layouts without fixed-grid clipping', () => {
+    const scene = getFixtureScene('star-shared-kernel')
+    expect(scene).not.toBeNull()
+    if (scene == null) {
+      return
+    }
+
+    const skinnyScene = structuredClone(scene) as CodeCitySceneModel
+    const boundary = skinnyScene.boundaries[0]!
+    skinnyScene.boundaries = [boundary]
+    boundary.ground = {
+      kind: 'roundedRect',
+      centre: { x: 6, y: -1.1, z: 145 },
+      width: 12,
+      depth: 290,
+      height: 0.42,
+      waterInset: 2.2,
+      tint: '#103451',
+    }
+
+    const frame = getCodeCitySceneFrame(skinnyScene)
+
+    expect(frame.bounds.depth).toBeGreaterThan(290)
+    expect(frame.groundRadius).toBeGreaterThan(220)
+    expect(frame.cameraMaxDistance).toBeGreaterThan(700)
+    expect(frame.cameraFar).toBeGreaterThan(1400)
+    expect(Math.abs(frame.bounds.centre.z - 145)).toBeLessThan(2)
+  })
+
+  it('stacks districts and buildings relative to boundary surfaces', () => {
+    const scene = getFixtureScene('star-shared-kernel')
+    expect(scene).not.toBeNull()
+    if (scene == null) {
+      return
+    }
+
+    const liveLikeScene = structuredClone(scene) as CodeCitySceneModel
+    const boundary = liveLikeScene.boundaries[0]!
+    const zone = boundary.zones[0]!
+    zone.elevation = 0.34
+
+    zone.districts.forEach((district) => {
+      district.plot.y = 0
+    })
+
+    for (const building of getSceneBuildings(liveLikeScene)) {
+      building.plot.y = 0
+    }
+
+    const zoneTopY = getZoneSurfaceTopY(boundary)
+    const groundLevels = getBoundaryGroundLevels(boundary)
+    const firstBuilding = getSceneBuildings(liveLikeScene)[0]
+
+    expect(firstBuilding).toBeDefined()
+    if (firstBuilding == null) {
+      return
+    }
+
+    const buildingBaseY = getBuildingRenderBaseYById(liveLikeScene).get(
+      firstBuilding.id,
+    )
+
+    expect(groundLevels.waterTopY).toBeLessThan(groundLevels.plinthTopY)
+    expect(zoneTopY).toBeGreaterThan(groundLevels.plinthTopY)
+    expect(buildingBaseY).toBeGreaterThan(zoneTopY)
   })
 
   it('creates a front-facing facade camera target for selected buildings', () => {

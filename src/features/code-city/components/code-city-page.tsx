@@ -1,8 +1,11 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Boxes, Camera, MapPinned, Search, Sparkles } from 'lucide-react'
+import { Boxes, Camera, Database, MapPinned, Search } from 'lucide-react'
 import { Header } from '@/components/layout/header'
 import { Main } from '@/components/layout/main'
 import { ThemeSwitch } from '@/components/theme-switch'
+import { useStore } from '@/store'
+import type { DashboardRepositoryOption } from '@/features/dashboard/api-types'
+import { fetchDashboardRepositories } from '@/features/dashboard/graphql/fetch-dashboard-data'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
@@ -36,9 +39,14 @@ import {
   getSceneSummary,
   resolveCodeCityCameraPreset,
 } from '../scene-utils'
+import { isLiveCodeCityDataset } from '../sources'
 import { CodeCityCanvas } from './code-city-canvas'
 import { CodeCityInspector } from './code-city-inspector'
 import { useCodeCityStore } from '../store'
+
+const codeCityProjectPath =
+  import.meta.env.VITE_CODE_CITY_PROJECT_PATH?.trim() || '.'
+const repoAutoValue = '__code_city_repo_auto__'
 
 type LoadState =
   | {
@@ -57,8 +65,31 @@ type LoadState =
       error: string
     }
 
+type StoredLoadState = LoadState & {
+  loadKey: string
+}
+
 type CodeCityPageProps = {
   loadScene?: (input: LoadCodeCitySceneInput) => Promise<CodeCitySceneModel>
+}
+
+function resolveDashboardRepository(
+  repoOptions: DashboardRepositoryOption[],
+  selectedRepoId: string | null,
+) {
+  if (selectedRepoId == null) {
+    return repoOptions[0] ?? null
+  }
+
+  return repoOptions.find((repo) => repo.repoId === selectedRepoId) ?? null
+}
+
+function loadingSceneState(): LoadState {
+  return {
+    status: 'loading',
+    scene: null,
+    error: null,
+  }
 }
 
 function ToggleButton({
@@ -123,31 +154,139 @@ export function CodeCityPage({
   const toggleLayer = useCodeCityStore((state) => state.toggleLayer)
   const setZoomDistance = useCodeCityStore((state) => state.setZoomDistance)
   const setCameraFocus = useCodeCityStore((state) => state.setCameraFocus)
-  const [sceneState, setSceneState] = useState<LoadState>({
-    status: 'loading',
-    scene: null,
-    error: null,
-  })
+  const repoOptions = useStore((state) => state.repoOptions)
+  const selectedDashboardRepoId = useStore((state) => state.selectedRepoId)
+  const setDashboardRepoOptions = useStore((state) => state.setRepoOptions)
+  const setSelectedDashboardRepoId = useStore(
+    (state) => state.setSelectedRepoId,
+  )
+  const [repoLoadState, setRepoLoadState] = useState<
+    'idle' | 'loading' | 'ready' | 'error'
+  >('idle')
+  const [repoLoadError, setRepoLoadError] = useState<string | null>(null)
+  const selectedDashboardRepo = useMemo(
+    () => resolveDashboardRepository(repoOptions, selectedDashboardRepoId),
+    [repoOptions, selectedDashboardRepoId],
+  )
+  const selectedDashboardRepoOptionExists =
+    selectedDashboardRepoId == null ||
+    repoOptions.some((repo) => repo.repoId === selectedDashboardRepoId)
+  const repoSelectValue = selectedDashboardRepoOptionExists
+    ? (selectedDashboardRepoId ?? repoAutoValue)
+    : repoAutoValue
+  const liveDataset = isLiveCodeCityDataset(datasetId)
+  const resolvedRepoId = selectedDashboardRepo?.repoId ?? null
+  const sceneRepoId = liveDataset ? resolvedRepoId : selectedDashboardRepoId
+  const awaitingLiveRepository =
+    liveDataset &&
+    resolvedRepoId == null &&
+    repoLoadState !== 'ready' &&
+    repoLoadState !== 'error'
+  const liveRepositoryError =
+    liveDataset && resolvedRepoId == null && repoLoadState === 'ready'
+      ? 'No repository is available from the dashboard API.'
+      : liveDataset && resolvedRepoId == null && repoLoadState === 'error'
+        ? (repoLoadError ?? 'Could not load repositories.')
+        : null
   const [retryToken, setRetryToken] = useState(0)
+  const loadKey = `${datasetId}:${sceneRepoId ?? 'auto'}:${codeCityProjectPath}:${retryToken}`
+  const [storedSceneState, setStoredSceneState] = useState<StoredLoadState>({
+    ...loadingSceneState(),
+    loadKey,
+  })
+  const sceneState =
+    storedSceneState.loadKey === loadKey
+      ? storedSceneState
+      : loadingSceneState()
 
   useEffect(() => {
     let cancelled = false
-    setSceneState({
-      status: 'loading',
-      scene: null,
-      error: null,
-    })
+    const abortController = new AbortController()
 
-    void loadScene({ datasetId })
+    setRepoLoadState('loading')
+    setRepoLoadError(null)
+
+    void fetchDashboardRepositories({ signal: abortController.signal })
+      .then((repositories) => {
+        if (cancelled) {
+          return
+        }
+
+        setDashboardRepoOptions(repositories)
+        setRepoLoadState('ready')
+      })
+      .catch((error: unknown) => {
+        if (cancelled) {
+          return
+        }
+        if (error instanceof Error && error.name === 'AbortError') {
+          return
+        }
+
+        setDashboardRepoOptions([])
+        setRepoLoadState('error')
+        setRepoLoadError(
+          error instanceof Error
+            ? error.message
+            : 'Could not load repositories.',
+        )
+      })
+
+    return () => {
+      cancelled = true
+      abortController.abort()
+    }
+  }, [setDashboardRepoOptions])
+
+  useEffect(() => {
+    if (selectedDashboardRepoId == null || repoOptions.length === 0) {
+      return
+    }
+    if (repoOptions.some((repo) => repo.repoId === selectedDashboardRepoId)) {
+      return
+    }
+
+    setSelectedDashboardRepoId(null)
+  }, [repoOptions, selectedDashboardRepoId, setSelectedDashboardRepoId])
+
+  useEffect(() => {
+    if (awaitingLiveRepository) {
+      setStoredSceneState({
+        ...loadingSceneState(),
+        loadKey,
+      })
+      return
+    }
+
+    if (liveRepositoryError != null) {
+      setStoredSceneState({
+        status: 'error',
+        scene: null,
+        error: liveRepositoryError,
+        loadKey,
+      })
+      return
+    }
+
+    let cancelled = false
+    const abortController = new AbortController()
+
+    void loadScene({
+      datasetId,
+      repoId: sceneRepoId,
+      projectPath: codeCityProjectPath,
+      signal: abortController.signal,
+    })
       .then((scene) => {
         if (cancelled) {
           return
         }
 
-        setSceneState({
+        setStoredSceneState({
           status: 'ready',
           scene,
           error: null,
+          loadKey,
         })
 
         const defaultPreset = resolveCodeCityCameraPreset(scene, null)
@@ -159,21 +298,34 @@ export function CodeCityPage({
         if (cancelled) {
           return
         }
+        if (error instanceof Error && error.name === 'AbortError') {
+          return
+        }
 
-        setSceneState({
+        setStoredSceneState({
           status: 'error',
           scene: null,
           error:
             error instanceof Error
               ? error.message
               : 'Could not load the Code Atlas scene.',
+          loadKey,
         })
       })
 
     return () => {
       cancelled = true
+      abortController.abort()
     }
-  }, [datasetId, focusPreset, loadScene, retryToken])
+  }, [
+    awaitingLiveRepository,
+    datasetId,
+    focusPreset,
+    liveRepositoryError,
+    loadKey,
+    loadScene,
+    sceneRepoId,
+  ])
 
   const scene = sceneState.scene
   const searchResults = useMemo(() => {
@@ -199,6 +351,17 @@ export function CodeCityPage({
     () => (scene == null ? 'world' : getCodeCityZoomTier(zoomDistance, scene)),
     [scene, zoomDistance],
   )
+  const sourceBadgeLabel = isLiveCodeCityDataset(datasetId)
+    ? 'Live DevQL'
+    : 'Fixture'
+  const sourceSummary =
+    scene?.source.repo ??
+    selectedDashboardRepo?.identity ??
+    'current repository'
+
+  const handleRepoSelect = (value: string) => {
+    setSelectedDashboardRepoId(value === repoAutoValue ? null : value)
+  }
 
   const handleSearchResultClick = (buildingId: string) => {
     if (scene == null) {
@@ -257,24 +420,21 @@ export function CodeCityPage({
               <h1 className='text-2xl font-bold tracking-tight'>Code Atlas</h1>
               <Badge
                 variant='outline'
-                data-testid='code-city-mock-badge'
-                className='rounded-full border-sky-200 bg-sky-50 text-sky-700 dark:border-sky-400/35 dark:bg-sky-950/25 dark:text-sky-200'
+                data-testid='code-city-source-badge'
+                className='rounded-full border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-400/35 dark:bg-emerald-950/25 dark:text-emerald-200'
               >
-                Mock data
+                {sourceBadgeLabel}
               </Badge>
             </div>
             <p className='mt-2 max-w-3xl text-sm text-muted-foreground'>
-              Explore clean-room Code Atlas fixtures that mirror the intended
-              Bitloops metric model: load-bearing footprints, stacked artefact
-              floors, health colour, districts, and architectural overlays.
+              Explore the current DevQL CodeCity snapshot: building geometry,
+              dependency arcs, health signals, and architecture diagnostics.
             </p>
           </div>
 
           <div className='flex items-center gap-2 text-xs text-muted-foreground'>
-            <Sparkles className='size-4' />
-            <span>
-              Guided analysis mode with preset fly-throughs and mock scene data.
-            </span>
+            <Database className='size-4' />
+            <span>{sourceSummary}</span>
           </div>
         </div>
 
@@ -287,12 +447,47 @@ export function CodeCityPage({
                   Scene controls
                 </CardTitle>
                 <CardDescription>
-                  Switch fixtures, fly to preset viewpoints, and toggle analysis
-                  layers.
+                  Choose the live graph or a fixture, fly to preset viewpoints,
+                  and toggle analysis layers.
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                <div className='grid gap-3 lg:grid-cols-[minmax(0,14rem)_minmax(0,14rem)_minmax(0,1fr)]'>
+                <div className='grid gap-3 md:grid-cols-2 2xl:grid-cols-[minmax(0,15rem)_minmax(0,14rem)_minmax(0,14rem)_minmax(0,1fr)]'>
+                  <div className='space-y-1.5'>
+                    <p className='text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground'>
+                      Repository
+                    </p>
+                    <Select
+                      value={repoSelectValue}
+                      onValueChange={handleRepoSelect}
+                      disabled={repoOptions.length === 0}
+                    >
+                      <SelectTrigger
+                        data-testid='code-city-repo-select'
+                        className='w-full'
+                      >
+                        <SelectValue placeholder='Repository' />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value={repoAutoValue}>
+                          {repoOptions[0]?.identity
+                            ? `Auto (${repoOptions[0].identity})`
+                            : 'Auto (first available)'}
+                        </SelectItem>
+                        {repoOptions.map((repo) => (
+                          <SelectItem key={repo.repoId} value={repo.repoId}>
+                            {repo.identity}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    {repoLoadError != null && (
+                      <p className='text-xs text-destructive'>
+                        {repoLoadError}
+                      </p>
+                    )}
+                  </div>
+
                   <div className='space-y-1.5'>
                     <p className='text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground'>
                       Dataset
@@ -347,7 +542,7 @@ export function CodeCityPage({
                     </Select>
                   </div>
 
-                  <div className='space-y-1.5'>
+                  <div className='space-y-1.5 md:col-span-2 2xl:col-span-1'>
                     <p className='text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground'>
                       Search buildings
                     </p>
@@ -470,7 +665,7 @@ export function CodeCityPage({
                   <CardHeader>
                     <CardTitle>No Code Atlas data available</CardTitle>
                     <CardDescription>
-                      The selected dataset contains no boundaries to render.
+                      The selected source contains no boundaries to render.
                     </CardDescription>
                   </CardHeader>
                 </Card>
@@ -512,7 +707,7 @@ export function CodeCityPage({
                 <CardHeader>
                   <CardTitle>Inspector</CardTitle>
                   <CardDescription>
-                    Load a fixture to inspect the city.
+                    Load CodeCity data to inspect the city.
                   </CardDescription>
                 </CardHeader>
                 <CardContent className='space-y-3'>
@@ -526,12 +721,11 @@ export function CodeCityPage({
               <CardHeader>
                 <CardTitle className='flex items-center gap-2 text-base'>
                   <Boxes className='size-4 text-muted-foreground' />
-                  Fixture catalogue
+                  Data sources
                 </CardTitle>
                 <CardDescription>
-                  Each dataset already contains positioned geometry,
-                  architectural zones, shadow tests, cross-boundary arcs, and
-                  violation overlays.
+                  Live DevQL data is used by default; fixtures remain available
+                  for renderer checks.
                 </CardDescription>
               </CardHeader>
               <CardContent className='space-y-3'>

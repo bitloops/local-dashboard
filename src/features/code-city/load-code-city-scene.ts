@@ -1,8 +1,13 @@
 import { codeCityFixtureCatalogue, getFixtureScene } from './fixtures'
+import { fetchDevqlCodeCityScene } from './devql'
 import { codeCitySceneModelSchema, type CodeCitySceneModel } from './schema'
+import { isLiveCodeCityDataset } from './sources'
 
 export type LoadCodeCitySceneInput = {
   datasetId: string
+  repoId?: string | null
+  projectPath?: string
+  signal?: AbortSignal
 }
 
 function cloneScene(scene: CodeCitySceneModel): CodeCitySceneModel {
@@ -15,7 +20,18 @@ function cloneScene(scene: CodeCitySceneModel): CodeCitySceneModel {
 
 export async function loadCodeCityScene({
   datasetId,
+  repoId,
+  projectPath,
+  signal,
 }: LoadCodeCitySceneInput): Promise<CodeCitySceneModel> {
+  if (isLiveCodeCityDataset(datasetId)) {
+    return fetchDevqlCodeCityScene({
+      repoId,
+      projectPath,
+      signal,
+    })
+  }
+
   const scene = getFixtureScene(datasetId)
 
   if (scene == null) {

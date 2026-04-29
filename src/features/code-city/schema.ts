@@ -29,8 +29,21 @@ export const codeCityArcSchema = z.object({
   fromId: z.string().min(1),
   toId: z.string().min(1),
   arcType: z.enum(['dependency', 'violation', 'cross-boundary']),
+  visibility: z
+    .enum([
+      'hidden-by-default',
+      'visible-on-selection',
+      'visible-at-medium-zoom',
+      'visible-at-world-zoom',
+      'always-visible',
+    ])
+    .optional(),
   strength: z.number().min(0).max(1),
   severity: z.enum(['low', 'medium', 'high']),
+  fromPath: z.string().min(1).optional(),
+  toPath: z.string().min(1).optional(),
+  label: z.string().min(1).optional(),
+  tooltip: z.string().min(1).optional(),
   visibleAtZoom: z
     .object({
       min: z.number().nonnegative(),
@@ -231,9 +244,11 @@ export const codeCityBoundarySchema = z.object({
     'hexagonal',
     'layered',
     'modular',
+    'event-driven',
     'pipe-and-filter',
     'ball-of-mud',
     'shared-library',
+    'unclassified',
   ]),
   topologyRole: z.enum([
     'centre',
@@ -318,15 +333,17 @@ export const codeCitySceneModelSchema = z.object({
   title: z.string().min(1),
   mode: z.enum(['mock', 'live']),
   worldLayout: z.enum([
+    'single-boundary',
     'star/shared-kernel',
     'layered',
     'federated',
     'tangled',
+    'unknown',
   ]),
   source: codeCitySourceSchema,
   generatedAt: z.string().datetime(),
   cameraPresets: z.array(codeCityCameraPresetSchema).min(1),
-  boundaries: z.array(codeCityBoundarySchema).min(1),
+  boundaries: z.array(codeCityBoundarySchema),
   arcs: z.array(codeCityArcSchema),
   crossBoundaryArcs: z.array(codeCityArcSchema),
   legend: codeCityLegendSchema,

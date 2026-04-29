@@ -1,6 +1,7 @@
 import { createStore } from 'zustand'
 import { useStore as useZustandStore } from 'zustand'
 import type { CodeCitySceneModel, CodeCityVector3 } from './schema'
+import { CODE_CITY_LIVE_DATASET_ID } from './sources'
 import {
   createBuildingFacadeCameraFocus,
   createBuildingCameraFocus,
@@ -82,7 +83,7 @@ type CodeCityUiStateInput = Pick<
   | 'cameraFocus'
 >
 
-const DEFAULT_DATASET_ID = 'star-shared-kernel'
+const DEFAULT_DATASET_ID = CODE_CITY_LIVE_DATASET_ID
 
 function toTuple(vector: CodeCityVector3) {
   return [vector.x, vector.y, vector.z] as [number, number, number]

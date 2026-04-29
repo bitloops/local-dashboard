@@ -12,6 +12,7 @@ import type {
   CodeCityVector3,
   CodeCityZone,
 } from './schema'
+import { CODE_CITY_LIVE_DATASET_ID } from './sources'
 
 export type CodeCityDatasetOption = {
   id: string
@@ -1997,13 +1998,21 @@ export const codeCityFixtureCatalogue = rawScenes.map((scene) =>
   attachArcIndexes(scene),
 )
 
-export const codeCityDatasetOptions: CodeCityDatasetOption[] =
-  codeCityFixtureCatalogue.map((scene) => ({
+export const codeCityDatasetOptions: CodeCityDatasetOption[] = [
+  {
+    id: CODE_CITY_LIVE_DATASET_ID,
+    title: 'Live DevQL snapshot',
+    worldLayout: 'unknown',
+    summary:
+      'Current CodeCity world computed from the active DevQL graph for this repository.',
+  },
+  ...codeCityFixtureCatalogue.map((scene) => ({
     id: scene.id,
     title: scene.title,
     worldLayout: scene.worldLayout,
     summary: (scene.source.description ?? '') as string,
-  }))
+  })),
+]
 
 export function getFixtureScene(datasetId: string) {
   return (

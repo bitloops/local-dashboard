@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { codeCityDatasetOptions, codeCityFixtureCatalogue } from './fixtures'
 import { codeCitySceneModelSchema } from './schema'
 import { getSceneBuildings } from './scene-utils'
+import { CODE_CITY_LIVE_DATASET_ID } from './sources'
 
 function average(values: number[]) {
   return values.reduce((sum, value) => sum + value, 0) / values.length
@@ -29,9 +30,10 @@ describe('CodeCity schema and fixtures', () => {
   })
 
   it('publishes dataset options for every fixture scene', () => {
-    expect(codeCityDatasetOptions.map((option) => option.id)).toEqual(
-      codeCityFixtureCatalogue.map((scene) => scene.id),
-    )
+    expect(codeCityDatasetOptions.map((option) => option.id)).toEqual([
+      CODE_CITY_LIVE_DATASET_ID,
+      ...codeCityFixtureCatalogue.map((scene) => scene.id),
+    ])
     expect(
       codeCityDatasetOptions.every(
         (option) => option.summary.trim().length > 0,

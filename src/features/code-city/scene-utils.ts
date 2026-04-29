@@ -1,10 +1,12 @@
 import type {
   CodeCityArc,
+  CodeCityBoundary,
   CodeCityBuilding,
   CodeCityCameraPreset,
   CodeCityDistrict,
   CodeCityPlot,
   CodeCitySceneModel,
+  CodeCityZone,
   CodeCityVector3,
 } from './schema'
 
@@ -35,6 +37,52 @@ export type CodeCitySceneSummary = {
   sharedBoundaryCount: number
 }
 
+export type CodeCitySceneBounds = {
+  minX: number
+  maxX: number
+  minZ: number
+  maxZ: number
+  width: number
+  depth: number
+  centre: CodeCityVector3
+  tallest: number
+}
+
+export type CodeCitySceneFrame = {
+  bounds: CodeCitySceneBounds
+  groundRadius: number
+  groundSize: number
+  gridDivisions: number
+  gridMajorEvery: number
+  cameraMaxDistance: number
+  cameraFar: number
+  shadowScale: number
+  shadowFar: number
+}
+
+export const CODE_CITY_ZONE_PAD_HEIGHT = 0.075
+export const CODE_CITY_ZONE_SURFACE_LIFT_FROM_BOUNDARY = 0.12
+export const CODE_CITY_WATER_LAYER_DROP = 0.28
+export const CODE_CITY_DISTRICT_TERRACE_TOP_LIFT = 0.48
+export const CODE_CITY_DISTRICT_NESTED_STEP = 0.32
+export const CODE_CITY_DISTRICT_TERRACE_CAP_HEIGHT = 0.16
+export const CODE_CITY_DISTRICT_TERRACE_MIN_HEIGHT = 0.12
+
+export type CodeCityBoundaryGroundLevels = {
+  plinthTopY: number
+  plinthCentreY: number
+  plinthBottomY: number
+  waterTopY: number
+  waterCentreY: number
+  waterHeight: number
+}
+
+export type CodeCityDistrictTerrain = {
+  parentSurfaceY: number
+  surfaceTopY: number
+  height: number
+}
+
 type CodeCityFacadeSide = {
   id: 'south' | 'north' | 'east' | 'west'
   direction: {
@@ -49,6 +97,83 @@ const facadeSides: CodeCityFacadeSide[] = [
   { id: 'east', direction: { x: 1, z: 0 } },
   { id: 'west', direction: { x: -1, z: 0 } },
 ]
+
+function includeRectBounds(
+  bounds: {
+    minX: number
+    maxX: number
+    minZ: number
+    maxZ: number
+    tallest: number
+  },
+  rect: {
+    minX: number
+    maxX: number
+    minZ: number
+    maxZ: number
+    topY?: number
+  },
+) {
+  bounds.minX = Math.min(bounds.minX, rect.minX)
+  bounds.maxX = Math.max(bounds.maxX, rect.maxX)
+  bounds.minZ = Math.min(bounds.minZ, rect.minZ)
+  bounds.maxZ = Math.max(bounds.maxZ, rect.maxZ)
+  bounds.tallest = Math.max(bounds.tallest, rect.topY ?? 0)
+}
+
+function includeBoundaryBounds(
+  bounds: {
+    minX: number
+    maxX: number
+    minZ: number
+    maxZ: number
+    tallest: number
+  },
+  boundary: CodeCityBoundary,
+) {
+  const { centre, waterInset } = boundary.ground
+
+  if (boundary.ground.kind === 'disc') {
+    const radius = (boundary.ground.radius ?? 0) + waterInset
+    includeRectBounds(bounds, {
+      minX: centre.x - radius,
+      maxX: centre.x + radius,
+      minZ: centre.z - radius,
+      maxZ: centre.z + radius,
+      topY: centre.y + boundary.ground.height,
+    })
+    return
+  }
+
+  const halfWidth = (boundary.ground.width ?? 0) / 2 + waterInset
+  const halfDepth = (boundary.ground.depth ?? 0) / 2 + waterInset
+  includeRectBounds(bounds, {
+    minX: centre.x - halfWidth,
+    maxX: centre.x + halfWidth,
+    minZ: centre.z - halfDepth,
+    maxZ: centre.z + halfDepth,
+    topY: centre.y + boundary.ground.height,
+  })
+}
+
+function includeBuildingBounds(
+  bounds: {
+    minX: number
+    maxX: number
+    minZ: number
+    maxZ: number
+    tallest: number
+  },
+  building: CodeCityBuilding,
+) {
+  includeRectBounds(bounds, {
+    minX: building.plot.x,
+    maxX: building.plot.x + building.plot.width,
+    minZ: building.plot.z,
+    maxZ: building.plot.z + building.plot.depth,
+    topY: building.plot.y + building.height,
+  })
+}
 
 function walkDistrictChildren(
   district: CodeCityDistrict,
@@ -88,6 +213,209 @@ export function getSceneBuildings(
   }
 
   return buildings
+}
+
+export function getZoneContentBaseY(zone: CodeCityZone) {
+  let lowest = Number.POSITIVE_INFINITY
+
+  const visitDistrict = (district: CodeCityDistrict) => {
+    lowest = Math.min(lowest, district.plot.y)
+
+    for (const child of district.children) {
+      if (child.nodeType === 'building') {
+        lowest = Math.min(lowest, child.plot.y)
+        continue
+      }
+
+      visitDistrict(child)
+    }
+  }
+
+  for (const district of zone.districts) {
+    visitDistrict(district)
+  }
+
+  return Number.isFinite(lowest) ? lowest : zone.elevation
+}
+
+export function getBoundaryContentBaseY(boundary: CodeCityBoundary) {
+  const lowest = boundary.zones.reduce(
+    (current, zone) => Math.min(current, getZoneContentBaseY(zone)),
+    Number.POSITIVE_INFINITY,
+  )
+
+  return Number.isFinite(lowest) ? lowest : boundary.ground.centre.y
+}
+
+export function getBoundaryGroundLevels(
+  boundary: CodeCityBoundary,
+): CodeCityBoundaryGroundLevels {
+  const plinthCentreY = boundary.ground.centre.y
+  const plinthTopY = plinthCentreY + boundary.ground.height / 2
+  const plinthBottomY = plinthCentreY - boundary.ground.height / 2
+  const waterHeight = boundary.ground.height * 0.7
+  const waterTopY = plinthBottomY - CODE_CITY_WATER_LAYER_DROP
+
+  return {
+    plinthTopY,
+    plinthCentreY,
+    plinthBottomY,
+    waterTopY,
+    waterCentreY: waterTopY - waterHeight / 2,
+    waterHeight,
+  }
+}
+
+export function getZoneSurfaceTopY(boundary: CodeCityBoundary) {
+  return (
+    getBoundaryGroundLevels(boundary).plinthTopY +
+    CODE_CITY_ZONE_SURFACE_LIFT_FROM_BOUNDARY
+  )
+}
+
+export function getZoneSurfaceCentreY(boundary: CodeCityBoundary) {
+  return getZoneSurfaceTopY(boundary) - CODE_CITY_ZONE_PAD_HEIGHT / 2
+}
+
+export function getDistrictTerrain(
+  district: CodeCityDistrict,
+  parentSurfaceY: number,
+): CodeCityDistrictTerrain {
+  const depthLift =
+    CODE_CITY_DISTRICT_TERRACE_TOP_LIFT +
+    district.depth * CODE_CITY_DISTRICT_NESTED_STEP
+  const surfaceTopY = parentSurfaceY + depthLift
+  const height = Math.max(
+    CODE_CITY_DISTRICT_TERRACE_MIN_HEIGHT,
+    surfaceTopY - parentSurfaceY,
+  )
+
+  return {
+    parentSurfaceY,
+    surfaceTopY,
+    height,
+  }
+}
+
+export function getBuildingRenderBaseYById(scene: CodeCitySceneModel) {
+  const baseYById = new Map<string, number>()
+
+  const visitDistrict = (
+    district: CodeCityDistrict,
+    parentSurfaceY: number,
+  ) => {
+    const terrain = getDistrictTerrain(district, parentSurfaceY)
+
+    for (const child of district.children) {
+      if (child.nodeType === 'building') {
+        baseYById.set(child.id, terrain.surfaceTopY)
+        continue
+      }
+
+      visitDistrict(child, terrain.surfaceTopY)
+    }
+  }
+
+  for (const boundary of scene.boundaries) {
+    for (const zone of boundary.zones) {
+      const zoneBaseY = getZoneSurfaceTopY(boundary)
+      for (const district of zone.districts) {
+        visitDistrict(district, zoneBaseY)
+      }
+    }
+  }
+
+  return baseYById
+}
+
+export function getCodeCitySceneBounds(
+  scene: CodeCitySceneModel,
+): CodeCitySceneBounds {
+  const bounds = {
+    minX: Number.POSITIVE_INFINITY,
+    maxX: Number.NEGATIVE_INFINITY,
+    minZ: Number.POSITIVE_INFINITY,
+    maxZ: Number.NEGATIVE_INFINITY,
+    tallest: 0,
+  }
+
+  for (const boundary of scene.boundaries) {
+    includeBoundaryBounds(bounds, boundary)
+  }
+
+  const visualBaseYById = getBuildingRenderBaseYById(scene)
+  for (const building of getSceneBuildings(scene, { includeTests: true })) {
+    includeBuildingBounds(bounds, {
+      ...building,
+      plot: {
+        ...building.plot,
+        y: visualBaseYById.get(building.id) ?? building.plot.y,
+      },
+    })
+  }
+
+  if (
+    !Number.isFinite(bounds.minX) ||
+    !Number.isFinite(bounds.maxX) ||
+    !Number.isFinite(bounds.minZ) ||
+    !Number.isFinite(bounds.maxZ)
+  ) {
+    return {
+      minX: -24,
+      maxX: 24,
+      minZ: -24,
+      maxZ: 24,
+      width: 48,
+      depth: 48,
+      centre: { x: 0, y: 0, z: 0 },
+      tallest: 12,
+    }
+  }
+
+  const rawWidth = Math.max(1, bounds.maxX - bounds.minX)
+  const rawDepth = Math.max(1, bounds.maxZ - bounds.minZ)
+  const padding = Math.max(8, Math.min(32, Math.max(rawWidth, rawDepth) * 0.08))
+  const minX = bounds.minX - padding
+  const maxX = bounds.maxX + padding
+  const minZ = bounds.minZ - padding
+  const maxZ = bounds.maxZ + padding
+  const width = Math.max(24, maxX - minX)
+  const depth = Math.max(24, maxZ - minZ)
+
+  return {
+    minX,
+    maxX,
+    minZ,
+    maxZ,
+    width,
+    depth,
+    centre: {
+      x: minX + width / 2,
+      y: Math.max(0, bounds.tallest * 0.18),
+      z: minZ + depth / 2,
+    },
+    tallest: Math.max(8, bounds.tallest),
+  }
+}
+
+export function getCodeCitySceneFrame(
+  scene: CodeCitySceneModel,
+): CodeCitySceneFrame {
+  const bounds = getCodeCitySceneBounds(scene)
+  const longestSide = Math.max(bounds.width, bounds.depth, 48)
+  const groundSize = Math.max(380, longestSide * 1.45)
+
+  return {
+    bounds,
+    groundRadius: groundSize / 2,
+    groundSize,
+    gridDivisions: Math.max(64, Math.min(168, Math.round(groundSize / 5))),
+    gridMajorEvery: 8,
+    cameraMaxDistance: Math.max(340, longestSide * 2.4),
+    cameraFar: Math.max(600, longestSide * 5, bounds.tallest * 36),
+    shadowScale: Math.max(420, longestSide * 1.55),
+    shadowFar: Math.max(80, bounds.tallest * 4),
+  }
 }
 
 export function getBuildingById(
@@ -239,7 +567,9 @@ export function createBuildingFacadeCameraFocus(
   const centre = getPlotCentre(building.plot)
   const widthBias = Math.max(building.plot.width, building.plot.depth)
   const distance = Math.max(10, building.height * 1.34, widthBias * 2.4)
-  const targetY = building.plot.y + building.height * 0.52
+  const baseY =
+    getBuildingRenderBaseYById(scene).get(building.id) ?? building.plot.y
+  const targetY = baseY + building.height * 0.52
   const side = chooseLeastBlockedFacadeSide(scene, building, distance)
 
   return {
@@ -464,10 +794,24 @@ export function isCodeCityArcVisible(
   }
 
   if (
-    selectedBuildingId == null ||
-    (arc.fromId !== selectedBuildingId && arc.toId !== selectedBuildingId)
+    arc.visibility === 'hidden-by-default' &&
+    (selectedBuildingId == null ||
+      (arc.fromId !== selectedBuildingId && arc.toId !== selectedBuildingId))
   ) {
     return false
+  }
+
+  if (
+    arc.visibility == null ||
+    arc.visibility === 'visible-on-selection' ||
+    arc.visibility === 'hidden-by-default'
+  ) {
+    if (
+      selectedBuildingId == null ||
+      (arc.fromId !== selectedBuildingId && arc.toId !== selectedBuildingId)
+    ) {
+      return false
+    }
   }
 
   if (arc.arcType === 'cross-boundary') {

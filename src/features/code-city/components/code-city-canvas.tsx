@@ -19,14 +19,23 @@ import type {
   CodeCityZone,
 } from '../schema'
 import {
+  CODE_CITY_ZONE_PAD_HEIGHT,
+  CODE_CITY_DISTRICT_TERRACE_CAP_HEIGHT,
+  getBuildingRenderBaseYById,
+  getBoundaryGroundLevels,
   getBuildingById,
+  getCodeCitySceneFrame,
+  getDistrictTerrain,
   getFolderLabelOpacity,
   getLabelOpacity,
   getPlotCentre,
+  getZoneSurfaceCentreY,
+  getZoneSurfaceTopY,
   isCodeCityArcVisible,
   resolveCodeCityCameraPreset,
 } from '../scene-utils'
 import type { CodeCityCameraFocus } from '../store'
+import type { CodeCitySceneFrame } from '../scene-utils'
 
 type CodeCityCanvasProps = {
   scene: CodeCitySceneModel
@@ -65,9 +74,15 @@ const TRON_BLUE = '#2D8CFF'
 const TRON_MINT = '#50FFC2'
 const TRON_LABEL = '#DDFDFF'
 const TRON_WARNING = '#FF4F7B'
-const BUILDING_BASE_CLEARANCE = 0.18
+const BUILDING_FOUNDATION_SURFACE_GAP = 0.16
+const BUILDING_FOUNDATION_HEIGHT = 0.42
+const BUILDING_FLOOR_GAP_ABOVE_FOUNDATION = 0.12
+const BUILDING_BASE_CLEARANCE =
+  BUILDING_FOUNDATION_SURFACE_GAP +
+  BUILDING_FOUNDATION_HEIGHT +
+  BUILDING_FLOOR_GAP_ABOVE_FOUNDATION
 const CAMERA_MIN_DISTANCE = 6
-const CAMERA_MAX_DISTANCE = 340
+const MIN_CAMERA_MAX_DISTANCE = 340
 
 function zoneTint(zoneType: CodeCityZone['zoneType']) {
   switch (zoneType) {
@@ -119,10 +134,6 @@ function supportsWebGL() {
   )
 }
 
-function shapeOpacity(boundary: CodeCityBoundary) {
-  return boundary.sharedLibrary.isSharedLibrary ? 0.88 : 0.96
-}
-
 function bevelRadius(width: number, depth: number, max = 0.22) {
   return Math.min(max, Math.max(0.04, Math.min(width, depth) * 0.08))
 }
@@ -154,16 +165,17 @@ function floorEdgeColour(
 function BoundaryGround({ boundary }: { boundary: CodeCityBoundary }) {
   const tint = boundary.ground.tint
   const { centre } = boundary.ground
+  const levels = getBoundaryGroundLevels(boundary)
 
   if (boundary.ground.kind === 'disc') {
     return (
-      <group position={[centre.x, centre.y, centre.z]}>
-        <mesh receiveShadow>
+      <group position={[centre.x, 0, centre.z]}>
+        <mesh receiveShadow position={[0, levels.waterCentreY, 0]}>
           <cylinderGeometry
             args={[
               boundary.ground.radius! + boundary.ground.waterInset,
               boundary.ground.radius! + boundary.ground.waterInset,
-              boundary.ground.height * 0.7,
+              levels.waterHeight,
               64,
             ]}
           />
@@ -174,11 +186,12 @@ function BoundaryGround({ boundary }: { boundary: CodeCityBoundary }) {
             metalness={0.08}
             roughness={0.62}
             transparent
-            opacity={0.9}
+            opacity={0.62}
+            depthWrite={false}
           />
           <Edges color='#0C85A8' threshold={14} />
         </mesh>
-        <mesh castShadow receiveShadow position={[0, 0.22, 0]}>
+        <mesh castShadow receiveShadow position={[0, levels.plinthCentreY, 0]}>
           <cylinderGeometry
             args={[
               boundary.ground.radius!,
@@ -193,8 +206,8 @@ function BoundaryGround({ boundary }: { boundary: CodeCityBoundary }) {
             emissiveIntensity={0.04}
             metalness={0.08}
             roughness={0.7}
-            transparent
-            opacity={shapeOpacity(boundary)}
+            transparent={false}
+            opacity={1}
           />
           <Edges color='#176684' threshold={14} />
         </mesh>
@@ -203,16 +216,17 @@ function BoundaryGround({ boundary }: { boundary: CodeCityBoundary }) {
   }
 
   return (
-    <group position={[centre.x, centre.y, centre.z]}>
+    <group position={[centre.x, 0, centre.z]}>
       <RoundedBox
         args={[
           boundary.ground.width! + boundary.ground.waterInset * 2,
-          boundary.ground.height * 0.7,
+          levels.waterHeight,
           boundary.ground.depth! + boundary.ground.waterInset * 2,
         ]}
         radius={1.8}
         smoothness={6}
         receiveShadow
+        position={[0, levels.waterCentreY, 0]}
       >
         <meshStandardMaterial
           color={TRON_WATER}
@@ -221,7 +235,8 @@ function BoundaryGround({ boundary }: { boundary: CodeCityBoundary }) {
           metalness={0.08}
           roughness={0.62}
           transparent
-          opacity={0.9}
+          opacity={0.62}
+          depthWrite={false}
         />
         <Edges color='#0C85A8' threshold={14} />
       </RoundedBox>
@@ -235,7 +250,7 @@ function BoundaryGround({ boundary }: { boundary: CodeCityBoundary }) {
         smoothness={8}
         castShadow
         receiveShadow
-        position={[0, 0.22, 0]}
+        position={[0, levels.plinthCentreY, 0]}
       >
         <meshStandardMaterial
           color={TRON_SURFACE}
@@ -243,8 +258,8 @@ function BoundaryGround({ boundary }: { boundary: CodeCityBoundary }) {
           emissiveIntensity={0.04}
           metalness={0.08}
           roughness={0.7}
-          transparent
-          opacity={shapeOpacity(boundary)}
+          transparent={false}
+          opacity={1}
         />
         <Edges color='#176684' threshold={14} />
       </RoundedBox>
@@ -265,7 +280,7 @@ function ZonePad({
 }) {
   return (
     <RoundedBox
-      args={[width, 0.075, depth]}
+      args={[width, CODE_CITY_ZONE_PAD_HEIGHT, depth]}
       radius={bevelRadius(width, depth, 0.7)}
       smoothness={5}
       receiveShadow
@@ -284,22 +299,30 @@ function ZonePad({
   )
 }
 
-function ZoneSurface({ zone }: { zone: CodeCityZone }) {
+function ZoneSurface({
+  boundary,
+  zone,
+}: {
+  boundary: CodeCityBoundary
+  zone: CodeCityZone
+}) {
   const tint = zoneTint(zone.zoneType)
   const opacity = zone.zoneType === 'test' ? 0.7 : 0.88
+  const surfaceCentreY = getZoneSurfaceCentreY(boundary)
 
   if (zone.shape.kind === 'ring') {
     return (
       <mesh
-        position={[
-          zone.shape.centre.x,
-          zone.elevation - 0.045,
-          zone.shape.centre.z,
-        ]}
+        position={[zone.shape.centre.x, surfaceCentreY, zone.shape.centre.z]}
         receiveShadow
       >
         <cylinderGeometry
-          args={[zone.shape.radius!, zone.shape.radius!, 0.075, 48]}
+          args={[
+            zone.shape.radius!,
+            zone.shape.radius!,
+            CODE_CITY_ZONE_PAD_HEIGHT,
+            48,
+          ]}
         />
         <meshStandardMaterial
           color={tint}
@@ -322,15 +345,16 @@ function ZoneSurface({ zone }: { zone: CodeCityZone }) {
   ) {
     return (
       <mesh
-        position={[
-          zone.shape.centre.x,
-          zone.elevation - 0.045,
-          zone.shape.centre.z,
-        ]}
+        position={[zone.shape.centre.x, surfaceCentreY, zone.shape.centre.z]}
         receiveShadow
       >
         <cylinderGeometry
-          args={[zone.shape.radius!, zone.shape.radius!, 0.075, 40]}
+          args={[
+            zone.shape.radius!,
+            zone.shape.radius!,
+            CODE_CITY_ZONE_PAD_HEIGHT,
+            40,
+          ]}
         />
         <meshStandardMaterial
           color={tint}
@@ -348,11 +372,7 @@ function ZoneSurface({ zone }: { zone: CodeCityZone }) {
 
   return (
     <group
-      position={[
-        zone.shape.centre.x,
-        zone.elevation - 0.04,
-        zone.shape.centre.z,
-      ]}
+      position={[zone.shape.centre.x, surfaceCentreY, zone.shape.centre.z]}
       rotation={[0, zone.shape.rotation, 0]}
     >
       <ZonePad
@@ -367,6 +387,7 @@ function ZoneSurface({ zone }: { zone: CodeCityZone }) {
 
 function getDistrictLabelPosition(
   district: CodeCityDistrict,
+  surfaceTopY: number,
 ): [number, number, number] {
   const centre = getPlotCentre(district.plot)
   const isTopLevel = district.depth === 0
@@ -374,18 +395,88 @@ function getDistrictLabelPosition(
   return isTopLevel
     ? [
         centre.x,
-        district.plot.y + 2.1,
+        surfaceTopY + 1.65,
         district.plot.z + Math.min(2.2, district.plot.depth * 0.18),
       ]
-    : [centre.x, district.plot.y + 1.55 + district.depth * 0.28, centre.z]
+    : [centre.x, surfaceTopY + 1.1 + district.depth * 0.18, centre.z]
 }
 
-function FolderAnchor({ district }: { district: CodeCityDistrict }) {
-  const [x, , z] = getDistrictLabelPosition(district)
+function DistrictTerrace({
+  district,
+  parentSurfaceY,
+  surfaceTopY,
+}: {
+  district: CodeCityDistrict
+  parentSurfaceY: number
+  surfaceTopY: number
+}) {
+  const centre = getPlotCentre(district.plot)
+  const capHeight = CODE_CITY_DISTRICT_TERRACE_CAP_HEIGHT
+  const liftHeight = Math.max(0.12, surfaceTopY - parentSurfaceY)
+  const skirtHeight = Math.min(0.18, liftHeight * 0.32)
+  const isTopLevel = district.depth === 0
+  const colour = isTopLevel ? '#104466' : '#12375A'
+  const skirtColour = isTopLevel ? '#061D31' : '#07192C'
+  const edgeColour = isTopLevel ? TRON_CYAN : TRON_BLUE
+
+  return (
+    <group>
+      <RoundedBox
+        position={[centre.x, surfaceTopY - capHeight / 2, centre.z]}
+        args={[district.plot.width, capHeight, district.plot.depth]}
+        radius={bevelRadius(district.plot.width, district.plot.depth, 0.55)}
+        smoothness={6}
+        receiveShadow
+        castShadow
+      >
+        <meshStandardMaterial
+          color={colour}
+          emissive={edgeColour}
+          emissiveIntensity={isTopLevel ? 0.2 : 0.13}
+          metalness={0.1}
+          roughness={0.7}
+        />
+        <Edges color={edgeColour} threshold={14} />
+      </RoundedBox>
+      <RoundedBox
+        position={[
+          centre.x,
+          surfaceTopY - capHeight - skirtHeight / 2,
+          centre.z,
+        ]}
+        args={[
+          district.plot.width * 0.96,
+          skirtHeight,
+          district.plot.depth * 0.96,
+        ]}
+        radius={bevelRadius(district.plot.width, district.plot.depth, 0.45)}
+        smoothness={5}
+        receiveShadow
+      >
+        <meshStandardMaterial
+          color={skirtColour}
+          emissive={edgeColour}
+          emissiveIntensity={isTopLevel ? 0.08 : 0.05}
+          metalness={0.06}
+          roughness={0.82}
+        />
+      </RoundedBox>
+    </group>
+  )
+}
+
+function FolderAnchor({
+  district,
+  surfaceTopY,
+}: {
+  district: CodeCityDistrict
+  surfaceTopY: number
+}) {
+  const [x, , z] = getDistrictLabelPosition(district, surfaceTopY)
   const isTopLevel = district.depth === 0
   const colour = isTopLevel ? TRON_CYAN : TRON_BLUE
   const radius = isTopLevel ? 0.62 : 0.42
-  const y = district.plot.y + 0.16
+  const y = surfaceTopY + 0.12
 
   return (
     <group position={[x, y, z]} rotation={[0, Math.PI / 6, 0]}>
@@ -417,10 +508,12 @@ function DistrictLabel({
   district,
   scene,
   zoomDistance,
+  surfaceTopY,
 }: {
   district: CodeCityDistrict
   scene: CodeCitySceneModel
   zoomDistance: number
+  surfaceTopY: number
 }) {
   const opacity = getFolderLabelOpacity(district.depth, zoomDistance, scene)
   if (opacity <= 0.05) {
@@ -428,7 +521,7 @@ function DistrictLabel({
   }
 
   const isTopLevel = district.depth === 0
-  const labelPosition = getDistrictLabelPosition(district)
+  const labelPosition = getDistrictLabelPosition(district, surfaceTopY)
 
   return (
     <Billboard position={labelPosition}>
@@ -444,6 +537,7 @@ function DistrictLabel({
         material-transparent
         material-opacity={opacity}
         material-depthWrite={false}
+        material-depthTest={false}
       >
         {district.label}
       </Text>
@@ -452,10 +546,12 @@ function DistrictLabel({
 }
 
 function ZoneLabel({
+  boundary,
   zone,
   scene,
   zoomDistance,
 }: {
+  boundary: CodeCityBoundary
   zone: CodeCityZone
   scene: CodeCitySceneModel
   zoomDistance: number
@@ -469,7 +565,7 @@ function ZoneLabel({
     <Text
       position={[
         zone.shape.centre.x,
-        zone.elevation + 0.22,
+        getZoneSurfaceTopY(boundary) + 0.18,
         zone.shape.centre.z,
       ]}
       rotation={[-Math.PI / 2, 0, 0]}
@@ -759,6 +855,7 @@ function FloorArtefactPanels({
 function BuildingStack({
   building,
   scene,
+  visualBaseY,
   zoomDistance,
   selected,
   hovered,
@@ -769,6 +866,7 @@ function BuildingStack({
 }: {
   building: CodeCityBuilding
   scene: CodeCitySceneModel
+  visualBaseY: number
   zoomDistance: number
   selected: boolean
   hovered: boolean
@@ -805,10 +903,10 @@ function BuildingStack({
     document.body.style.cursor = ''
   }
 
-  let floorBottom = BUILDING_BASE_CLEARANCE
+  const floorGap = 0.14
 
   return (
-    <group position={[centre.x, building.plot.y, centre.z]}>
+    <group position={[centre.x, visualBaseY, centre.z]}>
       {selected && (
         <SelectionMarker
           width={interactiveWidth}
@@ -836,11 +934,43 @@ function BuildingStack({
         />
       </mesh>
 
-      {building.floors.map((floor) => {
-        const gap = 0.14
-        const floorHeight = Math.max(0.5, floor.height - gap * 0.35)
+      <RoundedBox
+        position={[
+          0,
+          BUILDING_FOUNDATION_SURFACE_GAP + BUILDING_FOUNDATION_HEIGHT / 2,
+          0,
+        ]}
+        args={[
+          interactiveWidth + 0.18,
+          BUILDING_FOUNDATION_HEIGHT,
+          interactiveDepth + 0.18,
+        ]}
+        radius={bevelRadius(interactiveWidth, interactiveDepth, 0.12)}
+        smoothness={3}
+        castShadow
+        receiveShadow
+      >
+        <meshStandardMaterial
+          color='#07111F'
+          emissive={selected || hovered ? TRON_BLUE : '#0A2033'}
+          emissiveIntensity={selected ? 0.22 : hovered ? 0.16 : 0.08}
+          metalness={0.1}
+          roughness={0.72}
+        />
+        <Edges
+          color={selected || hovered ? TRON_CYAN : '#1B5B79'}
+          threshold={14}
+        />
+      </RoundedBox>
+
+      {building.floors.map((floor, index) => {
+        const floorBottom =
+          BUILDING_BASE_CLEARANCE +
+          building.floors
+            .slice(0, index)
+            .reduce((total, item) => total + item.height + floorGap, 0)
+        const floorHeight = Math.max(0.5, floor.height - floorGap * 0.35)
         const positionY = floorBottom + floorHeight / 2
-        floorBottom += floor.height + gap
 
         return (
           <group key={floor.id}>
@@ -932,6 +1062,7 @@ function BuildingStack({
 function DistrictContent({
   district,
   scene,
+  parentSurfaceY,
   zoomDistance,
   selectedBuildingId,
   hoveredBuildingId,
@@ -942,6 +1073,7 @@ function DistrictContent({
 }: {
   district: CodeCityDistrict
   scene: CodeCitySceneModel
+  parentSurfaceY: number
   zoomDistance: number
   selectedBuildingId: string | null
   hoveredBuildingId: string | null
@@ -956,14 +1088,22 @@ function DistrictContent({
     } | null,
   ) => void
 }) {
+  const terrain = getDistrictTerrain(district, parentSurfaceY)
+
   return (
     <>
-      <FolderAnchor district={district} />
+      <DistrictTerrace
+        district={district}
+        parentSurfaceY={terrain.parentSurfaceY}
+        surfaceTopY={terrain.surfaceTopY}
+      />
+      <FolderAnchor district={district} surfaceTopY={terrain.surfaceTopY} />
       {showLabels && (
         <DistrictLabel
           district={district}
           scene={scene}
           zoomDistance={zoomDistance}
+          surfaceTopY={terrain.surfaceTopY}
         />
       )}
       {district.children.map((child) =>
@@ -972,6 +1112,7 @@ function DistrictContent({
             key={child.id}
             district={child}
             scene={scene}
+            parentSurfaceY={terrain.surfaceTopY}
             zoomDistance={zoomDistance}
             selectedBuildingId={selectedBuildingId}
             hoveredBuildingId={hoveredBuildingId}
@@ -985,6 +1126,7 @@ function DistrictContent({
             key={child.id}
             building={child}
             scene={scene}
+            visualBaseY={terrain.surfaceTopY}
             zoomDistance={zoomDistance}
             selected={selectedBuildingId === child.id}
             hovered={hoveredBuildingId === child.id}
@@ -1038,15 +1180,21 @@ function BoundaryScene({
       )}
       {boundary.zones.map((zone) => (
         <group key={zone.id}>
-          <ZoneSurface zone={zone} />
+          <ZoneSurface boundary={boundary} zone={zone} />
           {showLabels && (
-            <ZoneLabel zone={zone} scene={scene} zoomDistance={zoomDistance} />
+            <ZoneLabel
+              boundary={boundary}
+              zone={zone}
+              scene={scene}
+              zoomDistance={zoomDistance}
+            />
           )}
           {zone.districts.map((district) => (
             <DistrictContent
               key={district.id}
               district={district}
               scene={scene}
+              parentSurfaceY={getZoneSurfaceTopY(boundary)}
               zoomDistance={zoomDistance}
               selectedBuildingId={selectedBuildingId}
               hoveredBuildingId={hoveredBuildingId}
@@ -1071,7 +1219,7 @@ function collectCircuitNodes(boundaries: CodeCityBoundary[]) {
 
   for (const boundary of boundaries) {
     const hash = boundary.id.length + boundary.name.length
-    const y = boundary.ground.centre.y + boundary.ground.height / 2 + 0.18
+    const y = getBoundaryGroundLevels(boundary).plinthTopY + 0.08
 
     if (boundary.ground.kind === 'disc') {
       const radius = boundary.ground.radius! + boundary.ground.waterInset * 0.55
@@ -1218,12 +1366,28 @@ function createMajorGridGeometry(
   return geometry
 }
 
-function TronGroundGrid() {
-  const minorGrid = useMemo(() => createGridGeometry(380, 76, 8), [])
-  const majorGrid = useMemo(() => createMajorGridGeometry(380, 76, 8), [])
+function TronGroundGrid({ frame }: { frame: CodeCitySceneFrame }) {
+  const minorGrid = useMemo(
+    () =>
+      createGridGeometry(
+        frame.groundSize,
+        frame.gridDivisions,
+        frame.gridMajorEvery,
+      ),
+    [frame.gridDivisions, frame.gridMajorEvery, frame.groundSize],
+  )
+  const majorGrid = useMemo(
+    () =>
+      createMajorGridGeometry(
+        frame.groundSize,
+        frame.gridDivisions,
+        frame.gridMajorEvery,
+      ),
+    [frame.gridDivisions, frame.gridMajorEvery, frame.groundSize],
+  )
 
   return (
-    <group position={[0, -2.58, 0]}>
+    <group position={[frame.bounds.centre.x, -2.58, frame.bounds.centre.z]}>
       <lineSegments geometry={minorGrid}>
         <lineBasicMaterial
           color={TRON_GRID}
@@ -1279,6 +1443,10 @@ function ArcLayer({
     }
     return index
   }, [scene])
+  const buildingBaseYById = useMemo(
+    () => getBuildingRenderBaseYById(scene),
+    [scene],
+  )
 
   return (
     <group>
@@ -1300,6 +1468,10 @@ function ArcLayer({
 
           const start = getPlotCentre(fromBuilding.plot)
           const end = getPlotCentre(toBuilding.plot)
+          const fromBaseY =
+            buildingBaseYById.get(fromBuilding.id) ?? fromBuilding.plot.y
+          const toBaseY =
+            buildingBaseYById.get(toBuilding.id) ?? toBuilding.plot.y
           const verticalBoost =
             10 +
             Math.max(fromBuilding.height, toBuilding.height) * 0.4 +
@@ -1308,11 +1480,19 @@ function ArcLayer({
           return (
             <QuadraticBezierLine
               key={arc.id}
-              start={[start.x, start.y + fromBuilding.height + 0.8, start.z]}
-              end={[end.x, end.y + toBuilding.height + 0.8, end.z]}
+              start={[
+                start.x,
+                fromBaseY + BUILDING_BASE_CLEARANCE + fromBuilding.height + 0.8,
+                start.z,
+              ]}
+              end={[
+                end.x,
+                toBaseY + BUILDING_BASE_CLEARANCE + toBuilding.height + 0.8,
+                end.z,
+              ]}
               mid={[
                 (start.x + end.x) / 2,
-                Math.max(start.y, end.y) + verticalBoost,
+                Math.max(fromBaseY, toBaseY) + verticalBoost,
                 (start.z + end.z) / 2,
               ]}
               color={arcColour(scene, arc)}
@@ -1329,11 +1509,13 @@ function ArcLayer({
 function CameraDirector({
   scene,
   focus,
+  frame,
   onCameraControlStart,
   onZoomDistanceChange,
 }: {
   scene: CodeCitySceneModel
   focus: CodeCityCameraFocus | null
+  frame: CodeCitySceneFrame
   onCameraControlStart: () => void
   onZoomDistanceChange: (distance: number) => void
 }) {
@@ -1347,6 +1529,11 @@ function CameraDirector({
   useEffect(() => {
     gl.setClearColor(TRON_BACKGROUND)
   }, [gl])
+
+  useEffect(() => {
+    camera.far = frame.cameraFar
+    camera.updateProjectionMatrix()
+  }, [camera, frame.cameraFar])
 
   useEffect(() => {
     const initialPreset = resolveCodeCityCameraPreset(scene, null)
@@ -1373,7 +1560,7 @@ function CameraDirector({
       )
       onZoomDistanceChange(lastReportedZoomDistance.current)
     }
-  }, [camera, onZoomDistanceChange, scene])
+  }, [camera, focus?.position, focus?.target, onZoomDistanceChange, scene])
 
   useEffect(() => {
     if (focus == null) {
@@ -1429,7 +1616,7 @@ function CameraDirector({
       enableDamping
       dampingFactor={0.09}
       minDistance={CAMERA_MIN_DISTANCE}
-      maxDistance={CAMERA_MAX_DISTANCE}
+      maxDistance={Math.max(MIN_CAMERA_MAX_DISTANCE, frame.cameraMaxDistance)}
       zoomSpeed={1.2}
       maxPolarAngle={Math.PI / 2.04}
       onStart={handleControlStart}
@@ -1446,6 +1633,7 @@ function SceneContents({
   showProps,
   showOverlays,
   zoomDistance,
+  frame,
   onSelectBuilding,
   onInspectBuilding,
   onHoverBuilding,
@@ -1455,7 +1643,7 @@ function SceneContents({
   | 'hoverScreenPoint'
   | 'onCameraControlStart'
   | 'onZoomDistanceChange'
->) {
+> & { frame: CodeCitySceneFrame }) {
   const visibleBoundaries = useMemo(
     () =>
       scene.boundaries.map((boundary) => ({
@@ -1487,10 +1675,10 @@ function SceneContents({
       />
       <mesh
         rotation={[-Math.PI / 2, 0, 0]}
-        position={[0, -2.8, 0]}
+        position={[frame.bounds.centre.x, -2.8, frame.bounds.centre.z]}
         receiveShadow
       >
-        <circleGeometry args={[260, 96]} />
+        <circleGeometry args={[frame.groundRadius, 128]} />
         <meshStandardMaterial
           color='#050C16'
           emissive='#02050A'
@@ -1498,13 +1686,13 @@ function SceneContents({
           roughness={0.98}
         />
       </mesh>
-      <TronGroundGrid />
+      <TronGroundGrid frame={frame} />
       <ContactShadows
-        position={[0, -2.68, 0]}
+        position={[frame.bounds.centre.x, -2.68, frame.bounds.centre.z]}
         opacity={0.5}
-        scale={420}
+        scale={frame.shadowScale}
         blur={2.5}
-        far={80}
+        far={frame.shadowFar}
         resolution={1024}
         color='#020711'
       />
@@ -1552,6 +1740,7 @@ export function CodeCityCanvas({
 }: CodeCityCanvasProps) {
   const fallbackPreset = resolveCodeCityCameraPreset(scene, null)
   const webglSupported = useMemo(() => supportsWebGL(), [])
+  const frame = useMemo(() => getCodeCitySceneFrame(scene), [scene])
   const initialPosition = cameraFocus?.position ?? [
     fallbackPreset?.position.x ?? 0,
     fallbackPreset?.position.y ?? 150,
@@ -1574,7 +1763,7 @@ export function CodeCityCanvas({
             position: initialPosition as [number, number, number],
             fov: 42,
             near: 0.1,
-            far: 600,
+            far: frame.cameraFar,
           }}
           onPointerMissed={() => onSelectBuilding(null)}
         >
@@ -1582,6 +1771,7 @@ export function CodeCityCanvas({
             <CameraDirector
               scene={scene}
               focus={cameraFocus}
+              frame={frame}
               onCameraControlStart={onCameraControlStart}
               onZoomDistanceChange={onZoomDistanceChange}
             />
@@ -1594,6 +1784,7 @@ export function CodeCityCanvas({
               showProps={showProps}
               showOverlays={showOverlays}
               zoomDistance={zoomDistance}
+              frame={frame}
               onSelectBuilding={onSelectBuilding}
               onInspectBuilding={onInspectBuilding}
               onHoverBuilding={onHoverBuilding}

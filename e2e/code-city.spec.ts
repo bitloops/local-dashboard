@@ -1,4 +1,237 @@
-import { expect, test, type Locator } from '@playwright/test'
+import { expect, test, type Locator, type Page } from '@playwright/test'
+
+function codeCityBuilding(path: string, zone: string, x: number) {
+  const risky = path.includes('service')
+
+  return {
+    path,
+    language: 'typescript',
+    boundaryId: 'boundary:root',
+    zone,
+    inferredZone: zone,
+    conventionZone: zone,
+    architectureRole: zone,
+    importance: {
+      score: risky ? 0.82 : 0.46,
+      blastRadius: 4,
+      weightedFanIn: 0.64,
+      articulationScore: 0.48,
+      normalizedBlastRadius: 0.8,
+      normalizedWeightedFanIn: 0.64,
+      normalizedArticulationScore: 0.48,
+    },
+    size: {
+      loc: 80,
+      artefactCount: 1,
+      totalHeight: 8,
+    },
+    geometry: {
+      x,
+      y: 0,
+      z: 2,
+      width: 4,
+      depth: 3,
+      sideLength: 4,
+      footprintArea: 12,
+      height: 8,
+    },
+    healthRisk: risky ? 0.72 : 0.18,
+    healthStatus: 'ok',
+    healthConfidence: 0.9,
+    colour: risky ? '#E0444E' : '#22A66A',
+    healthSummary: {
+      floorCount: 1,
+      highRiskFloorCount: risky ? 1 : 0,
+      insufficientDataFloorCount: 0,
+      averageRisk: risky ? 0.72 : 0.18,
+      maxRisk: risky ? 0.72 : 0.18,
+      missingSignals: [],
+    },
+    diagnosticBadges: [],
+    floors: [
+      {
+        artefactId: `artefact:${path}`,
+        symbolId: `symbol:${path}`,
+        name: risky ? 'OrderService' : 'OrderAggregate',
+        canonicalKind: 'class',
+        languageKind: 'class_declaration',
+        startLine: 1,
+        endLine: 40,
+        loc: 40,
+        floorIndex: 0,
+        floorHeight: 8,
+        healthRisk: risky ? 0.72 : 0.18,
+        colour: risky ? '#E0444E' : '#22A66A',
+        healthStatus: 'ok',
+        healthConfidence: 0.9,
+        healthMetrics: {
+          churn: 8,
+          complexity: 5,
+          bugCount: risky ? 2 : 0,
+          coverage: 0.74,
+          authorConcentration: 0.42,
+        },
+        healthEvidence: {
+          missingSignals: [],
+        },
+      },
+    ],
+  }
+}
+
+async function mockDevqlCodeCity(page: Page) {
+  await page.route('**/devql/dashboard', async (route) => {
+    await route.fulfill({
+      contentType: 'application/json',
+      body: JSON.stringify({
+        data: {
+          repositories: [
+            {
+              repoId: 'repo-1',
+              identity: 'bitloops/bitloops',
+              name: 'bitloops',
+              provider: 'local',
+              organization: 'bitloops',
+              defaultBranch: 'main',
+            },
+          ],
+        },
+      }),
+    })
+  })
+
+  await page.route('**/devql/global', async (route) => {
+    await route.fulfill({
+      contentType: 'application/json',
+      body: JSON.stringify({
+        data: {
+          repo: {
+            project: {
+              path: '.',
+              codeCityWorld: {
+                capability: 'codecity',
+                stage: 'codecity_world',
+                status: 'ok',
+                repoId: 'repo-1',
+                commitSha: '1234567890abcdef',
+                configFingerprint: 'fingerprint-1',
+                summary: {
+                  fileCount: 2,
+                  artefactCount: 2,
+                  dependencyCount: 1,
+                  boundaryCount: 1,
+                  macroEdgeCount: 0,
+                  includedFileCount: 2,
+                  excludedFileCount: 0,
+                  unhealthyFloorCount: 1,
+                  insufficientHealthDataCount: 0,
+                  coverageAvailable: true,
+                  gitHistoryAvailable: true,
+                  violationCount: 1,
+                  highSeverityViolationCount: 1,
+                  visibleArcCount: 1,
+                  crossBoundaryArcCount: 0,
+                  maxImportance: 0.82,
+                  maxHeight: 8,
+                },
+                health: {
+                  status: 'ok',
+                  analysisWindowMonths: 6,
+                  generatedAt: '2026-04-29T12:00:00.000Z',
+                  confidence: 0.9,
+                  missingSignals: [],
+                  coverageAvailable: true,
+                  gitHistoryAvailable: true,
+                },
+                layout: {
+                  layoutKind: 'phase1_grid_treemap',
+                  width: 20,
+                  depth: 14,
+                  gap: 0.5,
+                },
+                boundaries: [
+                  {
+                    id: 'boundary:root',
+                    name: 'Bitloops',
+                    rootPath: '.',
+                    kind: 'ROOT_FALLBACK',
+                    fileCount: 2,
+                    sharedLibrary: false,
+                    atomic: true,
+                    architecture: {
+                      primaryPattern: 'LAYERED',
+                      primaryScore: 0.88,
+                      secondaryPattern: null,
+                      mudScore: 0.12,
+                      modularity: 0.5,
+                    },
+                    violationSummary: {
+                      total: 1,
+                      high: 1,
+                      medium: 0,
+                      low: 0,
+                      info: 0,
+                    },
+                    diagnostics: [],
+                  },
+                ],
+                boundaryLayouts: [
+                  {
+                    boundaryId: 'boundary:root',
+                    strategy: 'PHASE_1_GRID_TREEMAP',
+                    zoneCount: 2,
+                    width: 20,
+                    depth: 14,
+                    x: 0,
+                    z: 0,
+                  },
+                ],
+                macroGraph: {
+                  topology: 'SINGLE_BOUNDARY',
+                  boundaryCount: 1,
+                  edgeCount: 0,
+                },
+                buildings: [
+                  codeCityBuilding(
+                    'src/application/order-service.ts',
+                    'application',
+                    2,
+                  ),
+                  codeCityBuilding('src/core/order-aggregate.ts', 'core', 9),
+                ],
+                arcs: [
+                  {
+                    id: 'render:violation:1',
+                    kind: 'VIOLATION',
+                    visibility: 'VISIBLE_ON_SELECTION',
+                    severity: 'HIGH',
+                    fromPath: 'src/application/order-service.ts',
+                    toPath: 'src/core/order-aggregate.ts',
+                    fromBoundaryId: 'boundary:root',
+                    toBoundaryId: 'boundary:root',
+                    weight: 12,
+                    label: 'Layered dependency',
+                    tooltip: 'Application imports core through the wrong path.',
+                  },
+                ],
+                dependencyArcs: [
+                  {
+                    fromPath: 'src/application/order-service.ts',
+                    toPath: 'src/core/order-aggregate.ts',
+                    edgeCount: 3,
+                    arcKind: 'dependency',
+                    severity: null,
+                  },
+                ],
+                diagnostics: [],
+              },
+            },
+          },
+        },
+      }),
+    })
+  })
+}
 
 async function expectCodeCityCanvasRendered(sceneCard: Locator) {
   await expect(sceneCard).toBeVisible()
@@ -71,7 +304,7 @@ async function expectCodeCityCanvasRendered(sceneCard: Locator) {
     .toBe(true)
 }
 
-test('Code Atlas loads a fixture, searches, toggles overlays, and updates the inspector', async ({
+test('Code Atlas loads live DevQL data, searches, toggles overlays, and updates the inspector', async ({
   page,
 }) => {
   const runtimeErrors: string[] = []
@@ -84,15 +317,16 @@ test('Code Atlas loads a fixture, searches, toggles overlays, and updates the in
     runtimeErrors.push(error.message)
   })
 
+  await mockDevqlCodeCity(page)
   await page.goto('/code-city')
 
   await expect(page.getByRole('heading', { name: 'Code Atlas' })).toBeVisible()
   await expectCodeCityCanvasRendered(page.getByTestId('code-city-scene-card'))
 
-  await page.getByTestId('code-city-search-input').fill('order-aggregate')
+  await page.getByTestId('code-city-search-input').fill('order-service')
   await page
     .getByRole('button', {
-      name: /order-aggregate\.ts\s+src\/domain\/order-aggregate\.ts/i,
+      name: /order-service\.ts\s+src\/application\/order-service\.ts/i,
     })
     .click()
 
@@ -100,7 +334,7 @@ test('Code Atlas loads a fixture, searches, toggles overlays, and updates the in
     'Selected building',
   )
   await expect(page.getByTestId('code-city-inspector')).toContainText(
-    'src/domain/order-aggregate.ts',
+    'src/application/order-service.ts',
   )
 
   const overlaysToggle = page.getByTestId('code-city-toggle-overlays')
