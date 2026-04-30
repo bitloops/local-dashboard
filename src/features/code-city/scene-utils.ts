@@ -61,6 +61,7 @@ export type CodeCitySceneFrame = {
 }
 
 export const CODE_CITY_ZONE_PAD_HEIGHT = 0.075
+export const CODE_CITY_BOUNDARY_PLINTH_HEIGHT = 0.08
 export const CODE_CITY_ZONE_SURFACE_LIFT_FROM_BOUNDARY = 0.12
 export const CODE_CITY_WATER_LAYER_DROP = 0.28
 export const CODE_CITY_DISTRICT_TERRACE_TOP_LIFT = 0.48
@@ -69,6 +70,7 @@ export const CODE_CITY_DISTRICT_TERRACE_CAP_HEIGHT = 0.16
 export const CODE_CITY_DISTRICT_TERRACE_MIN_HEIGHT = 0.12
 
 export type CodeCityBoundaryGroundLevels = {
+  plinthHeight: number
   plinthTopY: number
   plinthCentreY: number
   plinthBottomY: number
@@ -132,6 +134,7 @@ function includeBoundaryBounds(
   boundary: CodeCityBoundary,
 ) {
   const { centre, waterInset } = boundary.ground
+  const plinthHeight = getBoundaryPlinthHeight(boundary)
 
   if (boundary.ground.kind === 'disc') {
     const radius = (boundary.ground.radius ?? 0) + waterInset
@@ -140,7 +143,7 @@ function includeBoundaryBounds(
       maxX: centre.x + radius,
       minZ: centre.z - radius,
       maxZ: centre.z + radius,
-      topY: centre.y + boundary.ground.height,
+      topY: centre.y + plinthHeight / 2,
     })
     return
   }
@@ -152,8 +155,12 @@ function includeBoundaryBounds(
     maxX: centre.x + halfWidth,
     minZ: centre.z - halfDepth,
     maxZ: centre.z + halfDepth,
-    topY: centre.y + boundary.ground.height,
+    topY: centre.y + plinthHeight / 2,
   })
+}
+
+export function getBoundaryPlinthHeight(boundary: CodeCityBoundary) {
+  return Math.min(boundary.ground.height, CODE_CITY_BOUNDARY_PLINTH_HEIGHT)
 }
 
 function includeBuildingBounds(
@@ -250,13 +257,15 @@ export function getBoundaryContentBaseY(boundary: CodeCityBoundary) {
 export function getBoundaryGroundLevels(
   boundary: CodeCityBoundary,
 ): CodeCityBoundaryGroundLevels {
+  const plinthHeight = getBoundaryPlinthHeight(boundary)
   const plinthCentreY = boundary.ground.centre.y
-  const plinthTopY = plinthCentreY + boundary.ground.height / 2
-  const plinthBottomY = plinthCentreY - boundary.ground.height / 2
-  const waterHeight = boundary.ground.height * 0.7
+  const plinthTopY = plinthCentreY + plinthHeight / 2
+  const plinthBottomY = plinthCentreY - plinthHeight / 2
+  const waterHeight = plinthHeight * 0.7
   const waterTopY = plinthBottomY - CODE_CITY_WATER_LAYER_DROP
 
   return {
+    plinthHeight,
     plinthTopY,
     plinthCentreY,
     plinthBottomY,

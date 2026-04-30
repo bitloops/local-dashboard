@@ -273,7 +273,7 @@ function BoundaryGround({ boundary }: { boundary: CodeCityBoundary }) {
             args={[
               boundary.ground.radius!,
               boundary.ground.radius!,
-              boundary.ground.height,
+              levels.plinthHeight,
               64,
             ]}
           />
@@ -320,7 +320,7 @@ function BoundaryGround({ boundary }: { boundary: CodeCityBoundary }) {
       <RoundedBox
         args={[
           boundary.ground.width!,
-          boundary.ground.height,
+          levels.plinthHeight,
           boundary.ground.depth!,
         ]}
         radius={1.35}
