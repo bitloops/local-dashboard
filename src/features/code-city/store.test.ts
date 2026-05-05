@@ -10,6 +10,9 @@ describe('CodeCity UI store', () => {
     store.getState().setSearchQuery('order')
     store.getState().setSelectedBuildingId('building-1')
     store.getState().toggleLayer('labels')
+    store.getState().toggleLayer('zones')
+    store.getState().toggleLayer('buildings')
+    store.getState().toggleLayer('floors')
     store.getState().setDatasetId('federated-world')
 
     const state = store.getState()
@@ -18,6 +21,9 @@ describe('CodeCity UI store', () => {
     expect(state.selectedBuildingId).toBeNull()
     expect(state.cameraFocus).toBeNull()
     expect(state.showLabels).toBe(false)
+    expect(state.showZones).toBe(false)
+    expect(state.showBuildings).toBe(false)
+    expect(state.showFloors).toBe(false)
   })
 
   it('focuses a building and creates a camera target', () => {

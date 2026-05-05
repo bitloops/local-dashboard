@@ -5,6 +5,7 @@ import {
   HelpCircle,
   Command,
   Building2,
+  Network,
 } from 'lucide-react'
 import { type SidebarData } from '../types'
 
@@ -34,6 +35,11 @@ export const sidebarData: SidebarData = {
           title: 'Code Atlas',
           url: '/code-city',
           icon: Building2,
+        },
+        {
+          title: 'Architecture',
+          url: '/architecture',
+          icon: Network,
         },
       ],
     },

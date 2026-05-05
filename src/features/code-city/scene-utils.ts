@@ -35,6 +35,11 @@ export type CodeCitySceneSummary = {
   testBuildingCount: number
   highRiskCount: number
   sharedBoundaryCount: number
+  architectureSystemCount: number
+  architectureContainerCount: number
+  architectureComponentCount: number
+  architectureEntryPointCount: number
+  architectureFlowCount: number
 }
 
 export type CodeCitySceneBounds = {
@@ -60,9 +65,9 @@ export type CodeCitySceneFrame = {
   shadowFar: number
 }
 
-export const CODE_CITY_ZONE_PAD_HEIGHT = 0.075
-export const CODE_CITY_BOUNDARY_PLINTH_HEIGHT = 0.08
-export const CODE_CITY_ZONE_SURFACE_LIFT_FROM_BOUNDARY = 0.12
+export const CODE_CITY_ZONE_PAD_HEIGHT = 0.024
+export const CODE_CITY_BOUNDARY_PLINTH_HEIGHT = 0.04
+export const CODE_CITY_ZONE_SURFACE_LIFT_FROM_BOUNDARY = 0.055
 export const CODE_CITY_WATER_LAYER_DROP = 0.28
 export const CODE_CITY_DISTRICT_TERRACE_TOP_LIFT = 0.48
 export const CODE_CITY_DISTRICT_NESTED_STEP = 0.32
@@ -838,15 +843,30 @@ export function getSceneSummary(
   scene: CodeCitySceneModel,
 ): CodeCitySceneSummary {
   const buildings = getSceneBuildings(scene, { includeTests: true })
+  const leafBoundaries = scene.boundaries.filter(
+    (boundary) => boundary.boundaryRole !== 'group',
+  )
 
   return {
-    boundaryCount: scene.boundaries.length,
+    boundaryCount: leafBoundaries.length,
     buildingCount: buildings.length,
     testBuildingCount: buildings.filter((building) => building.isTest).length,
     highRiskCount: buildings.filter((building) => building.healthRisk >= 0.7)
       .length,
-    sharedBoundaryCount: scene.boundaries.filter(
+    sharedBoundaryCount: leafBoundaries.filter(
       (boundary) => boundary.sharedLibrary.isSharedLibrary,
     ).length,
+    architectureSystemCount: scene.architecture.systems.length,
+    architectureContainerCount: scene.architecture.containers.length,
+    architectureComponentCount: new Set(
+      scene.architecture.containers.flatMap((container) =>
+        container.components.map((component) => component.id),
+      ),
+    ).size,
+    architectureEntryPointCount: scene.architecture.containers.reduce(
+      (total, container) => total + container.entryPoints.length,
+      0,
+    ),
+    architectureFlowCount: scene.architecture.flows.length,
   }
 }

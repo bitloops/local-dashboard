@@ -10,7 +10,16 @@ import {
   resolveCodeCityCameraPreset,
 } from './scene-utils'
 
-export type CodeCityLayerToggle = 'labels' | 'tests' | 'props' | 'overlays'
+export type CodeCityLayerToggle =
+  | 'labels'
+  | 'tests'
+  | 'base'
+  | 'zones'
+  | 'folders'
+  | 'buildings'
+  | 'floors'
+  | 'props'
+  | 'overlays'
 
 export type CodeCityCameraFocus = {
   sequence: number
@@ -31,6 +40,11 @@ export type CodeCityUiState = {
   activePresetId: string | null
   showLabels: boolean
   showTests: boolean
+  showBase: boolean
+  showZones: boolean
+  showFolders: boolean
+  showBuildings: boolean
+  showFloors: boolean
   showProps: boolean
   showOverlays: boolean
   zoomDistance: number
@@ -77,6 +91,11 @@ type CodeCityUiStateInput = Pick<
   | 'activePresetId'
   | 'showLabels'
   | 'showTests'
+  | 'showBase'
+  | 'showZones'
+  | 'showFolders'
+  | 'showBuildings'
+  | 'showFloors'
   | 'showProps'
   | 'showOverlays'
   | 'zoomDistance'
@@ -117,6 +136,11 @@ function createInitialState(
     activePresetId: null,
     showLabels: true,
     showTests: true,
+    showBase: true,
+    showZones: true,
+    showFolders: true,
+    showBuildings: true,
+    showFloors: true,
     showProps: true,
     showOverlays: true,
     zoomDistance: 120,
@@ -157,6 +181,26 @@ export function createCodeCityUiStore(
 
         if (layer === 'tests') {
           return { showTests: !state.showTests }
+        }
+
+        if (layer === 'base') {
+          return { showBase: !state.showBase }
+        }
+
+        if (layer === 'zones') {
+          return { showZones: !state.showZones }
+        }
+
+        if (layer === 'folders') {
+          return { showFolders: !state.showFolders }
+        }
+
+        if (layer === 'buildings') {
+          return { showBuildings: !state.showBuildings }
+        }
+
+        if (layer === 'floors') {
+          return { showFloors: !state.showFloors }
         }
 
         if (layer === 'props') {
@@ -233,6 +277,11 @@ export function useCodeCityStore<T>(
 export const selectVisibleLayerState = (state: CodeCityUiState) => ({
   showLabels: state.showLabels,
   showTests: state.showTests,
+  showBase: state.showBase,
+  showZones: state.showZones,
+  showFolders: state.showFolders,
+  showBuildings: state.showBuildings,
+  showFloors: state.showFloors,
   showProps: state.showProps,
   showOverlays: state.showOverlays,
 })

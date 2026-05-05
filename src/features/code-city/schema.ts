@@ -44,6 +44,13 @@ export const codeCityArcSchema = z.object({
   toPath: z.string().min(1).optional(),
   label: z.string().min(1).optional(),
   tooltip: z.string().min(1).optional(),
+  architecture: z
+    .object({
+      kind: z.enum(['flow']),
+      flowId: z.string().min(1),
+      entryPointId: z.string().min(1),
+    })
+    .optional(),
   visibleAtZoom: z
     .object({
       min: z.number().nonnegative(),
@@ -78,6 +85,26 @@ export const codeCityMetricsSummarySchema = z.object({
   authorConcentration: z.number().min(0).max(1),
 })
 
+export const codeCityArchitectureNodeSchema = z.object({
+  id: z.string().min(1),
+  kind: z.string().min(1),
+  label: z.string().min(1),
+  path: z.string().min(1).nullable().optional(),
+  entryKind: z.string().min(1).nullable().optional(),
+  confidence: z.number().min(0).max(1),
+  computed: z.boolean(),
+  asserted: z.boolean(),
+  properties: z.unknown().optional(),
+})
+
+export const codeCityBuildingArchitectureSchema = z.object({
+  nodeIds: z.array(z.string().min(1)).default([]),
+  containerIds: z.array(z.string().min(1)).default([]),
+  componentIds: z.array(z.string().min(1)).default([]),
+  entryPoints: z.array(codeCityArchitectureNodeSchema).default([]),
+  traversedByFlowIds: z.array(z.string().min(1)).default([]),
+})
+
 export const codeCityBuildingSchema = z.object({
   nodeType: z.literal('building'),
   id: z.string().min(1),
@@ -94,6 +121,13 @@ export const codeCityBuildingSchema = z.object({
   incomingArcIds: z.array(z.string().min(1)),
   outgoingArcIds: z.array(z.string().min(1)),
   metricsSummary: codeCityMetricsSummarySchema,
+  architecture: codeCityBuildingArchitectureSchema.default({
+    nodeIds: [],
+    containerIds: [],
+    componentIds: [],
+    entryPoints: [],
+    traversedByFlowIds: [],
+  }),
 })
 
 export type CodeCityBuilding = z.infer<typeof codeCityBuildingSchema>
@@ -233,7 +267,11 @@ export const codeCitySharedLibrarySchema = z.object({
 export const codeCityBoundarySchema = z.object({
   id: z.string().min(1),
   name: z.string().min(1),
+  parentBoundaryId: z.string().min(1).nullable().optional(),
+  boundaryRole: z.enum(['group', 'leaf']).optional(),
+  hierarchyDepth: z.number().int().min(0).optional(),
   kind: z.enum([
+    'group',
     'service',
     'library',
     'application',
@@ -260,7 +298,7 @@ export const codeCityBoundarySchema = z.object({
   ]),
   labelAnchor: codeCityVector3Schema,
   ground: codeCityBoundaryGroundSchema,
-  zones: z.array(codeCityZoneSchema).min(1),
+  zones: z.array(codeCityZoneSchema),
   sharedLibrary: codeCitySharedLibrarySchema,
 })
 
@@ -300,7 +338,19 @@ export const codeCityAnalysisConfigSchema = z.object({
   analysisWindowMonths: z.number().int().positive(),
   buildingPadding: z.number().nonnegative(),
   availableToggles: z
-    .array(z.enum(['labels', 'tests', 'props', 'overlays']))
+    .array(
+      z.enum([
+        'labels',
+        'tests',
+        'base',
+        'zones',
+        'folders',
+        'buildings',
+        'floors',
+        'props',
+        'overlays',
+      ]),
+    )
     .min(1),
   labelDistances: z.object({
     boundary: z.number().positive(),
@@ -328,6 +378,53 @@ export const codeCitySourceSchema = z.object({
   analysisWindowMonths: z.number().int().positive(),
 })
 
+export const codeCityArchitectureContainerSchema = z.object({
+  id: z.string().min(1),
+  key: z.string().min(1).nullable().optional(),
+  kind: z.string().min(1).nullable().optional(),
+  label: z.string().min(1),
+  path: z.string().min(1).nullable().optional(),
+  repositoryId: z.string().min(1),
+  systemKeys: z.array(z.string().min(1)).default([]),
+  entryPoints: z.array(codeCityArchitectureNodeSchema).default([]),
+  deploymentUnits: z.array(codeCityArchitectureNodeSchema).default([]),
+  components: z.array(codeCityArchitectureNodeSchema).default([]),
+})
+
+export const codeCityArchitectureSystemSchema = z.object({
+  id: z.string().min(1),
+  key: z.string().min(1),
+  label: z.string().min(1),
+  repositoryIds: z.array(z.string().min(1)).default([]),
+  containerIds: z.array(z.string().min(1)).default([]),
+})
+
+export const codeCityArchitectureFlowStepSchema = z.object({
+  ordinal: z.number().int().positive(),
+  moduleKey: z.string().min(1),
+  depth: z.number().int().min(0),
+  nodeIds: z.array(z.string().min(1)).default([]),
+  paths: z.array(z.string().min(1)).default([]),
+  predecessorModuleKeys: z.array(z.string().min(1)).default([]),
+  edgeKinds: z.array(z.string().min(1)).default([]),
+  cyclic: z.boolean().default(false),
+})
+
+export const codeCityArchitectureFlowSchema = z.object({
+  id: z.string().min(1),
+  label: z.string().min(1),
+  entryPoint: codeCityArchitectureNodeSchema,
+  traversedNodeIds: z.array(z.string().min(1)).default([]),
+  traversedPaths: z.array(z.string().min(1)).default([]),
+  steps: z.array(codeCityArchitectureFlowStepSchema).default([]),
+})
+
+export const codeCityArchitectureSummarySchema = z.object({
+  systems: z.array(codeCityArchitectureSystemSchema).default([]),
+  containers: z.array(codeCityArchitectureContainerSchema).default([]),
+  flows: z.array(codeCityArchitectureFlowSchema).default([]),
+})
+
 export const codeCitySceneModelSchema = z.object({
   id: z.string().min(1),
   title: z.string().min(1),
@@ -346,6 +443,11 @@ export const codeCitySceneModelSchema = z.object({
   boundaries: z.array(codeCityBoundarySchema),
   arcs: z.array(codeCityArcSchema),
   crossBoundaryArcs: z.array(codeCityArcSchema),
+  architecture: codeCityArchitectureSummarySchema.default({
+    systems: [],
+    containers: [],
+    flows: [],
+  }),
   legend: codeCityLegendSchema,
   config: codeCityAnalysisConfigSchema,
 })
@@ -357,6 +459,12 @@ export type CodeCityArc = z.infer<typeof codeCityArcSchema>
 export type CodeCityFloor = z.infer<typeof codeCityFloorSchema>
 export type CodeCityMetricsSummary = z.infer<
   typeof codeCityMetricsSummarySchema
+>
+export type CodeCityArchitectureNode = z.infer<
+  typeof codeCityArchitectureNodeSchema
+>
+export type CodeCityBuildingArchitecture = z.infer<
+  typeof codeCityBuildingArchitectureSchema
 >
 export type CodeCityZoneShape = z.infer<typeof codeCityZoneShapeSchema>
 export type CodeCityZone = z.infer<typeof codeCityZoneSchema>
@@ -371,4 +479,13 @@ export type CodeCityAnalysisConfig = z.infer<
   typeof codeCityAnalysisConfigSchema
 >
 export type CodeCitySource = z.infer<typeof codeCitySourceSchema>
+export type CodeCityArchitectureContainer = z.infer<
+  typeof codeCityArchitectureContainerSchema
+>
+export type CodeCityArchitectureSystem = z.infer<
+  typeof codeCityArchitectureSystemSchema
+>
+export type CodeCityArchitectureFlow = z.infer<
+  typeof codeCityArchitectureFlowSchema
+>
 export type CodeCitySceneModel = z.infer<typeof codeCitySceneModelSchema>

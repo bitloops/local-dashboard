@@ -21,6 +21,20 @@ import type {
 } from './schema'
 import { codeCitySceneModelSchema } from './schema'
 import { CODE_CITY_LIVE_DATASET_ID } from './sources'
+import { codeCityBuildingIdForPath, slugifyCodeCityValue } from './ids'
+import {
+  addInferredWorkspaceComponents,
+  createArchitectureFlowArcs,
+  enrichBuildingsWithArchitecture,
+  fetchAtlasArchitectureGraph,
+  mapDevqlArchitectureGraphToSceneArchitecture,
+  type DevqlArchitectureContainer,
+  type DevqlArchitectureFlow,
+  type DevqlArchitectureGraphNode,
+  type DevqlArchitectureSystem,
+} from './architecture-graph'
+
+export { codeCityBuildingIdForPath } from './ids'
 
 const HEALTHY = '#22A66A'
 const MODERATE = '#D5D957'
@@ -35,8 +49,11 @@ const MAX_LIVE_DISTRICT_DEPTH = 4
 const LIVE_BOUNDARY_PLOT_PADDING = 3
 const LIVE_DISTRICT_PLOT_PADDING = 0.45
 const LIVE_DISTRICT_CONTENT_INSET = 0.7
-const LIVE_DISTRICT_ITEM_GAP = 0.82
-const LIVE_ROOT_DISTRICT_GAP = 1.6
+const LIVE_DISTRICT_ITEM_GAP = 1.05
+const LIVE_ROOT_DISTRICT_GAP = 1.85
+const LIVE_ZONE_GAP = 4.2
+const LIVE_BUILDING_RENDER_MIN_MARGIN = 0.64
+const LIVE_BUILDING_RENDER_MARKER_SCALE = 1.34
 
 export type DevqlCodeCitySeverity = 'HIGH' | 'MEDIUM' | 'LOW' | 'INFO'
 
@@ -113,7 +130,15 @@ type DevqlCodeCityBoundary = {
   id: string
   name: string
   rootPath: string
-  kind: 'EXPLICIT' | 'RUNTIME' | 'IMPLICIT' | 'ROOT_FALLBACK'
+  kind: 'EXPLICIT' | 'RUNTIME' | 'IMPLICIT' | 'GROUP' | 'ROOT_FALLBACK'
+  parentBoundaryId?: string | null
+  source?:
+    | 'MANIFEST'
+    | 'WORKSPACE_MANIFEST'
+    | 'ENTRY_POINT'
+    | 'COMMUNITY_DETECTION'
+    | 'HIERARCHY'
+    | 'FALLBACK'
   fileCount: number
   sharedLibrary: boolean
   atomic: boolean
@@ -305,6 +330,12 @@ export type MapDevqlCodeCityWorldOptions = {
   >
   projectPath?: string
   generatedAt?: string
+  architecture?: {
+    systems: DevqlArchitectureSystem[]
+    containers: DevqlArchitectureContainer[]
+    graphNodes: DevqlArchitectureGraphNode[]
+    flows: DevqlArchitectureFlow[]
+  }
 }
 
 export const CODE_CITY_WORLD_QUERY = `
@@ -366,6 +397,8 @@ export const CODE_CITY_WORLD_QUERY = `
             name
             rootPath
             kind
+            parentBoundaryId
+            source
             fileCount
             sharedLibrary
             atomic
@@ -534,18 +567,7 @@ function safeHexColour(value: string | null | undefined, fallback: string) {
 }
 
 function slugify(value: string) {
-  return value
-    .replaceAll(/[^\w/.-]+/gu, '-')
-    .replaceAll('/', '--')
-    .replaceAll('.', '-')
-    .replaceAll('_', '-')
-    .replaceAll(/-+/gu, '-')
-    .replaceAll(/^-|-$/gu, '')
-    .toLowerCase()
-}
-
-export function codeCityBuildingIdForPath(path: string) {
-  return `file:${slugify(path) || 'root'}`
+  return slugifyCodeCityValue(value)
 }
 
 function fileLabel(path: string) {
@@ -638,7 +660,12 @@ function toTopologyRole(
 
 function toBoundaryKind(
   boundary: DevqlCodeCityBoundary,
+  boundaryRole: CodeCityBoundary['boundaryRole'] = 'leaf',
 ): CodeCityBoundary['kind'] {
+  if (boundaryRole === 'group') {
+    return 'group'
+  }
+
   if (boundary.sharedLibrary) {
     return 'shared-kernel'
   }
@@ -652,6 +679,74 @@ function toBoundaryKind(
   }
 
   return boundary.rootPath === '.' ? 'application' : 'service'
+}
+
+type BoundaryHierarchy = {
+  childIdsByParent: Map<string, string[]>
+  depthByBoundary: Map<string, number>
+}
+
+function buildBoundaryHierarchy(
+  boundaries: DevqlCodeCityBoundary[],
+): BoundaryHierarchy {
+  const childIdsByParent = new Map<string, string[]>()
+  const byId = new Map(boundaries.map((boundary) => [boundary.id, boundary]))
+
+  for (const boundary of boundaries) {
+    if (boundary.parentBoundaryId == null) {
+      continue
+    }
+    childIdsByParent.set(boundary.parentBoundaryId, [
+      ...(childIdsByParent.get(boundary.parentBoundaryId) ?? []),
+      boundary.id,
+    ])
+  }
+
+  const depthByBoundary = new Map<string, number>()
+  const resolveDepth = (
+    boundary: DevqlCodeCityBoundary,
+    seen = new Set<string>(),
+  ): number => {
+    const existing = depthByBoundary.get(boundary.id)
+    if (existing != null) {
+      return existing
+    }
+    if (boundary.parentBoundaryId == null || seen.has(boundary.id)) {
+      depthByBoundary.set(boundary.id, 0)
+      return 0
+    }
+
+    const parent = byId.get(boundary.parentBoundaryId)
+    if (parent == null) {
+      depthByBoundary.set(boundary.id, 0)
+      return 0
+    }
+
+    seen.add(boundary.id)
+    const depth = resolveDepth(parent, seen) + 1
+    depthByBoundary.set(boundary.id, depth)
+    return depth
+  }
+
+  for (const boundary of boundaries) {
+    resolveDepth(boundary)
+  }
+
+  return {
+    childIdsByParent,
+    depthByBoundary,
+  }
+}
+
+function boundaryRoleFor(
+  boundary: DevqlCodeCityBoundary,
+  hierarchy: BoundaryHierarchy,
+): CodeCityBoundary['boundaryRole'] {
+  return boundary.kind === 'GROUP' ||
+    boundary.source === 'HIERARCHY' ||
+    (hierarchy.childIdsByParent.get(boundary.id)?.length ?? 0) > 0
+    ? 'group'
+    : 'leaf'
 }
 
 function toZoneType(zone: string): CodeCityZone['zoneType'] {
@@ -930,6 +1025,13 @@ function mapBuilding(
     incomingArcIds: [],
     outgoingArcIds: [],
     metricsSummary: aggregateMetrics(building),
+    architecture: {
+      nodeIds: [],
+      containerIds: [],
+      componentIds: [],
+      entryPoints: [],
+      traversedByFlowIds: [],
+    },
   }
 }
 
@@ -967,6 +1069,22 @@ function boundsForPlots(
   }
 }
 
+function plotForBounds(bounds: {
+  x: number
+  z: number
+  width: number
+  depth: number
+}): CodeCityPlot {
+  return {
+    x: bounds.x,
+    y: 0,
+    z: bounds.z,
+    width: bounds.width,
+    depth: bounds.depth,
+    rotation: 0,
+  }
+}
+
 function centreForBounds(bounds: {
   x: number
   z: number
@@ -977,6 +1095,35 @@ function centreForBounds(bounds: {
     x: bounds.x + bounds.width / 2,
     y: 0,
     z: bounds.z + bounds.depth / 2,
+  }
+}
+
+function translateDistrict(
+  district: CodeCityDistrict,
+  deltaX: number,
+  deltaZ: number,
+): CodeCityDistrict {
+  return {
+    ...district,
+    plot: {
+      ...district.plot,
+      x: district.plot.x + deltaX,
+      z: district.plot.z + deltaZ,
+    },
+    children: district.children.map((child) => {
+      if (child.nodeType === 'district') {
+        return translateDistrict(child, deltaX, deltaZ)
+      }
+
+      return {
+        ...child,
+        plot: {
+          ...child.plot,
+          x: child.plot.x + deltaX,
+          z: child.plot.z + deltaZ,
+        },
+      }
+    }),
   }
 }
 
@@ -1015,6 +1162,8 @@ type MeasuredFolderLayout = {
       | {
           kind: 'building'
           building: CodeCityBuilding
+          marginX: number
+          marginZ: number
         }
     >
   >
@@ -1109,7 +1258,7 @@ function packLayoutItems<T>(items: PackedLayoutItem<T>[], gap: number) {
     0,
   )
   const widest = Math.max(...items.map((item) => item.width))
-  const targetWidth = Math.max(widest, Math.sqrt(totalArea) * 1.35)
+  const targetWidth = Math.max(widest, Math.sqrt(totalArea) * 1.45)
   const placements: PackedLayoutPlacement<T>[] = []
   let cursorX = 0
   let cursorZ = 0
@@ -1140,6 +1289,27 @@ function packLayoutItems<T>(items: PackedLayoutItem<T>[], gap: number) {
   }
 }
 
+function buildingRenderSlot(building: CodeCityBuilding) {
+  const markerDiameter =
+    Math.max(building.plot.width, building.plot.depth) *
+    LIVE_BUILDING_RENDER_MARKER_SCALE
+  const marginX = Math.max(
+    LIVE_BUILDING_RENDER_MIN_MARGIN,
+    (markerDiameter - building.plot.width) / 2,
+  )
+  const marginZ = Math.max(
+    LIVE_BUILDING_RENDER_MIN_MARGIN,
+    (markerDiameter - building.plot.depth) / 2,
+  )
+
+  return {
+    marginX,
+    marginZ,
+    width: building.plot.width + marginX * 2,
+    depth: building.plot.depth + marginZ * 2,
+  }
+}
+
 function measureFolderNode(node: LiveFolderNode): MeasuredFolderLayout {
   const childLayouts = Array.from(node.children.values())
     .sort((left, right) => left.segment.localeCompare(right.segment))
@@ -1156,6 +1326,8 @@ function measureFolderNode(node: LiveFolderNode): MeasuredFolderLayout {
       | {
           kind: 'building'
           building: CodeCityBuilding
+          marginX: number
+          marginZ: number
         }
     >
   > = [
@@ -1167,14 +1339,20 @@ function measureFolderNode(node: LiveFolderNode): MeasuredFolderLayout {
       width: layout.width,
       depth: layout.depth,
     })),
-    ...buildings.map((building) => ({
-      item: {
-        kind: 'building' as const,
-        building,
-      },
-      width: building.plot.width,
-      depth: building.plot.depth,
-    })),
+    ...buildings.map((building) => {
+      const slot = buildingRenderSlot(building)
+
+      return {
+        item: {
+          kind: 'building' as const,
+          building,
+          marginX: slot.marginX,
+          marginZ: slot.marginZ,
+        },
+        width: slot.width,
+        depth: slot.depth,
+      }
+    }),
   ]
   const packed = packLayoutItems(items, LIVE_DISTRICT_ITEM_GAP)
 
@@ -1222,9 +1400,9 @@ function placeMeasuredFolderLayout(
       ...placement.item.building,
       plot: {
         ...placement.item.building.plot,
-        x: itemX,
+        x: itemX + placement.item.marginX,
         y: 0,
-        z: itemZ,
+        z: itemZ + placement.item.marginZ,
       },
     })
   }
@@ -1350,10 +1528,13 @@ function mapBoundary(
   buildings: CodeCityBuilding[],
   sourceBuildingsByPath: Map<string, DevqlCodeCityBuilding>,
   macroTopology: DevqlCodeCityTopology | undefined,
+  hierarchy: BoundaryHierarchy,
 ): CodeCityBoundary {
+  const boundaryRole = boundaryRoleFor(boundary, hierarchy)
+  const hierarchyDepth = hierarchy.depthByBoundary.get(boundary.id) ?? 0
   const plots = buildings.map((building) => building.plot)
   const fallbackBounds = boundsForPlots(plots)
-  const bounds =
+  const sourceBoundaryBounds =
     layout == null
       ? fallbackBounds
       : {
@@ -1362,8 +1543,46 @@ function mapBoundary(
           width: safePositive(layout.width, fallbackBounds.width),
           depth: safePositive(layout.depth, fallbackBounds.depth),
         }
-  const centre = centreForBounds(bounds)
   const zonesByName = new Map<string, CodeCityBuilding[]>()
+
+  if (boundaryRole === 'group') {
+    const centre = centreForBounds(sourceBoundaryBounds)
+    const depthLift = Math.max(0, 2 - hierarchyDepth) * 0.22
+
+    return {
+      id: boundary.id,
+      name: boundary.name || boundary.rootPath,
+      parentBoundaryId: boundary.parentBoundaryId ?? null,
+      boundaryRole,
+      hierarchyDepth,
+      kind: toBoundaryKind(boundary, boundaryRole),
+      architecture: toBoundaryArchitecture(
+        boundary.architecture?.primaryPattern,
+        boundary.sharedLibrary,
+      ),
+      topologyRole: 'peer',
+      labelAnchor: {
+        x: centre.x,
+        y: 2.25 + depthLift,
+        z: sourceBoundaryBounds.z - 2.2,
+      },
+      ground: {
+        kind: 'roundedRect',
+        centre,
+        width: sourceBoundaryBounds.width,
+        depth: sourceBoundaryBounds.depth,
+        height: 0.12,
+        waterInset: 1.6,
+        tint: '#1D4E68',
+      },
+      zones: [],
+      sharedLibrary: {
+        isSharedLibrary: false,
+        renderMode: 'district',
+        serves: [],
+      },
+    }
+  }
 
   for (const building of buildings) {
     const sourceBuilding = sourceBuildingsByPath.get(building.filePath)
@@ -1376,53 +1595,114 @@ function mapBoundary(
     zonesByName.set('module', [])
   }
 
-  const zones: CodeCityZone[] = Array.from(zonesByName.entries()).map(
+  const zoneLayouts = Array.from(zonesByName.entries()).map(
     ([zoneName, zoneBuildings], index) => {
       const sourceZoneBounds = boundsForPlots(
         zoneBuildings.length > 0
           ? zoneBuildings.map((building) => building.plot)
           : [
               {
-                x: bounds.x,
+                x: sourceBoundaryBounds.x,
                 y: 0,
-                z: bounds.z,
-                width: bounds.width,
-                depth: bounds.depth,
+                z: sourceBoundaryBounds.z,
+                width: sourceBoundaryBounds.width,
+                depth: sourceBoundaryBounds.depth,
                 rotation: 0,
               },
             ],
       )
+      const localZoneBounds = {
+        x: 0,
+        z: 0,
+        width: sourceZoneBounds.width,
+        depth: sourceZoneBounds.depth,
+      }
       const districtLayout = districtsForZone(
         boundary,
         zoneName,
         zoneBuildings,
-        sourceZoneBounds,
+        localZoneBounds,
       )
-      const zoneBounds = districtLayout.bounds
-      const zoneCentre = centreForBounds(zoneBounds)
 
       return {
-        id: `${boundary.id}:zone:${slugify(zoneName) || index}`,
-        name: enumLabel(zoneName),
-        zoneType: toZoneType(zoneName),
-        layoutKind: 'strip',
-        elevation: 0.34 + index * 0.03,
-        shape: {
-          kind: 'strip',
-          centre: zoneCentre,
-          width: zoneBounds.width,
-          depth: zoneBounds.depth,
-          rotation: 0,
-        },
-        districts: districtLayout.districts,
+        index,
+        zoneName,
+        districtLayout,
+        bounds: districtLayout.bounds,
       }
     },
   )
+  const packedZones = packLayoutItems(
+    zoneLayouts.map((zoneLayout) => ({
+      item: zoneLayout,
+      width: zoneLayout.bounds.width,
+      depth: zoneLayout.bounds.depth,
+    })),
+    LIVE_ZONE_GAP,
+  )
+  const zoneOriginX =
+    sourceBoundaryBounds.x +
+    Math.max(0, (sourceBoundaryBounds.width - packedZones.width) / 2)
+  const zoneOriginZ =
+    sourceBoundaryBounds.z +
+    Math.max(0, (sourceBoundaryBounds.depth - packedZones.depth) / 2)
+  const zones: CodeCityZone[] = packedZones.placements.map((placement) => {
+    const zoneBounds = {
+      x: zoneOriginX + placement.x,
+      z: zoneOriginZ + placement.z,
+      width: placement.item.bounds.width,
+      depth: placement.item.bounds.depth,
+    }
+    const deltaX = zoneBounds.x - placement.item.bounds.x
+    const deltaZ = zoneBounds.z - placement.item.bounds.z
+    const zoneCentre = centreForBounds(zoneBounds)
+
+    return {
+      id: `${boundary.id}:zone:${
+        slugify(placement.item.zoneName) || placement.item.index
+      }`,
+      name: enumLabel(placement.item.zoneName),
+      zoneType: toZoneType(placement.item.zoneName),
+      layoutKind: 'strip',
+      elevation: 0.34 + placement.item.index * 0.03,
+      shape: {
+        kind: 'strip',
+        centre: zoneCentre,
+        width: zoneBounds.width,
+        depth: zoneBounds.depth,
+        rotation: 0,
+      },
+      districts: placement.item.districtLayout.districts.map((district) =>
+        translateDistrict(district, deltaX, deltaZ),
+      ),
+    }
+  })
+  const bounds = boundsForPlots(
+    zones.map((zone) => {
+      const width = safePositive(zone.shape.width ?? 0, 1)
+      const depth = safePositive(zone.shape.depth ?? 0, 1)
+
+      return plotForBounds({
+        x: zone.shape.centre.x - width / 2,
+        z: zone.shape.centre.z - depth / 2,
+        width,
+        depth,
+      })
+    }),
+    {
+      minWidth: sourceBoundaryBounds.width,
+      minDepth: sourceBoundaryBounds.depth,
+    },
+  )
+  const centre = centreForBounds(bounds)
 
   return {
     id: boundary.id,
     name: boundary.name || boundary.rootPath,
-    kind: toBoundaryKind(boundary),
+    parentBoundaryId: boundary.parentBoundaryId ?? null,
+    boundaryRole,
+    hierarchyDepth,
+    kind: toBoundaryKind(boundary, boundaryRole),
     architecture: toBoundaryArchitecture(
       boundary.architecture?.primaryPattern,
       boundary.sharedLibrary,
@@ -1651,7 +1931,17 @@ function defaultConfig(
   return {
     analysisWindowMonths: world.health.analysisWindowMonths,
     buildingPadding: Math.max(0.25, world.layout.gap / 2),
-    availableToggles: ['labels', 'tests', 'props', 'overlays'],
+    availableToggles: [
+      'labels',
+      'tests',
+      'base',
+      'zones',
+      'folders',
+      'buildings',
+      'floors',
+      'props',
+      'overlays',
+    ],
     labelDistances: {
       boundary: 225,
       zone: 160,
@@ -1695,8 +1985,22 @@ export function mapDevqlCodeCityWorldToScene(
     ),
     1,
   )
-  const buildings = world.buildings.map((building) =>
+  const baseBuildings = world.buildings.map((building) =>
     mapBuilding(building, maxSourceHeight),
+  )
+  const architecture = addInferredWorkspaceComponents(
+    mapDevqlArchitectureGraphToSceneArchitecture({
+      systems: options.architecture?.systems ?? [],
+      containers: options.architecture?.containers ?? [],
+      flows: options.architecture?.flows ?? [],
+      repositoryId: options.repository.repoId,
+    }),
+    baseBuildings,
+  )
+  const buildings = enrichBuildingsWithArchitecture(
+    baseBuildings,
+    architecture,
+    options.architecture?.graphNodes ?? [],
   )
   const buildingIdsByPath = new Map(
     buildings.map((building) => [building.filePath, building.id]),
@@ -1715,7 +2019,8 @@ export function mapDevqlCodeCityWorldToScene(
       : world.dependencyArcs
           .map((arc) => mapDependencyArc(arc, buildingIdsByPath, maxArcWeight))
           .filter((arc): arc is CodeCityArc => arc != null)
-  const arcs = [...renderArcs, ...fallbackArcs]
+  const architectureArcs = createArchitectureFlowArcs(architecture, buildings)
+  const arcs = [...renderArcs, ...fallbackArcs, ...architectureArcs]
   const indexedBuildings = attachArcIndexes(buildings, arcs)
   const buildingsByBoundary = new Map<string, CodeCityBuilding[]>()
   const sourceBuildingsByPath = new Map(
@@ -1725,6 +2030,7 @@ export function mapDevqlCodeCityWorldToScene(
     world.boundaryLayouts.map((layout) => [layout.boundaryId, layout]),
   )
   const macroTopology = world.macroGraph?.topology
+  const boundaryHierarchy = buildBoundaryHierarchy(world.boundaries)
 
   for (const building of indexedBuildings) {
     const source = world.buildings.find(
@@ -1746,6 +2052,7 @@ export function mapDevqlCodeCityWorldToScene(
       buildingsByBoundary.get(boundary.id) ?? [],
       sourceBuildingsByPath,
       macroTopology,
+      boundaryHierarchy,
     ),
   )
   const positionedBuildings = collectBoundaryBuildings(boundaries)
@@ -1776,6 +2083,7 @@ export function mapDevqlCodeCityWorldToScene(
     boundaries,
     arcs,
     crossBoundaryArcs: arcs.filter((arc) => arc.arcType === 'cross-boundary'),
+    architecture,
     legend: defaultLegend(),
     config: defaultConfig(world),
   })
@@ -1820,8 +2128,25 @@ export async function fetchDevqlCodeCityScene({
     throw new GraphQLRequestError('CodeCity world was not returned by DevQL.')
   }
 
+  const project = response.data?.repo.project
+  if (project == null) {
+    throw new GraphQLRequestError('CodeCity project was not returned by DevQL.')
+  }
+
+  const architecture = await fetchAtlasArchitectureGraph({
+    repo: repository.name,
+    projectPath,
+    first: Math.min(first, 100),
+    signal,
+  })
   return mapDevqlCodeCityWorldToScene(world, {
     repository,
     projectPath,
+    architecture: {
+      systems: architecture.systems,
+      containers: architecture.containers,
+      graphNodes: architecture.graphNodes,
+      flows: architecture.flows,
+    },
   })
 }

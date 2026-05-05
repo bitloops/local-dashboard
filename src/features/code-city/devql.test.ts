@@ -6,6 +6,29 @@ import {
 import { getSceneBuildings } from './scene-utils'
 
 type DevqlWorldFixture = Parameters<typeof mapDevqlCodeCityWorldToScene>[0]
+type ArchitectureFixture = NonNullable<
+  Parameters<typeof mapDevqlCodeCityWorldToScene>[1]['architecture']
+>
+
+function architectureNode(
+  overrides: Partial<ArchitectureFixture['graphNodes'][number]>,
+): ArchitectureFixture['graphNodes'][number] {
+  return {
+    id: 'architecture-node',
+    kind: 'NODE',
+    label: 'Architecture node',
+    artefactId: null,
+    symbolId: null,
+    path: null,
+    entryKind: null,
+    sourceKind: 'COMPUTED',
+    confidence: 0.9,
+    computed: true,
+    asserted: false,
+    properties: {},
+    ...overrides,
+  }
+}
 
 function building(
   path: string,
@@ -205,6 +228,174 @@ function world(overrides?: Partial<DevqlWorldFixture>): DevqlWorldFixture {
   }
 }
 
+function visibleBuildingBounds(
+  building: ReturnType<typeof getSceneBuildings>[number],
+) {
+  const markerDiameter =
+    Math.max(building.plot.width, building.plot.depth) * 1.34
+  const centreX = building.plot.x + building.plot.width / 2
+  const centreZ = building.plot.z + building.plot.depth / 2
+
+  return {
+    minX: centreX - markerDiameter / 2,
+    maxX: centreX + markerDiameter / 2,
+    minZ: centreZ - markerDiameter / 2,
+    maxZ: centreZ + markerDiameter / 2,
+  }
+}
+
+function maxVisibleGap(
+  left: ReturnType<typeof getSceneBuildings>[number],
+  right: ReturnType<typeof getSceneBuildings>[number],
+) {
+  const leftBounds = visibleBuildingBounds(left)
+  const rightBounds = visibleBuildingBounds(right)
+  const xGap =
+    Math.max(leftBounds.minX, rightBounds.minX) -
+    Math.min(leftBounds.maxX, rightBounds.maxX)
+  const zGap =
+    Math.max(leftBounds.minZ, rightBounds.minZ) -
+    Math.min(leftBounds.maxZ, rightBounds.maxZ)
+
+  return Math.max(xGap, zGap)
+}
+
+function architecture(): ArchitectureFixture {
+  const containerNode = architectureNode({
+    id: 'container:orders-api',
+    kind: 'CONTAINER',
+    label: 'Orders API',
+    path: 'src',
+    properties: {
+      container_kind: 'api',
+    },
+  })
+  const entryPoint = architectureNode({
+    id: 'entry:orders-api',
+    kind: 'ENTRY_POINT',
+    label: 'orders-api',
+    path: 'src/application/order-service.ts',
+    entryKind: 'npm_bin',
+    confidence: 0.86,
+  })
+  const component = architectureNode({
+    id: 'component:application',
+    kind: 'COMPONENT',
+    label: 'Application',
+    path: 'src/application',
+    confidence: 0.55,
+  })
+  const deploymentUnit = architectureNode({
+    id: 'deployment:orders-api',
+    kind: 'DEPLOYMENT_UNIT',
+    label: 'orders-api deployment',
+    path: 'src/application/order-service.ts',
+    entryKind: 'npm_bin',
+  })
+  const serviceNode = architectureNode({
+    id: 'node:order-service',
+    label: 'OrderService',
+    path: 'src/application/order-service.ts',
+  })
+  const aggregateNode = architectureNode({
+    id: 'node:order-aggregate',
+    label: 'OrderAggregate',
+    path: 'src/core/order-aggregate.ts',
+  })
+  const flowNode = architectureNode({
+    id: 'flow:orders-api',
+    kind: 'FLOW',
+    label: 'orders-api flow',
+  })
+
+  return {
+    systems: [
+      {
+        id: 'system:orders',
+        key: 'repo:repo-1',
+        label: 'Orders',
+        repositories: [
+          {
+            repoId: 'repo-1',
+            name: 'bitloops',
+            provider: 'local',
+            organization: 'bitloops',
+          },
+        ],
+        containers: [
+          {
+            id: 'container:orders-api',
+            key: 'orders-api',
+            kind: 'api',
+            label: 'Orders API',
+            repository: {
+              repoId: 'repo-1',
+              name: 'bitloops',
+              provider: 'local',
+              organization: 'bitloops',
+            },
+            node: containerNode,
+            entryPoints: [entryPoint],
+            deploymentUnits: [deploymentUnit],
+            components: [component],
+          },
+        ],
+        node: architectureNode({
+          id: 'system:orders',
+          kind: 'SYSTEM',
+          label: 'Orders',
+        }),
+      },
+    ],
+    containers: [
+      {
+        id: 'container:orders-api',
+        key: 'orders-api',
+        kind: 'api',
+        label: 'Orders API',
+        repository: {
+          repoId: 'repo-1',
+          name: 'bitloops',
+          provider: 'local',
+          organization: 'bitloops',
+        },
+        node: containerNode,
+        entryPoints: [entryPoint],
+        deploymentUnits: [deploymentUnit],
+        components: [component],
+      },
+    ],
+    graphNodes: [serviceNode, aggregateNode],
+    flows: [
+      {
+        entryPoint,
+        flow: flowNode,
+        traversedNodes: [aggregateNode, serviceNode],
+        steps: [
+          {
+            ordinal: 1,
+            moduleKey: 'src/application/order-service.ts',
+            depth: 0,
+            nodes: [serviceNode],
+            predecessorModuleKeys: [],
+            edgeKinds: [],
+            cyclic: false,
+          },
+          {
+            ordinal: 2,
+            moduleKey: 'src/core/order-aggregate.ts',
+            depth: 1,
+            nodes: [aggregateNode],
+            predecessorModuleKeys: ['src/application/order-service.ts'],
+            edgeKinds: ['DEPENDS_ON'],
+            cyclic: false,
+          },
+        ],
+      },
+    ],
+  }
+}
+
 describe('DevQL CodeCity mapper', () => {
   it('maps CodeCityWorldResult into the renderer scene model', () => {
     const scene = mapDevqlCodeCityWorldToScene(world(), {
@@ -252,6 +443,157 @@ describe('DevQL CodeCity mapper', () => {
         visibility: 'visible-on-selection',
       }),
     ])
+  })
+
+  it('maps CodeCity parent boundaries as group frames', () => {
+    const apiBuilding = {
+      ...building('packages/api/src/main.ts', 'application', 2),
+      boundaryId: 'boundary:packages/api',
+    }
+    const webBuilding = {
+      ...building('packages/web/src/app.tsx', 'application', 13),
+      boundaryId: 'boundary:packages/web',
+    }
+    const scene = mapDevqlCodeCityWorldToScene(
+      world({
+        summary: {
+          ...world().summary,
+          boundaryCount: 3,
+          fileCount: 2,
+          artefactCount: 2,
+          includedFileCount: 2,
+        },
+        boundaries: [
+          {
+            id: 'boundary:packages',
+            name: 'packages',
+            rootPath: 'packages',
+            kind: 'GROUP',
+            parentBoundaryId: null,
+            source: 'HIERARCHY',
+            fileCount: 2,
+            sharedLibrary: false,
+            atomic: false,
+            architecture: null,
+            violationSummary: {
+              total: 0,
+              high: 0,
+              medium: 0,
+              low: 0,
+              info: 0,
+            },
+            diagnostics: [],
+          },
+          {
+            id: 'boundary:packages/api',
+            name: 'api',
+            rootPath: 'packages/api',
+            kind: 'EXPLICIT',
+            parentBoundaryId: 'boundary:packages',
+            source: 'MANIFEST',
+            fileCount: 1,
+            sharedLibrary: false,
+            atomic: true,
+            architecture: null,
+            violationSummary: {
+              total: 0,
+              high: 0,
+              medium: 0,
+              low: 0,
+              info: 0,
+            },
+            diagnostics: [],
+          },
+          {
+            id: 'boundary:packages/web',
+            name: 'web',
+            rootPath: 'packages/web',
+            kind: 'EXPLICIT',
+            parentBoundaryId: 'boundary:packages',
+            source: 'MANIFEST',
+            fileCount: 1,
+            sharedLibrary: false,
+            atomic: true,
+            architecture: null,
+            violationSummary: {
+              total: 0,
+              high: 0,
+              medium: 0,
+              low: 0,
+              info: 0,
+            },
+            diagnostics: [],
+          },
+        ],
+        boundaryLayouts: [
+          {
+            boundaryId: 'boundary:packages',
+            strategy: 'GRID_TREEMAP',
+            zoneCount: 2,
+            width: 22,
+            depth: 10,
+            x: 0,
+            z: 0,
+          },
+          {
+            boundaryId: 'boundary:packages/api',
+            strategy: 'PLAIN_TREEMAP',
+            zoneCount: 1,
+            width: 8,
+            depth: 8,
+            x: 1,
+            z: 1,
+          },
+          {
+            boundaryId: 'boundary:packages/web',
+            strategy: 'PLAIN_TREEMAP',
+            zoneCount: 1,
+            width: 8,
+            depth: 8,
+            x: 13,
+            z: 1,
+          },
+        ],
+        macroGraph: {
+          topology: 'FEDERATED',
+          boundaryCount: 2,
+          edgeCount: 0,
+        },
+        buildings: [apiBuilding, webBuilding],
+        arcs: [],
+        dependencyArcs: [],
+      }),
+      {
+        repository: {
+          repoId: 'repo-1',
+          identity: 'bitloops/bitloops',
+          name: 'bitloops',
+          organization: 'bitloops',
+        },
+        projectPath: '.',
+      },
+    )
+
+    const parent = scene.boundaries.find(
+      (boundary) => boundary.id === 'boundary:packages',
+    )
+    const leaves = scene.boundaries.filter(
+      (boundary) => boundary.parentBoundaryId === 'boundary:packages',
+    )
+
+    expect(parent).toEqual(
+      expect.objectContaining({
+        boundaryRole: 'group',
+        kind: 'group',
+        zones: [],
+      }),
+    )
+    expect(parent?.ground.width).toBeGreaterThan(20)
+    expect(leaves).toHaveLength(2)
+    expect(leaves.every((boundary) => boundary.boundaryRole === 'leaf')).toBe(
+      true,
+    )
+    expect(getSceneBuildings(scene)).toHaveLength(2)
   })
 
   it('falls back to dependency arcs when render arcs are absent', () => {
@@ -333,5 +675,195 @@ describe('DevQL CodeCity mapper', () => {
         appsDistrict!.plot.z + appsDistrict!.plot.depth,
       )
     }
+  })
+
+  it('keeps neighbouring source files visibly separated in the live folder layout', () => {
+    const configFixture = building('src/config.rs', 'core', 2)
+    const largeConfig = {
+      ...configFixture,
+      geometry: {
+        ...configFixture.geometry,
+        width: 8,
+        depth: 6,
+        footprintArea: 48,
+      },
+    }
+    const scene = mapDevqlCodeCityWorldToScene(
+      world({
+        summary: {
+          ...world().summary,
+          fileCount: 4,
+          artefactCount: 4,
+          includedFileCount: 4,
+        },
+        buildings: [
+          largeConfig,
+          building('src/main.rs', 'unclassified', 8),
+          building('src/protocol_loop.rs', 'unclassified', 11),
+          building('src/lib.rs', 'application', 14),
+        ],
+      }),
+      {
+        repository: {
+          repoId: 'repo-1',
+          identity: 'bitloops/bitloops',
+          name: 'bitloops',
+          organization: 'bitloops',
+        },
+        projectPath: '.',
+      },
+    )
+    const buildings = getSceneBuildings(scene)
+    const config = buildings.find(
+      (candidate) => candidate.filePath === 'src/config.rs',
+    )
+    const main = buildings.find(
+      (candidate) => candidate.filePath === 'src/main.rs',
+    )
+    const protocolLoop = buildings.find(
+      (candidate) => candidate.filePath === 'src/protocol_loop.rs',
+    )
+
+    expect(config).toBeDefined()
+    expect(main).toBeDefined()
+    expect(protocolLoop).toBeDefined()
+
+    expect(maxVisibleGap(config!, main!)).toBeGreaterThanOrEqual(1)
+    expect(maxVisibleGap(config!, protocolLoop!)).toBeGreaterThanOrEqual(1)
+  })
+
+  it('enriches buildings with architecture containers, entry points, and flows', () => {
+    const scene = mapDevqlCodeCityWorldToScene(world(), {
+      repository: {
+        repoId: 'repo-1',
+        identity: 'bitloops/bitloops',
+        name: 'bitloops',
+        organization: 'bitloops',
+      },
+      projectPath: '.',
+      architecture: architecture(),
+    })
+    const service = getSceneBuildings(scene).find(
+      (building) => building.filePath === 'src/application/order-service.ts',
+    )
+    const aggregate = getSceneBuildings(scene).find(
+      (building) => building.filePath === 'src/core/order-aggregate.ts',
+    )
+
+    expect(scene.architecture.systems).toEqual([
+      expect.objectContaining({
+        key: 'repo:repo-1',
+        containerIds: ['container:orders-api'],
+      }),
+    ])
+    expect(scene.architecture.containers).toEqual([
+      expect.objectContaining({
+        label: 'Orders API',
+        entryPoints: [expect.objectContaining({ entryKind: 'npm_bin' })],
+      }),
+    ])
+    expect(service?.architecture.entryPoints).toEqual([
+      expect.objectContaining({ label: 'orders-api' }),
+    ])
+    expect(service?.architecture.containerIds).toEqual(['container:orders-api'])
+    expect(aggregate?.architecture.traversedByFlowIds).toEqual([
+      'flow:orders-api',
+    ])
+    expect(scene.architecture.flows[0]?.traversedPaths).toEqual([
+      'src/application/order-service.ts',
+      'src/core/order-aggregate.ts',
+    ])
+    expect(
+      scene.arcs.find((arc) => arc.architecture?.flowId === 'flow:orders-api'),
+    ).toEqual(
+      expect.objectContaining({
+        id: expect.stringMatching(/^architecture-flow:/u),
+        architecture: expect.objectContaining({ kind: 'flow' }),
+        fromPath: 'src/application/order-service.ts',
+        toPath: 'src/core/order-aggregate.ts',
+      }),
+    )
+  })
+
+  it('uses workspace packages as fallback components for a single runnable container', () => {
+    const containerNode = architectureNode({
+      id: 'container:bitloops-inference',
+      kind: 'CONTAINER',
+      label: 'bitloops-inference',
+      path: 'crates/bitloops-inference',
+      properties: {
+        container_kind: 'cli',
+      },
+    })
+    const scene = mapDevqlCodeCityWorldToScene(
+      world({
+        buildings: [
+          building('crates/bitloops-inference/src/main.rs', 'application', 2),
+          building('crates/bitloops-inference-protocol/src/lib.rs', 'core', 9),
+        ],
+      }),
+      {
+        repository: {
+          repoId: 'repo-1',
+          identity: 'bitloops/bitloops-inference',
+          name: 'bitloops-inference',
+          organization: 'bitloops',
+        },
+        projectPath: '.',
+        architecture: {
+          systems: [],
+          graphNodes: [],
+          flows: [],
+          containers: [
+            {
+              id: 'container:bitloops-inference',
+              key: 'bitloops-inference',
+              kind: 'cli',
+              label: 'bitloops-inference',
+              repository: {
+                repoId: 'repo-1',
+                name: 'bitloops-inference',
+                provider: 'local',
+                organization: 'bitloops',
+              },
+              node: containerNode,
+              entryPoints: [],
+              deploymentUnits: [],
+              components: [],
+            },
+          ],
+        },
+      },
+    )
+    const container = scene.architecture.containers.find(
+      (candidate) => candidate.id === 'container:bitloops-inference',
+    )
+    const protocolBuilding = getSceneBuildings(scene).find(
+      (candidate) =>
+        candidate.filePath === 'crates/bitloops-inference-protocol/src/lib.rs',
+    )
+    const componentLabels =
+      container?.components.map((component) => component.label) ?? []
+    const protocolComponent = container?.components.find(
+      (component) => component.label === 'bitloops-inference-protocol',
+    )
+
+    expect(componentLabels).toEqual(
+      expect.arrayContaining([
+        'bitloops-inference',
+        'bitloops-inference-protocol',
+      ]),
+    )
+    expect(protocolComponent?.properties).toEqual(
+      expect.objectContaining({
+        component_kind: 'workspace_package',
+      }),
+    )
+    expect(protocolBuilding?.architecture.containerIds).toContain(
+      'container:bitloops-inference',
+    )
+    expect(protocolBuilding?.architecture.componentIds).toContain(
+      protocolComponent?.id,
+    )
   })
 })

@@ -79,6 +79,24 @@ function codeCityBuilding(path: string, zone: string, x: number) {
   }
 }
 
+function architectureNode(overrides: Record<string, unknown>) {
+  return {
+    id: 'architecture-node',
+    kind: 'NODE',
+    label: 'Architecture node',
+    artefactId: null,
+    symbolId: null,
+    path: null,
+    entryKind: null,
+    sourceKind: 'COMPUTED',
+    confidence: 0.9,
+    computed: true,
+    asserted: false,
+    properties: {},
+    ...overrides,
+  }
+}
+
 async function mockDevqlCodeCity(page: Page) {
   await page.route('**/devql/dashboard', async (route) => {
     await route.fulfill({
@@ -105,9 +123,201 @@ async function mockDevqlCodeCity(page: Page) {
       contentType: 'application/json',
       body: JSON.stringify({
         data: {
+          architectureSystems: [
+            {
+              id: 'system:orders',
+              key: 'repo:repo-1',
+              label: 'Orders',
+              repositories: [
+                {
+                  repoId: 'repo-1',
+                  name: 'bitloops',
+                  provider: 'local',
+                  organization: 'bitloops',
+                },
+              ],
+              node: architectureNode({
+                id: 'system:orders',
+                kind: 'SYSTEM',
+                label: 'Orders',
+              }),
+              containers: [
+                {
+                  id: 'container:orders-api',
+                  key: 'orders-api',
+                  kind: 'api',
+                  label: 'Orders API',
+                  repository: {
+                    repoId: 'repo-1',
+                    name: 'bitloops',
+                    provider: 'local',
+                    organization: 'bitloops',
+                  },
+                  node: architectureNode({
+                    id: 'container:orders-api',
+                    kind: 'CONTAINER',
+                    label: 'Orders API',
+                    path: 'src',
+                    properties: { container_kind: 'api' },
+                  }),
+                  entryPoints: [
+                    architectureNode({
+                      id: 'entry:orders-api',
+                      kind: 'ENTRY_POINT',
+                      label: 'orders-api',
+                      path: 'src/application/order-service.ts',
+                      entryKind: 'npm_bin',
+                    }),
+                  ],
+                  deploymentUnits: [
+                    architectureNode({
+                      id: 'deployment:orders-api',
+                      kind: 'DEPLOYMENT_UNIT',
+                      label: 'orders-api deployment',
+                      path: 'src/application/order-service.ts',
+                      entryKind: 'npm_bin',
+                    }),
+                  ],
+                  components: [
+                    architectureNode({
+                      id: 'component:application',
+                      kind: 'COMPONENT',
+                      label: 'Application',
+                      path: 'src/application',
+                      confidence: 0.55,
+                    }),
+                  ],
+                },
+              ],
+            },
+          ],
           repo: {
             project: {
               path: '.',
+              architectureGraph: {
+                nodes: [
+                  architectureNode({
+                    id: 'node:order-service',
+                    label: 'OrderService',
+                    path: 'src/application/order-service.ts',
+                  }),
+                  architectureNode({
+                    id: 'node:order-aggregate',
+                    label: 'OrderAggregate',
+                    path: 'src/core/order-aggregate.ts',
+                  }),
+                ],
+              },
+              architectureContainers: [
+                {
+                  id: 'container:orders-api',
+                  key: 'orders-api',
+                  kind: 'api',
+                  label: 'Orders API',
+                  repository: {
+                    repoId: 'repo-1',
+                    name: 'bitloops',
+                    provider: 'local',
+                    organization: 'bitloops',
+                  },
+                  node: architectureNode({
+                    id: 'container:orders-api',
+                    kind: 'CONTAINER',
+                    label: 'Orders API',
+                    path: 'src',
+                    properties: { container_kind: 'api' },
+                  }),
+                  entryPoints: [
+                    architectureNode({
+                      id: 'entry:orders-api',
+                      kind: 'ENTRY_POINT',
+                      label: 'orders-api',
+                      path: 'src/application/order-service.ts',
+                      entryKind: 'npm_bin',
+                    }),
+                  ],
+                  deploymentUnits: [
+                    architectureNode({
+                      id: 'deployment:orders-api',
+                      kind: 'DEPLOYMENT_UNIT',
+                      label: 'orders-api deployment',
+                      path: 'src/application/order-service.ts',
+                      entryKind: 'npm_bin',
+                    }),
+                  ],
+                  components: [
+                    architectureNode({
+                      id: 'component:application',
+                      kind: 'COMPONENT',
+                      label: 'Application',
+                      path: 'src/application',
+                      confidence: 0.55,
+                    }),
+                  ],
+                },
+              ],
+              architectureFlows: [
+                {
+                  entryPoint: architectureNode({
+                    id: 'entry:orders-api',
+                    kind: 'ENTRY_POINT',
+                    label: 'orders-api',
+                    path: 'src/application/order-service.ts',
+                    entryKind: 'npm_bin',
+                  }),
+                  flow: architectureNode({
+                    id: 'flow:orders-api',
+                    kind: 'FLOW',
+                    label: 'orders-api flow',
+                  }),
+                  traversedNodes: [
+                    architectureNode({
+                      id: 'node:order-service',
+                      label: 'OrderService',
+                      path: 'src/application/order-service.ts',
+                    }),
+                    architectureNode({
+                      id: 'node:order-aggregate',
+                      label: 'OrderAggregate',
+                      path: 'src/core/order-aggregate.ts',
+                    }),
+                  ],
+                  steps: [
+                    {
+                      ordinal: 1,
+                      moduleKey: 'src/application/order-service.ts',
+                      depth: 0,
+                      predecessorModuleKeys: [],
+                      edgeKinds: [],
+                      cyclic: false,
+                      nodes: [
+                        architectureNode({
+                          id: 'node:order-service',
+                          label: 'OrderService',
+                          path: 'src/application/order-service.ts',
+                        }),
+                      ],
+                    },
+                    {
+                      ordinal: 2,
+                      moduleKey: 'src/core/order-aggregate.ts',
+                      depth: 1,
+                      predecessorModuleKeys: [
+                        'src/application/order-service.ts',
+                      ],
+                      edgeKinds: ['DEPENDS_ON'],
+                      cyclic: false,
+                      nodes: [
+                        architectureNode({
+                          id: 'node:order-aggregate',
+                          label: 'OrderAggregate',
+                          path: 'src/core/order-aggregate.ts',
+                        }),
+                      ],
+                    },
+                  ],
+                },
+              ],
               codeCityWorld: {
                 capability: 'codecity',
                 stage: 'codecity_world',
@@ -322,6 +532,12 @@ test('Code Atlas loads live DevQL data, searches, toggles overlays, and updates 
 
   await expect(page.getByRole('heading', { name: 'Code Atlas' })).toBeVisible()
   await expectCodeCityCanvasRendered(page.getByTestId('code-city-scene-card'))
+  await expect(page.getByTestId('code-city-inspector')).toContainText(
+    'C4 projection',
+  )
+  await expect(page.getByTestId('code-city-inspector')).toContainText(
+    'Orders API',
+  )
 
   await page.getByTestId('code-city-search-input').fill('order-service')
   await page
@@ -336,11 +552,29 @@ test('Code Atlas loads live DevQL data, searches, toggles overlays, and updates 
   await expect(page.getByTestId('code-city-inspector')).toContainText(
     'src/application/order-service.ts',
   )
+  await expect(page.getByTestId('code-city-inspector')).toContainText(
+    'Architecture graph',
+  )
+  await expect(page.getByTestId('code-city-inspector')).toContainText(
+    'orders-api',
+  )
 
   const overlaysToggle = page.getByTestId('code-city-toggle-overlays')
   await expect(overlaysToggle).toHaveAttribute('aria-pressed', 'true')
   await overlaysToggle.click()
   await expect(overlaysToggle).toHaveAttribute('aria-pressed', 'false')
+  for (const toggleId of [
+    'code-city-toggle-base',
+    'code-city-toggle-zones',
+    'code-city-toggle-folders',
+    'code-city-toggle-buildings',
+    'code-city-toggle-floors',
+  ]) {
+    const layerToggle = page.getByTestId(toggleId)
+    await expect(layerToggle).toHaveAttribute('aria-pressed', 'true')
+    await layerToggle.click()
+    await expect(layerToggle).toHaveAttribute('aria-pressed', 'false')
+  }
 
   await page.getByTestId('code-city-preset-select').click()
   await page.getByRole('option', { name: 'World view' }).click()

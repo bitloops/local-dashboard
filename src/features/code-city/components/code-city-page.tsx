@@ -136,6 +136,11 @@ export function CodeCityPage({
   const activePresetId = useCodeCityStore((state) => state.activePresetId)
   const showLabels = useCodeCityStore((state) => state.showLabels)
   const showTests = useCodeCityStore((state) => state.showTests)
+  const showBase = useCodeCityStore((state) => state.showBase)
+  const showZones = useCodeCityStore((state) => state.showZones)
+  const showFolders = useCodeCityStore((state) => state.showFolders)
+  const showBuildings = useCodeCityStore((state) => state.showBuildings)
+  const showFloors = useCodeCityStore((state) => state.showFloors)
   const showProps = useCodeCityStore((state) => state.showProps)
   const showOverlays = useCodeCityStore((state) => state.showOverlays)
   const zoomDistance = useCodeCityStore((state) => state.zoomDistance)
@@ -517,7 +522,8 @@ export function CodeCityPage({
             </div>
             <p className='mt-2 max-w-3xl text-sm text-muted-foreground'>
               Explore the current DevQL CodeCity snapshot: building geometry,
-              dependency arcs, health signals, and architecture diagnostics.
+              dependency arcs, health signals, C4 containers, entry points, and
+              architecture diagnostics.
             </p>
           </div>
 
@@ -698,6 +704,36 @@ export function CodeCityPage({
                     onClick={() => toggleLayer('tests')}
                   />
                   <ToggleButton
+                    active={showBase}
+                    label='Base'
+                    testId='code-city-toggle-base'
+                    onClick={() => toggleLayer('base')}
+                  />
+                  <ToggleButton
+                    active={showZones}
+                    label='Zones'
+                    testId='code-city-toggle-zones'
+                    onClick={() => toggleLayer('zones')}
+                  />
+                  <ToggleButton
+                    active={showFolders}
+                    label='Folders'
+                    testId='code-city-toggle-folders'
+                    onClick={() => toggleLayer('folders')}
+                  />
+                  <ToggleButton
+                    active={showBuildings}
+                    label='Buildings'
+                    testId='code-city-toggle-buildings'
+                    onClick={() => toggleLayer('buildings')}
+                  />
+                  <ToggleButton
+                    active={showFloors}
+                    label='Floors'
+                    testId='code-city-toggle-floors'
+                    onClick={() => toggleLayer('floors')}
+                  />
+                  <ToggleButton
                     active={showProps}
                     label='Props'
                     testId='code-city-toggle-props'
@@ -773,6 +809,11 @@ export function CodeCityPage({
                   selectedBuildingId={selectedBuildingId}
                   showLabels={showLabels}
                   showTests={showTests}
+                  showBase={showBase}
+                  showZones={showZones}
+                  showFolders={showFolders}
+                  showBuildings={showBuildings}
+                  showFloors={showFloors}
                   showProps={showProps}
                   showOverlays={showOverlays}
                   cameraFocus={cameraFocus}

@@ -21,6 +21,7 @@ import {
 import * as THREE from 'three'
 import type {
   CodeCityArc,
+  CodeCityArchitectureNode,
   CodeCityBoundary,
   CodeCityBuilding,
   CodeCityDistrict,
@@ -54,6 +55,11 @@ type CodeCityCanvasProps = {
   selectedBuildingId: string | null
   showLabels: boolean
   showTests: boolean
+  showBase: boolean
+  showZones: boolean
+  showFolders: boolean
+  showBuildings: boolean
+  showFloors: boolean
   showProps: boolean
   showOverlays: boolean
   cameraFocus: CodeCityCameraFocus | null
@@ -74,13 +80,16 @@ const TRON_BLUE = '#2D8CFF'
 const TRON_MINT = '#50FFC2'
 const TRON_LABEL = '#DDFDFF'
 const TRON_WARNING = '#FF4F7B'
-const BUILDING_FOUNDATION_SURFACE_GAP = 0.16
+const TRON_GROUP = '#7DDDE8'
+const BUILDING_FOUNDATION_SURFACE_GAP = 0.2
 const BUILDING_FOUNDATION_HEIGHT = 0.42
-const BUILDING_FLOOR_GAP_ABOVE_FOUNDATION = 0.12
+const BUILDING_FLOOR_GAP_ABOVE_FOUNDATION = 0.22
 const BUILDING_BASE_CLEARANCE =
   BUILDING_FOUNDATION_SURFACE_GAP +
   BUILDING_FOUNDATION_HEIGHT +
   BUILDING_FLOOR_GAP_ABOVE_FOUNDATION
+const BUILDING_FLOOR_GAP = 0.14
+const BUILDING_MIN_RENDERED_FLOOR_HEIGHT = 0.5
 const CAMERA_MIN_DISTANCE = 6
 const MIN_CAMERA_MAX_DISTANCE = 340
 const LARGE_SCENE_BUILDING_THRESHOLD = 360
@@ -116,6 +125,10 @@ function zoneTint(zoneType: CodeCityZone['zoneType']) {
 }
 
 function arcColour(scene: CodeCitySceneModel, arc: CodeCityArc) {
+  if (arc.architecture?.kind === 'flow') {
+    return TRON_MINT
+  }
+
   if (arc.arcType === 'violation') {
     return scene.config.colours.violationArc
   }
@@ -125,6 +138,136 @@ function arcColour(scene: CodeCitySceneModel, arc: CodeCityArc) {
   }
 
   return TRON_CYAN
+}
+
+function getBuildingFloorRenderLayout(building: CodeCityBuilding) {
+  const floorCount = building.floors.length
+  const totalGap = BUILDING_FLOOR_GAP * Math.max(0, floorCount - 1)
+  const minimumFloorStackHeight =
+    floorCount * BUILDING_MIN_RENDERED_FLOOR_HEIGHT + totalGap
+  const stackHeight = Math.max(building.height, minimumFloorStackHeight)
+  const availableFloorHeight = Math.max(
+    BUILDING_MIN_RENDERED_FLOOR_HEIGHT * floorCount,
+    stackHeight - totalGap,
+  )
+  const weights = building.floors.map((floor) => Math.max(0.001, floor.height))
+  const totalWeight = weights.reduce((total, weight) => total + weight, 0)
+  const extraHeight = Math.max(
+    0,
+    availableFloorHeight - floorCount * BUILDING_MIN_RENDERED_FLOOR_HEIGHT,
+  )
+  let cursorY = BUILDING_BASE_CLEARANCE
+
+  return {
+    stackHeight,
+    floors: building.floors.map((floor, index) => {
+      const floorHeight =
+        BUILDING_MIN_RENDERED_FLOOR_HEIGHT +
+        (extraHeight * weights[index]) / totalWeight
+      const positionY = cursorY + floorHeight / 2
+      cursorY += floorHeight + BUILDING_FLOOR_GAP
+
+      return {
+        floor,
+        floorHeight,
+        positionY,
+      }
+    }),
+  }
+}
+
+function getBuildingRenderedStackHeight(building: CodeCityBuilding) {
+  const floorCount = building.floors.length
+  const totalGap = BUILDING_FLOOR_GAP * Math.max(0, floorCount - 1)
+
+  return Math.max(
+    building.height,
+    floorCount * BUILDING_MIN_RENDERED_FLOOR_HEIGHT + totalGap,
+  )
+}
+
+function getBuildingRenderedTopY(
+  building: CodeCityBuilding,
+  showFloors = true,
+) {
+  return (
+    BUILDING_BASE_CLEARANCE +
+    (showFloors
+      ? getBuildingRenderedStackHeight(building)
+      : BUILDING_FOUNDATION_HEIGHT)
+  )
+}
+
+type ArchitectureOverlayRegion = {
+  id: string
+  label: string
+  regionKind: 'container' | 'component'
+  minX: number
+  maxX: number
+  minZ: number
+  maxZ: number
+  surfaceY: number
+  buildingCount: number
+}
+
+function stringProperty(value: unknown, key: string) {
+  if (typeof value !== 'object' || value == null || !(key in value)) {
+    return null
+  }
+
+  const field = (value as Record<string, unknown>)[key]
+  return typeof field === 'string' && field.trim().length > 0 ? field : null
+}
+
+function isDisplayArchitectureComponent(component: CodeCityArchitectureNode) {
+  const componentKind = stringProperty(component.properties, 'component_kind')
+  const path = component.path ?? ''
+
+  return (
+    component.asserted ||
+    component.confidence >= 0.7 ||
+    componentKind === 'workspace_package' ||
+    /^crates\/[^/]+$/u.test(path) ||
+    /^(apps|packages|libs|services)\/[^/]+$/u.test(path)
+  )
+}
+
+function createRectangleOutlineGeometry(width: number, depth: number) {
+  const halfWidth = width / 2
+  const halfDepth = depth / 2
+  const positions = [
+    -halfWidth,
+    0,
+    -halfDepth,
+    halfWidth,
+    0,
+    -halfDepth,
+    halfWidth,
+    0,
+    -halfDepth,
+    halfWidth,
+    0,
+    halfDepth,
+    halfWidth,
+    0,
+    halfDepth,
+    -halfWidth,
+    0,
+    halfDepth,
+    -halfWidth,
+    0,
+    halfDepth,
+    -halfWidth,
+    0,
+    -halfDepth,
+  ]
+  const geometry = new THREE.BufferGeometry()
+  geometry.setAttribute(
+    'position',
+    new THREE.Float32BufferAttribute(positions, 3),
+  )
+
+  return geometry
 }
 
 function supportsWebGL() {
@@ -344,6 +487,47 @@ function BoundaryGround({ boundary }: { boundary: CodeCityBoundary }) {
   )
 }
 
+function BoundaryGroupFrame({ boundary }: { boundary: CodeCityBoundary }) {
+  const width = boundary.ground.width ?? 1
+  const depth = boundary.ground.depth ?? 1
+  const insetWidth = Math.max(0.1, width - 1.2)
+  const insetDepth = Math.max(0.1, depth - 1.2)
+  const y = 0.14 + (boundary.hierarchyDepth ?? 0) * 0.04
+  const geometry = useMemo(
+    () => createRectangleOutlineGeometry(width, depth),
+    [depth, width],
+  )
+  const insetGeometry = useMemo(
+    () => createRectangleOutlineGeometry(insetWidth, insetDepth),
+    [insetDepth, insetWidth],
+  )
+
+  return (
+    <group position={[boundary.ground.centre.x, y, boundary.ground.centre.z]}>
+      <lineSegments geometry={geometry}>
+        <lineBasicMaterial
+          color={TRON_GROUP}
+          transparent
+          opacity={0.72}
+          depthWrite={false}
+          depthTest={false}
+          toneMapped={false}
+        />
+      </lineSegments>
+      <lineSegments geometry={insetGeometry}>
+        <lineBasicMaterial
+          color={TRON_BLUE}
+          transparent
+          opacity={0.28}
+          depthWrite={false}
+          depthTest={false}
+          toneMapped={false}
+        />
+      </lineSegments>
+    </group>
+  )
+}
+
 function ZonePad({
   width,
   depth,
@@ -365,13 +549,13 @@ function ZonePad({
       <meshStandardMaterial
         color={tint}
         emissive={tint}
-        emissiveIntensity={0.12}
+        emissiveIntensity={0.06}
         transparent
-        opacity={opacity * 0.74}
+        opacity={opacity * 0.28}
         roughness={0.78}
         metalness={0.08}
       />
-      <Edges color={TRON_CYAN} threshold={14} />
+      <Edges color='#1B5B79' threshold={14} />
     </RoundedBox>
   )
 }
@@ -384,7 +568,7 @@ function ZoneSurface({
   zone: CodeCityZone
 }) {
   const tint = zoneTint(zone.zoneType)
-  const opacity = zone.zoneType === 'test' ? 0.7 : 0.88
+  const opacity = zone.zoneType === 'test' ? 0.42 : 0.54
   const surfaceCentreY = getZoneSurfaceCentreY(boundary)
 
   if (zone.shape.kind === 'ring') {
@@ -404,9 +588,9 @@ function ZoneSurface({
         <meshStandardMaterial
           color={tint}
           emissive={tint}
-          emissiveIntensity={0.1}
+          emissiveIntensity={0.05}
           transparent
-          opacity={opacity * 0.52}
+          opacity={opacity * 0.28}
           roughness={0.78}
           metalness={0.08}
         />
@@ -436,9 +620,9 @@ function ZoneSurface({
         <meshStandardMaterial
           color={tint}
           emissive={tint}
-          emissiveIntensity={0.1}
+          emissiveIntensity={0.05}
           transparent
-          opacity={opacity * 0.7}
+          opacity={opacity * 0.3}
           roughness={0.78}
           metalness={0.08}
         />
@@ -472,10 +656,10 @@ function getDistrictLabelPosition(
   return isTopLevel
     ? [
         centre.x,
-        surfaceTopY + 1.65,
+        surfaceTopY + 2.35,
         district.plot.z + Math.min(2.2, district.plot.depth * 0.18),
       ]
-    : [centre.x, surfaceTopY + 1.1 + district.depth * 0.18, centre.z]
+    : [centre.x, surfaceTopY + 1.55 + district.depth * 0.24, centre.z]
 }
 
 function DistrictTerrace({
@@ -488,56 +672,65 @@ function DistrictTerrace({
   surfaceTopY: number
 }) {
   const centre = getPlotCentre(district.plot)
-  const capHeight = CODE_CITY_DISTRICT_TERRACE_CAP_HEIGHT
-  const liftHeight = Math.max(0.12, surfaceTopY - parentSurfaceY)
-  const skirtHeight = Math.min(0.18, liftHeight * 0.32)
+  const contourY = surfaceTopY + CODE_CITY_DISTRICT_TERRACE_CAP_HEIGHT * 0.25
   const isTopLevel = district.depth === 0
-  const colour = isTopLevel ? '#104466' : '#12375A'
-  const skirtColour = isTopLevel ? '#061D31' : '#07192C'
   const edgeColour = isTopLevel ? TRON_CYAN : TRON_BLUE
+  const geometry = useMemo(
+    () =>
+      createRectangleOutlineGeometry(district.plot.width, district.plot.depth),
+    [district.plot.depth, district.plot.width],
+  )
+  const innerGeometry = useMemo(
+    () =>
+      createRectangleOutlineGeometry(
+        Math.max(0.1, district.plot.width - 0.58),
+        Math.max(0.1, district.plot.depth - 0.58),
+      ),
+    [district.plot.depth, district.plot.width],
+  )
+  const parentContourGeometry = useMemo(
+    () =>
+      createRectangleOutlineGeometry(
+        Math.max(0.1, district.plot.width - 0.18),
+        Math.max(0.1, district.plot.depth - 0.18),
+      ),
+    [district.plot.depth, district.plot.width],
+  )
 
   return (
-    <group>
-      <RoundedBox
-        position={[centre.x, surfaceTopY - capHeight / 2, centre.z]}
-        args={[district.plot.width, capHeight, district.plot.depth]}
-        radius={bevelRadius(district.plot.width, district.plot.depth, 0.55)}
-        smoothness={6}
-        receiveShadow
-        castShadow
-      >
-        <meshStandardMaterial
-          color={colour}
-          emissive={edgeColour}
-          emissiveIntensity={isTopLevel ? 0.2 : 0.13}
-          metalness={0.1}
-          roughness={0.7}
+    <group position={[centre.x, contourY, centre.z]}>
+      <lineSegments geometry={geometry}>
+        <lineBasicMaterial
+          color={edgeColour}
+          transparent
+          opacity={isTopLevel ? 0.82 : 0.56}
+          depthWrite={false}
+          toneMapped={false}
         />
-        <Edges color={edgeColour} threshold={14} />
-      </RoundedBox>
-      <RoundedBox
-        position={[
-          centre.x,
-          surfaceTopY - capHeight - skirtHeight / 2,
-          centre.z,
-        ]}
-        args={[
-          district.plot.width * 0.96,
-          skirtHeight,
-          district.plot.depth * 0.96,
-        ]}
-        radius={bevelRadius(district.plot.width, district.plot.depth, 0.45)}
-        smoothness={5}
-        receiveShadow
+      </lineSegments>
+      {isTopLevel && (
+        <lineSegments geometry={innerGeometry}>
+          <lineBasicMaterial
+            color={edgeColour}
+            transparent
+            opacity={0.28}
+            depthWrite={false}
+            toneMapped={false}
+          />
+        </lineSegments>
+      )}
+      <lineSegments
+        geometry={parentContourGeometry}
+        position={[0, parentSurfaceY - contourY + 0.03, 0]}
       >
-        <meshStandardMaterial
-          color={skirtColour}
-          emissive={edgeColour}
-          emissiveIntensity={isTopLevel ? 0.08 : 0.05}
-          metalness={0.06}
-          roughness={0.82}
+        <lineBasicMaterial
+          color={edgeColour}
+          transparent
+          opacity={0.16}
+          depthWrite={false}
+          toneMapped={false}
         />
-      </RoundedBox>
+      </lineSegments>
     </group>
   )
 }
@@ -553,7 +746,7 @@ function FolderAnchor({
   const isTopLevel = district.depth === 0
   const colour = isTopLevel ? TRON_CYAN : TRON_BLUE
   const radius = isTopLevel ? 0.62 : 0.42
-  const y = surfaceTopY + 0.12
+  const y = surfaceTopY + 0.28
 
   return (
     <group position={[x, y, z]} rotation={[0, Math.PI / 6, 0]}>
@@ -606,7 +799,7 @@ function DistrictLabel({
         fontSize={isTopLevel ? 1.3 : 0.95}
         color={isTopLevel ? TRON_LABEL : '#B9F8FF'}
         anchorX='center'
-        anchorY='middle'
+        anchorY='bottom'
         maxWidth={Math.max(7, Math.min(13, district.plot.width * 0.72))}
         textAlign='center'
         outlineWidth={isTopLevel ? 0.045 : 0.035}
@@ -642,17 +835,18 @@ function ZoneLabel({
     <Text
       position={[
         zone.shape.centre.x,
-        getZoneSurfaceTopY(boundary) + 0.18,
+        getZoneSurfaceTopY(boundary) + 0.42,
         zone.shape.centre.z,
       ]}
       rotation={[-Math.PI / 2, 0, 0]}
-      fontSize={2.4}
-      color='#9CF7FF'
+      fontSize={1.45}
+      color='#7DDDE8'
       anchorX='center'
       anchorY='middle'
       material-transparent
-      material-opacity={opacity}
+      material-opacity={opacity * 0.46}
       material-depthWrite={false}
+      material-depthTest={false}
       outlineWidth={0.04}
       outlineColor='#020812'
     >
@@ -682,14 +876,16 @@ function BoundaryLabel({
         boundary.labelAnchor.y,
         boundary.labelAnchor.z,
       ]}
-      fontSize={4.2}
-      color={TRON_LABEL}
+      fontSize={boundary.boundaryRole === 'group' ? 2.8 : 4.2}
+      color={boundary.boundaryRole === 'group' ? TRON_GROUP : TRON_LABEL}
       anchorX='center'
       anchorY='middle'
       material-transparent
-      material-opacity={opacity}
+      material-opacity={
+        boundary.boundaryRole === 'group' ? opacity * 0.72 : opacity
+      }
       material-depthWrite={false}
-      outlineWidth={0.06}
+      outlineWidth={boundary.boundaryRole === 'group' ? 0.045 : 0.06}
       outlineColor='#020812'
     >
       {boundary.name}
@@ -937,6 +1133,7 @@ function BuildingStack({
   selected,
   hovered,
   showLabels,
+  showFloors,
   onSelectBuilding,
   onInspectBuilding,
   onHoverBuilding,
@@ -948,6 +1145,7 @@ function BuildingStack({
   selected: boolean
   hovered: boolean
   showLabels: boolean
+  showFloors: boolean
   onSelectBuilding: (buildingId: string | null) => void
   onInspectBuilding: (buildingId: string) => void
   onHoverBuilding: (
@@ -963,10 +1161,19 @@ function BuildingStack({
   const buildingOpacity = building.isTest ? 0.76 : 1
   const labelOpacity = getLabelOpacity('building', zoomDistance, scene)
   const shouldShowBuildingLabel =
-    showLabels && (selected || hovered || building.importance >= 0.72)
+    showLabels &&
+    (selected ||
+      hovered ||
+      building.importance >= 0.72 ||
+      building.architecture.entryPoints.length > 0)
   const centre = getPlotCentre(building.plot)
   const highlightColour =
     selected || hovered ? TRON_CYAN : building.isTest ? '#78879D' : TRON_BLUE
+  const floorLayout = getBuildingFloorRenderLayout(building)
+  const visibleStackHeight = showFloors
+    ? floorLayout.stackHeight
+    : BUILDING_FOUNDATION_HEIGHT
+  const buildingRenderedTopY = BUILDING_BASE_CLEARANCE + visibleStackHeight
 
   const handlePointerOver = (event: ThreeEvent<PointerEvent>) => {
     event.stopPropagation()
@@ -982,17 +1189,50 @@ function BuildingStack({
     document.body.style.cursor = ''
   }
 
-  const floorGap = 0.14
-
   return (
     <group position={[centre.x, visualBaseY, centre.z]}>
       {selected && (
         <SelectionMarker
           width={interactiveWidth}
           depth={interactiveDepth}
-          height={building.height + BUILDING_BASE_CLEARANCE}
+          height={buildingRenderedTopY}
           label='Selected'
         />
+      )}
+
+      {building.architecture.entryPoints.length > 0 && (
+        <group position={[0, buildingRenderedTopY + 1.15, 0]}>
+          <mesh>
+            <octahedronGeometry args={[0.58, 0]} />
+            <meshBasicMaterial
+              color='#FFB14A'
+              transparent
+              opacity={0.92}
+              depthWrite={false}
+              depthTest={false}
+              toneMapped={false}
+            />
+          </mesh>
+          {showLabels && (
+            <Billboard position={[0, 1.05, 0]}>
+              <Text
+                fontSize={0.8}
+                color='#FFE6B8'
+                anchorX='center'
+                anchorY='middle'
+                maxWidth={8}
+                textAlign='center'
+                outlineWidth={0.03}
+                outlineColor='#020812'
+                material-depthWrite={false}
+                material-depthTest={false}
+              >
+                {building.architecture.entryPoints[0]?.entryKind ??
+                  'Entry point'}
+              </Text>
+            </Billboard>
+          )}
+        </group>
       )}
 
       <mesh position={[0, 0.03, 0]} receiveShadow>
@@ -1042,16 +1282,8 @@ function BuildingStack({
         />
       </RoundedBox>
 
-      {building.floors.map((floor, index) => {
-        const floorBottom =
-          BUILDING_BASE_CLEARANCE +
-          building.floors
-            .slice(0, index)
-            .reduce((total, item) => total + item.height + floorGap, 0)
-        const floorHeight = Math.max(0.5, floor.height - floorGap * 0.35)
-        const positionY = floorBottom + floorHeight / 2
-
-        return (
+      {showFloors &&
+        floorLayout.floors.map(({ floor, floorHeight, positionY }) => (
           <group key={floor.id}>
             <RoundedBox
               position={[0, positionY, 0]}
@@ -1085,11 +1317,10 @@ function BuildingStack({
               />
             )}
           </group>
-        )
-      })}
+        ))}
 
       <mesh
-        position={[0, BUILDING_BASE_CLEARANCE + building.height / 2, 0]}
+        position={[0, BUILDING_BASE_CLEARANCE + visibleStackHeight / 2, 0]}
         onClick={(event) => {
           event.stopPropagation()
           onSelectBuilding(building.id)
@@ -1102,7 +1333,7 @@ function BuildingStack({
         onPointerOut={handlePointerOut}
       >
         <boxGeometry
-          args={[interactiveWidth, building.height, interactiveDepth]}
+          args={[interactiveWidth, visibleStackHeight, interactiveDepth]}
         />
         <meshBasicMaterial
           transparent
@@ -1113,9 +1344,7 @@ function BuildingStack({
       </mesh>
 
       {shouldShowBuildingLabel && labelOpacity > 0.05 && (
-        <Billboard
-          position={[0, building.height + BUILDING_BASE_CLEARANCE + 1.5, 0]}
-        >
+        <Billboard position={[0, buildingRenderedTopY + 1.5, 0]}>
           <Text
             fontSize={1.1}
             color={TRON_LABEL}
@@ -1128,6 +1357,7 @@ function BuildingStack({
             material-transparent
             material-opacity={selected || hovered ? 1 : labelOpacity}
             material-depthWrite={false}
+            material-depthTest={false}
           >
             {building.label}
           </Text>
@@ -1139,6 +1369,235 @@ function BuildingStack({
 
 const MemoizedBuildingStack = memo(BuildingStack)
 
+function collectBuildingsFromBoundaries(boundaries: CodeCityBoundary[]) {
+  const buildings: CodeCityBuilding[] = []
+
+  for (const boundary of boundaries) {
+    for (const zone of boundary.zones) {
+      for (const district of zone.districts) {
+        const visit = (node: CodeCityDistrict) => {
+          for (const child of node.children) {
+            if (child.nodeType === 'building') {
+              buildings.push(child)
+              continue
+            }
+
+            visit(child)
+          }
+        }
+
+        visit(district)
+      }
+    }
+  }
+
+  return buildings
+}
+
+function architectureRegionForBuildings({
+  id,
+  label,
+  regionKind,
+  buildings,
+  baseYById,
+}: {
+  id: string
+  label: string
+  regionKind: ArchitectureOverlayRegion['regionKind']
+  buildings: CodeCityBuilding[]
+  baseYById: Map<string, number>
+}): ArchitectureOverlayRegion | null {
+  if (buildings.length === 0) {
+    return null
+  }
+
+  const padding = regionKind === 'container' ? 1.35 : 0.72
+  const minX = Math.min(...buildings.map((building) => building.plot.x))
+  const maxX = Math.max(
+    ...buildings.map((building) => building.plot.x + building.plot.width),
+  )
+  const minZ = Math.min(...buildings.map((building) => building.plot.z))
+  const maxZ = Math.max(
+    ...buildings.map((building) => building.plot.z + building.plot.depth),
+  )
+  const surfaceY =
+    Math.max(
+      ...buildings.map(
+        (building) => baseYById.get(building.id) ?? building.plot.y,
+      ),
+    ) + (regionKind === 'container' ? 0.46 : 0.34)
+
+  return {
+    id,
+    label,
+    regionKind,
+    minX: minX - padding,
+    maxX: maxX + padding,
+    minZ: minZ - padding,
+    maxZ: maxZ + padding,
+    surfaceY,
+    buildingCount: buildings.length,
+  }
+}
+
+function buildArchitectureOverlayRegions(
+  scene: CodeCitySceneModel,
+  boundaries: CodeCityBoundary[],
+) {
+  const buildings = collectBuildingsFromBoundaries(boundaries)
+  const baseYById = getBuildingRenderBaseYById({
+    ...scene,
+    boundaries,
+  })
+  const regions: ArchitectureOverlayRegion[] = []
+
+  for (const container of scene.architecture.containers) {
+    const containerBuildings = buildings.filter((building) =>
+      building.architecture.containerIds.includes(container.id),
+    )
+    const containerRegion = architectureRegionForBuildings({
+      id: `architecture-container-outline:${container.id}`,
+      label: container.label,
+      regionKind: 'container',
+      buildings: containerBuildings,
+      baseYById,
+    })
+
+    if (containerRegion != null) {
+      regions.push(containerRegion)
+    }
+
+    for (const component of container.components) {
+      if (!isDisplayArchitectureComponent(component)) {
+        continue
+      }
+
+      const componentBuildings = buildings.filter((building) =>
+        building.architecture.componentIds.includes(component.id),
+      )
+      const componentRegion = architectureRegionForBuildings({
+        id: `architecture-component-outline:${component.id}`,
+        label: component.label,
+        regionKind: 'component',
+        buildings: componentBuildings,
+        baseYById,
+      })
+
+      if (componentRegion != null) {
+        regions.push(componentRegion)
+      }
+    }
+  }
+
+  return regions.sort((left, right) => {
+    if (left.regionKind !== right.regionKind) {
+      return left.regionKind === 'container' ? -1 : 1
+    }
+
+    return right.buildingCount - left.buildingCount
+  })
+}
+
+function ArchitectureRegionOutline({
+  region,
+  scene,
+  zoomDistance,
+  showLabels,
+}: {
+  region: ArchitectureOverlayRegion
+  scene: CodeCitySceneModel
+  zoomDistance: number
+  showLabels: boolean
+}) {
+  const width = Math.max(1, region.maxX - region.minX)
+  const depth = Math.max(1, region.maxZ - region.minZ)
+  const centreX = region.minX + width / 2
+  const centreZ = region.minZ + depth / 2
+  const geometry = useMemo(
+    () => createRectangleOutlineGeometry(width, depth),
+    [depth, width],
+  )
+  const isContainer = region.regionKind === 'container'
+  const colour = isContainer ? TRON_MINT : '#FFD166'
+  const opacity = isContainer ? 0.72 : 0.88
+  const labelOpacity =
+    showLabels && isContainer
+      ? getLabelOpacity('zone', zoomDistance, scene)
+      : showLabels
+        ? getLabelOpacity('district', zoomDistance, scene)
+        : 0
+
+  return (
+    <group position={[centreX, region.surfaceY, centreZ]}>
+      <lineSegments geometry={geometry}>
+        <lineBasicMaterial
+          color={colour}
+          transparent
+          opacity={opacity}
+          depthWrite={false}
+          depthTest={false}
+          toneMapped={false}
+        />
+      </lineSegments>
+      {labelOpacity > 0.05 && (
+        <Billboard position={[0, isContainer ? 0.9 : 0.68, -depth / 2]}>
+          <Text
+            fontSize={isContainer ? 0.95 : 0.74}
+            color={colour}
+            anchorX='center'
+            anchorY='bottom'
+            maxWidth={Math.max(4, Math.min(14, width * 0.82))}
+            textAlign='center'
+            outlineWidth={0.035}
+            outlineColor='#020812'
+            material-transparent
+            material-opacity={labelOpacity}
+            material-depthWrite={false}
+            material-depthTest={false}
+          >
+            {region.label}
+          </Text>
+        </Billboard>
+      )}
+    </group>
+  )
+}
+
+function ArchitectureOverlayLayer({
+  scene,
+  boundaries,
+  zoomDistance,
+  showLabels,
+}: {
+  scene: CodeCitySceneModel
+  boundaries: CodeCityBoundary[]
+  zoomDistance: number
+  showLabels: boolean
+}) {
+  const regions = useMemo(
+    () => buildArchitectureOverlayRegions(scene, boundaries),
+    [boundaries, scene],
+  )
+
+  if (regions.length === 0) {
+    return null
+  }
+
+  return (
+    <group>
+      {regions.map((region) => (
+        <ArchitectureRegionOutline
+          key={region.id}
+          region={region}
+          scene={scene}
+          zoomDistance={zoomDistance}
+          showLabels={showLabels}
+        />
+      ))}
+    </group>
+  )
+}
+
 function DistrictContent({
   district,
   scene,
@@ -1147,6 +1606,9 @@ function DistrictContent({
   selectedBuildingId,
   hoveredBuildingId,
   showLabels,
+  showFolders,
+  showBuildings,
+  showFloors,
   onSelectBuilding,
   onInspectBuilding,
   onHoverBuilding,
@@ -1158,6 +1620,9 @@ function DistrictContent({
   selectedBuildingId: string | null
   hoveredBuildingId: string | null
   showLabels: boolean
+  showFolders: boolean
+  showBuildings: boolean
+  showFloors: boolean
   onSelectBuilding: (buildingId: string | null) => void
   onInspectBuilding: (buildingId: string) => void
   onHoverBuilding: (
@@ -1172,13 +1637,17 @@ function DistrictContent({
 
   return (
     <>
-      <DistrictTerrace
-        district={district}
-        parentSurfaceY={terrain.parentSurfaceY}
-        surfaceTopY={terrain.surfaceTopY}
-      />
-      <FolderAnchor district={district} surfaceTopY={terrain.surfaceTopY} />
-      {showLabels && (
+      {showFolders && (
+        <DistrictTerrace
+          district={district}
+          parentSurfaceY={terrain.parentSurfaceY}
+          surfaceTopY={terrain.surfaceTopY}
+        />
+      )}
+      {showFolders && (
+        <FolderAnchor district={district} surfaceTopY={terrain.surfaceTopY} />
+      )}
+      {showLabels && showFolders && (
         <DistrictLabel
           district={district}
           scene={scene}
@@ -1197,11 +1666,14 @@ function DistrictContent({
             selectedBuildingId={selectedBuildingId}
             hoveredBuildingId={hoveredBuildingId}
             showLabels={showLabels}
+            showFolders={showFolders}
+            showBuildings={showBuildings}
+            showFloors={showFloors}
             onSelectBuilding={onSelectBuilding}
             onInspectBuilding={onInspectBuilding}
             onHoverBuilding={onHoverBuilding}
           />
-        ) : (
+        ) : showBuildings ? (
           <MemoizedBuildingStack
             key={child.id}
             building={child}
@@ -1211,11 +1683,12 @@ function DistrictContent({
             selected={selectedBuildingId === child.id}
             hovered={hoveredBuildingId === child.id}
             showLabels={showLabels}
+            showFloors={showFloors}
             onSelectBuilding={onSelectBuilding}
             onInspectBuilding={onInspectBuilding}
             onHoverBuilding={onHoverBuilding}
           />
-        ),
+        ) : null,
       )}
     </>
   )
@@ -1228,6 +1701,11 @@ function BoundaryScene({
   selectedBuildingId,
   hoveredBuildingId,
   showLabels,
+  showBase,
+  showZones,
+  showFolders,
+  showBuildings,
+  showFloors,
   onSelectBuilding,
   onInspectBuilding,
   onHoverBuilding,
@@ -1238,6 +1716,11 @@ function BoundaryScene({
   selectedBuildingId: string | null
   hoveredBuildingId: string | null
   showLabels: boolean
+  showBase: boolean
+  showZones: boolean
+  showFolders: boolean
+  showBuildings: boolean
+  showFloors: boolean
   onSelectBuilding: (buildingId: string | null) => void
   onInspectBuilding: (buildingId: string) => void
   onHoverBuilding: (
@@ -1248,10 +1731,25 @@ function BoundaryScene({
     } | null,
   ) => void
 }) {
+  if (boundary.boundaryRole === 'group') {
+    return (
+      <group>
+        {showBase && <BoundaryGroupFrame boundary={boundary} />}
+        {showLabels && showBase && (
+          <BoundaryLabel
+            boundary={boundary}
+            scene={scene}
+            zoomDistance={zoomDistance}
+          />
+        )}
+      </group>
+    )
+  }
+
   return (
     <group>
-      <BoundaryGround boundary={boundary} />
-      {showLabels && (
+      {showBase && <BoundaryGround boundary={boundary} />}
+      {showLabels && showBase && (
         <BoundaryLabel
           boundary={boundary}
           scene={scene}
@@ -1260,8 +1758,8 @@ function BoundaryScene({
       )}
       {boundary.zones.map((zone) => (
         <group key={zone.id}>
-          <ZoneSurface boundary={boundary} zone={zone} />
-          {showLabels && (
+          {showZones && <ZoneSurface boundary={boundary} zone={zone} />}
+          {showLabels && showZones && (
             <ZoneLabel
               boundary={boundary}
               zone={zone}
@@ -1279,6 +1777,9 @@ function BoundaryScene({
               selectedBuildingId={selectedBuildingId}
               hoveredBuildingId={hoveredBuildingId}
               showLabels={showLabels}
+              showFolders={showFolders}
+              showBuildings={showBuildings}
+              showFloors={showFloors}
               onSelectBuilding={onSelectBuilding}
               onInspectBuilding={onInspectBuilding}
               onHoverBuilding={onHoverBuilding}
@@ -1298,6 +1799,10 @@ function collectCircuitNodes(boundaries: CodeCityBoundary[]) {
   }> = []
 
   for (const boundary of boundaries) {
+    if (boundary.boundaryRole === 'group') {
+      continue
+    }
+
     const hash = boundary.id.length + boundary.name.length
     const y = getBoundaryGroundLevels(boundary).plinthTopY + 0.08
 
@@ -1494,12 +1999,14 @@ function ArcLayer({
   scene,
   boundaries,
   selectedBuildingId,
+  showFloors,
   showOverlays,
   zoomDistance,
 }: {
   scene: CodeCitySceneModel
   boundaries: CodeCityBoundary[]
   selectedBuildingId: string | null
+  showFloors: boolean
   showOverlays: boolean
   zoomDistance: number
 }) {
@@ -1554,33 +2061,37 @@ function ArcLayer({
             buildingBaseYById.get(fromBuilding.id) ?? fromBuilding.plot.y
           const toBaseY =
             buildingBaseYById.get(toBuilding.id) ?? toBuilding.plot.y
+          const fromTopY = getBuildingRenderedTopY(fromBuilding, showFloors)
+          const toTopY = getBuildingRenderedTopY(toBuilding, showFloors)
           const verticalBoost =
-            10 +
-            Math.max(fromBuilding.height, toBuilding.height) * 0.4 +
-            arc.strength * 18
+            10 + Math.max(fromTopY, toTopY) * 0.4 + arc.strength * 18
 
           return (
             <QuadraticBezierLine
               key={arc.id}
-              start={[
-                start.x,
-                fromBaseY + BUILDING_BASE_CLEARANCE + fromBuilding.height + 0.8,
-                start.z,
-              ]}
-              end={[
-                end.x,
-                toBaseY + BUILDING_BASE_CLEARANCE + toBuilding.height + 0.8,
-                end.z,
-              ]}
+              start={[start.x, fromBaseY + fromTopY + 0.8, start.z]}
+              end={[end.x, toBaseY + toTopY + 0.8, end.z]}
               mid={[
                 (start.x + end.x) / 2,
                 Math.max(fromBaseY, toBaseY) + verticalBoost,
                 (start.z + end.z) / 2,
               ]}
               color={arcColour(scene, arc)}
-              lineWidth={arc.arcType === 'cross-boundary' ? 3.2 : 2.2}
+              lineWidth={
+                arc.architecture?.kind === 'flow'
+                  ? 1.7
+                  : arc.arcType === 'cross-boundary'
+                    ? 3.2
+                    : 2.2
+              }
               transparent
-              opacity={arc.arcType === 'violation' ? 0.96 : 0.84}
+              opacity={
+                arc.architecture?.kind === 'flow'
+                  ? 0.58
+                  : arc.arcType === 'violation'
+                    ? 0.96
+                    : 0.84
+              }
             />
           )
         })}
@@ -1736,6 +2247,11 @@ function SceneContents({
   hoveredBuildingId,
   showLabels,
   showTests,
+  showBase,
+  showZones,
+  showFolders,
+  showBuildings,
+  showFloors,
   showProps,
   showOverlays,
   zoomDistance,
@@ -1766,6 +2282,19 @@ function SceneContents({
         showTests ? true : zone.zoneType !== 'test',
       ),
     }))
+    filteredBoundaries.sort((left, right) => {
+      const leftRole = left.boundaryRole ?? 'leaf'
+      const rightRole = right.boundaryRole ?? 'leaf'
+
+      if (leftRole !== rightRole) {
+        return leftRole === 'group' ? -1 : 1
+      }
+
+      return (
+        (left.hierarchyDepth ?? 0) - (right.hierarchyDepth ?? 0) ||
+        left.name.localeCompare(right.name)
+      )
+    })
     const pinnedBuildingIds = new Set(
       [selectedBuildingId, hoveredBuildingId].filter(
         (buildingId): buildingId is string => buildingId != null,
@@ -1817,15 +2346,17 @@ function SceneContents({
         />
       </mesh>
       <TronGroundGrid frame={frame} />
-      <ContactShadows
-        position={[frame.bounds.centre.x, -2.68, frame.bounds.centre.z]}
-        opacity={0.5}
-        scale={frame.shadowScale}
-        blur={2.5}
-        far={frame.shadowFar}
-        resolution={1024}
-        color='#020711'
-      />
+      {showBase && (
+        <ContactShadows
+          position={[frame.bounds.centre.x, -2.68, frame.bounds.centre.z]}
+          opacity={0.5}
+          scale={frame.shadowScale}
+          blur={2.5}
+          far={frame.shadowFar}
+          resolution={1024}
+          color='#020711'
+        />
+      )}
       {showProps && <CircuitDetailLayer boundaries={visibleBoundaries} />}
       {visibleBoundaries.map((boundary) => (
         <BoundaryScene
@@ -1836,15 +2367,29 @@ function SceneContents({
           selectedBuildingId={selectedBuildingId}
           hoveredBuildingId={hoveredBuildingId}
           showLabels={showLabels}
+          showBase={showBase}
+          showZones={showZones}
+          showFolders={showFolders}
+          showBuildings={showBuildings}
+          showFloors={showFloors}
           onSelectBuilding={onSelectBuilding}
           onInspectBuilding={onInspectBuilding}
           onHoverBuilding={onHoverBuilding}
         />
       ))}
+      {showOverlays && (
+        <ArchitectureOverlayLayer
+          scene={scene}
+          boundaries={visibleBoundaries}
+          zoomDistance={zoomDistance}
+          showLabels={showLabels}
+        />
+      )}
       <ArcLayer
         scene={scene}
         boundaries={visibleBoundaries}
         selectedBuildingId={selectedBuildingId}
+        showFloors={showFloors}
         showOverlays={showOverlays}
         zoomDistance={zoomDistance}
       />
@@ -1857,6 +2402,11 @@ export function CodeCityCanvas({
   selectedBuildingId,
   showLabels,
   showTests,
+  showBase,
+  showZones,
+  showFolders,
+  showBuildings,
+  showFloors,
   showProps,
   showOverlays,
   cameraFocus,
@@ -1989,6 +2539,11 @@ export function CodeCityCanvas({
               hoveredBuildingId={hoveredBuildingId}
               showLabels={showLabels}
               showTests={showTests}
+              showBase={showBase}
+              showZones={showZones}
+              showFolders={showFolders}
+              showBuildings={showBuildings}
+              showFloors={showFloors}
               showProps={showProps}
               showOverlays={showOverlays}
               zoomDistance={zoomDistance}
@@ -2071,6 +2626,16 @@ export function CodeCityCanvas({
               </p>
             </div>
           </div>
+          {(hoveredBuilding.architecture.containerIds.length > 0 ||
+            hoveredBuilding.architecture.entryPoints.length > 0) && (
+            <div className='mt-2 rounded-xl bg-emerald-300/8 p-2 text-xs'>
+              <p className='text-cyan-100/68'>Architecture</p>
+              <p className='mt-1 font-semibold'>
+                {hoveredBuilding.architecture.containerIds.length} containers ·{' '}
+                {hoveredBuilding.architecture.entryPoints.length} entry points
+              </p>
+            </div>
+          )}
         </div>
       )}
     </div>

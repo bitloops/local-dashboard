@@ -65,7 +65,17 @@ const legend: CodeCityLegend = {
 const config: CodeCitySceneModel['config'] = {
   analysisWindowMonths: 6,
   buildingPadding: 0.25,
-  availableToggles: ['labels', 'tests', 'props', 'overlays'],
+  availableToggles: [
+    'labels',
+    'tests',
+    'base',
+    'zones',
+    'folders',
+    'buildings',
+    'floors',
+    'props',
+    'overlays',
+  ],
   labelDistances: {
     boundary: 225,
     zone: 160,
@@ -420,6 +430,13 @@ function createBuilding(args: {
       height,
       floors.length,
     ),
+    architecture: {
+      nodeIds: [],
+      containerIds: [],
+      componentIds: [],
+      entryPoints: [],
+      traversedByFlowIds: [],
+    },
   }
 }
 
@@ -1540,6 +1557,11 @@ function createScene(args: {
     crossBoundaryArcs: args.arcs.filter(
       (arc) => arc.arcType === 'cross-boundary',
     ),
+    architecture: {
+      systems: [],
+      containers: [],
+      flows: [],
+    },
     legend,
     config,
   }

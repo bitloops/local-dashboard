@@ -4,7 +4,9 @@ import {
   Building2,
   Compass,
   Layers3,
+  Route,
   TestTube2,
+  Waypoints,
 } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import {
@@ -71,7 +73,134 @@ function SummaryChip({
   )
 }
 
-function BuildingOverview({ building }: { building: CodeCityBuilding }) {
+function formatArchitectureKind(value: string | null | undefined) {
+  if (value == null || value.trim().length === 0) {
+    return 'Unknown'
+  }
+
+  return value
+    .replaceAll('_', ' ')
+    .replaceAll('-', ' ')
+    .toLowerCase()
+    .replace(/^\w/u, (match) => match.toUpperCase())
+}
+
+function BuildingArchitectureOverview({
+  scene,
+  building,
+}: {
+  scene: CodeCitySceneModel
+  building: CodeCityBuilding
+}) {
+  const containers = scene.architecture.containers.filter((container) =>
+    building.architecture.containerIds.includes(container.id),
+  )
+  const components = containers.flatMap((container) =>
+    container.components.filter((component) =>
+      building.architecture.componentIds.includes(component.id),
+    ),
+  )
+  const flows = scene.architecture.flows.filter((flow) =>
+    building.architecture.traversedByFlowIds.includes(flow.id),
+  )
+  const hasArchitecture =
+    containers.length > 0 ||
+    components.length > 0 ||
+    building.architecture.entryPoints.length > 0 ||
+    flows.length > 0
+
+  return (
+    <div className='rounded-2xl border border-slate-200/80 bg-white/85 p-4 dark:border-white/10 dark:bg-white/5'>
+      <div className='flex items-center justify-between gap-3'>
+        <p className='text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground'>
+          Architecture graph
+        </p>
+        <Badge variant='outline'>
+          {building.architecture.entryPoints.length} entry points
+        </Badge>
+      </div>
+
+      {hasArchitecture ? (
+        <div className='mt-3 grid gap-3'>
+          {containers.map((container) => (
+            <div
+              key={container.id}
+              className='rounded-xl border border-slate-200/80 bg-slate-50/75 p-3 dark:border-white/10 dark:bg-slate-900/35'
+            >
+              <div className='flex items-center justify-between gap-3'>
+                <p className='text-sm font-semibold'>{container.label}</p>
+                <Badge variant='outline'>
+                  {formatArchitectureKind(container.kind)}
+                </Badge>
+              </div>
+              <p className='mt-1 break-all text-xs text-muted-foreground'>
+                {container.path ?? container.key ?? container.id}
+              </p>
+            </div>
+          ))}
+
+          {components.slice(0, 4).map((component) => (
+            <div
+              key={component.id}
+              className='flex items-center justify-between gap-3 rounded-xl border border-slate-200/80 bg-slate-50/75 p-3 dark:border-white/10 dark:bg-slate-900/35'
+            >
+              <div>
+                <p className='text-sm font-semibold'>{component.label}</p>
+                <p className='break-all text-xs text-muted-foreground'>
+                  {component.path ?? component.id}
+                </p>
+              </div>
+              <Badge variant='outline'>Component</Badge>
+            </div>
+          ))}
+
+          {building.architecture.entryPoints.map((entryPoint) => (
+            <div
+              key={entryPoint.id}
+              className='flex items-center gap-3 rounded-xl border border-emerald-200 bg-emerald-50/75 p-3 text-emerald-900 dark:border-emerald-400/30 dark:bg-emerald-950/20 dark:text-emerald-100'
+            >
+              <Waypoints className='size-4 shrink-0' />
+              <div>
+                <p className='text-sm font-semibold'>{entryPoint.label}</p>
+                <p className='text-xs opacity-80'>
+                  {formatArchitectureKind(entryPoint.entryKind)} ·{' '}
+                  {formatPercent(entryPoint.confidence)}
+                </p>
+              </div>
+            </div>
+          ))}
+
+          {flows.slice(0, 4).map((flow) => (
+            <div
+              key={flow.id}
+              className='flex items-center gap-3 rounded-xl border border-sky-200 bg-sky-50/75 p-3 text-sky-900 dark:border-sky-400/30 dark:bg-sky-950/20 dark:text-sky-100'
+            >
+              <Route className='size-4 shrink-0' />
+              <div>
+                <p className='text-sm font-semibold'>{flow.label}</p>
+                <p className='text-xs opacity-80'>
+                  From {flow.entryPoint.label}
+                </p>
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <p className='mt-3 text-sm text-muted-foreground'>
+          No architecture graph links are attached to this building yet.
+        </p>
+      )}
+    </div>
+  )
+}
+
+function BuildingOverview({
+  scene,
+  building,
+}: {
+  scene: CodeCitySceneModel
+  building: CodeCityBuilding
+}) {
   const metrics = building.metricsSummary
 
   return (
@@ -109,6 +238,8 @@ function BuildingOverview({ building }: { building: CodeCityBuilding }) {
           />
         </div>
       </div>
+
+      <BuildingArchitectureOverview scene={scene} building={building} />
 
       <div className='grid gap-4 md:grid-cols-2'>
         <div className='rounded-2xl border border-slate-200/80 bg-white/85 p-4 dark:border-white/10 dark:bg-white/5'>
@@ -217,6 +348,10 @@ function SceneOverview({
   const architectureSummary = useMemo(() => {
     const counts = new Map<string, number>()
     for (const boundary of scene.boundaries) {
+      if (boundary.boundaryRole === 'group') {
+        continue
+      }
+
       counts.set(
         boundary.architecture,
         (counts.get(boundary.architecture) ?? 0) + 1,
@@ -247,8 +382,76 @@ function SceneOverview({
         <div className='mt-4 grid gap-3 sm:grid-cols-2'>
           <SummaryChip label='Boundaries' value={sceneSummary.boundaryCount} />
           <SummaryChip label='Buildings' value={sceneSummary.buildingCount} />
-          <SummaryChip label='Tests' value={sceneSummary.testBuildingCount} />
-          <SummaryChip label='High risk' value={sceneSummary.highRiskCount} />
+          <SummaryChip
+            label='Containers'
+            value={sceneSummary.architectureContainerCount}
+          />
+          <SummaryChip
+            label='Components'
+            value={sceneSummary.architectureComponentCount}
+          />
+          <SummaryChip
+            label='Entry points'
+            value={sceneSummary.architectureEntryPointCount}
+          />
+        </div>
+      </div>
+
+      <div className='rounded-2xl border border-slate-200/80 bg-white/85 p-4 dark:border-white/10 dark:bg-white/5'>
+        <div className='flex items-center justify-between gap-3'>
+          <p className='text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground'>
+            C4 projection
+          </p>
+          <Badge variant='outline'>
+            {sceneSummary.architectureSystemCount} systems
+          </Badge>
+        </div>
+        <div className='mt-3 grid gap-3'>
+          {scene.architecture.systems.slice(0, 4).map((system) => (
+            <div
+              key={system.id}
+              className='rounded-xl border border-slate-200/80 bg-slate-50/75 p-3 dark:border-white/10 dark:bg-slate-900/35'
+            >
+              <div className='flex items-center justify-between gap-3'>
+                <p className='text-sm font-semibold'>{system.label}</p>
+                <Badge variant='outline'>{system.containerIds.length}</Badge>
+              </div>
+              <p className='mt-1 break-all text-xs text-muted-foreground'>
+                {system.key}
+              </p>
+            </div>
+          ))}
+          {scene.architecture.containers.slice(0, 5).map((container) => (
+            <div
+              key={container.id}
+              className='flex items-center justify-between gap-3 rounded-xl border border-slate-200/80 bg-slate-50/75 p-3 dark:border-white/10 dark:bg-slate-900/35'
+            >
+              <div>
+                <p className='text-sm font-semibold'>{container.label}</p>
+                <p className='text-xs text-muted-foreground'>
+                  {container.components.length} components ·{' '}
+                  {container.entryPoints.length} entry points ·{' '}
+                  {container.deploymentUnits.length} deployment units
+                </p>
+                {container.components.length > 0 && (
+                  <p className='mt-1 break-all text-xs text-muted-foreground'>
+                    {container.components
+                      .slice(0, 3)
+                      .map((component) => component.label)
+                      .join(' · ')}
+                  </p>
+                )}
+              </div>
+              <Badge variant='outline'>
+                {formatArchitectureKind(container.kind)}
+              </Badge>
+            </div>
+          ))}
+          {scene.architecture.containers.length === 0 && (
+            <p className='text-sm text-muted-foreground'>
+              Sync has not materialised containers for this repository yet.
+            </p>
+          )}
         </div>
       </div>
 
@@ -326,7 +529,7 @@ export function CodeCityInspector({
           </TabsList>
           <TabsContent value='inspector' className='mt-4'>
             {selectedBuilding ? (
-              <BuildingOverview building={selectedBuilding} />
+              <BuildingOverview scene={scene} building={selectedBuilding} />
             ) : (
               <SceneOverview
                 scene={scene}
