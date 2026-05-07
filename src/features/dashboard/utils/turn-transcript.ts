@@ -3,6 +3,7 @@ import type {
   DashboardInteractionTurnDto,
 } from '@/features/dashboard/api-types'
 import {
+  formatPromptForDisplay,
   parseTranscriptEntries,
   type TranscriptMessage,
 } from '@/features/dashboard/components/checkpoint-sheet-utils'
@@ -29,6 +30,66 @@ export function getTurnTranscriptEntries(
     (payload?.transcriptFragment as string | undefined) ??
     ''
   return fragment ? parseTranscriptEntries(fragment) : []
+}
+
+function buildPromptFallbackEntries(
+  turn: Pick<DashboardInteractionTurnDto, 'turn_id' | 'prompt' | 'started_at'>,
+): TranscriptMessage[] {
+  const text = formatPromptForDisplay(turn.prompt)
+  if (!text) {
+    return []
+  }
+
+  return [
+    {
+      id: `prompt-${turn.turn_id}`,
+      timestamp: turn.started_at,
+      actor: 'user',
+      variant: 'chat',
+      text,
+    },
+  ]
+}
+
+function getSingleSegmentTurnTranscriptEntries(
+  rawEvents: DashboardInteractionEventDto[],
+  turn: Pick<DashboardInteractionTurnDto, 'turn_id'>,
+): TranscriptMessage[] {
+  const entries = getTurnTranscriptEntries(rawEvents, turn)
+  if (entries.length === 0) {
+    return []
+  }
+
+  const segments = partitionTranscriptEntriesByUserPrompt(entries)
+  return segments.length === 1 ? segments[0]! : []
+}
+
+function resolveTranscriptEntriesForTurn(
+  rawEvents: DashboardInteractionEventDto[],
+  turn: Pick<DashboardInteractionTurnDto, 'turn_id' | 'prompt' | 'started_at'>,
+  sessionSegments: TranscriptMessage[][],
+  segmentIndex: number,
+): TranscriptMessage[] {
+  const sessionSegment =
+    segmentIndex < sessionSegments.length ? sessionSegments[segmentIndex]! : []
+  if (sessionSegment.length > 0) {
+    return sessionSegment
+  }
+
+  const turnFragmentSegment = getSingleSegmentTurnTranscriptEntries(
+    rawEvents,
+    turn,
+  )
+  if (turnFragmentSegment.length > 0) {
+    return turnFragmentSegment
+  }
+
+  const promptFallback = buildPromptFallbackEntries(turn)
+  if (promptFallback.length > 0) {
+    return promptFallback
+  }
+
+  return []
 }
 
 /**
@@ -89,6 +150,6 @@ export function buildTranscriptSectionsForTurns(
 
   return sorted.map((turn, idx) => ({
     turn,
-    entries: idx < segments.length ? segments[idx]! : [],
+    entries: resolveTranscriptEntriesForTurn(rawEvents, turn, segments, idx),
   }))
 }
