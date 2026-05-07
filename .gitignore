@@ -39,3 +39,5 @@ public/mock-data
 .cursor/
 .claude/
 .codex/
+
+docs/superpowers/
