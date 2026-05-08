@@ -6,6 +6,8 @@ import { test, expect, type Page, type Route } from '@playwright/test'
 
 const STUB_BRANCHES = ['main', 'feat/auth']
 const STUB_REPOSITORIES = ['bitloops/local-dashboard', 'bitloops/another-repo']
+const FIRST_SESSION_TURN_ONE_PROMPT = 'Outline the dashboard layout sections'
+const FIRST_SESSION_TURN_TWO_PROMPT = 'Refine the timeline empty-state copy'
 
 const STUB_COMMITS = [
   {
@@ -287,12 +289,49 @@ function buildDashboardInteractionSessionDetailResponse(sessionId?: string) {
   const nodes = buildStubInteractionSessionNodes()
   const summary =
     nodes.find((n) => n.sessionId === sessionId) ?? nodes[0] ?? null
+  const turns =
+    summary?.sessionId === 'sess-01'
+      ? [
+          {
+            turnId: 'turn-01',
+            sessionId: 'sess-01',
+            branch: 'main',
+            turnNumber: 1,
+            prompt: FIRST_SESSION_TURN_ONE_PROMPT,
+            summary: null,
+            agentType: 'claude-code',
+            model: null,
+            startedAt: '2025-02-14T10:12:00.000Z',
+            endedAt: '2025-02-14T10:12:30.000Z',
+            tokenUsage: null,
+            filesModified: [] as string[],
+            checkpointId: null,
+            toolUses: [] as Array<Record<string, unknown>>,
+          },
+          {
+            turnId: 'turn-02',
+            sessionId: 'sess-01',
+            branch: 'main',
+            turnNumber: 2,
+            prompt: FIRST_SESSION_TURN_TWO_PROMPT,
+            summary: null,
+            agentType: 'claude-code',
+            model: null,
+            startedAt: '2025-02-14T10:28:00.000Z',
+            endedAt: '2025-02-14T10:28:30.000Z',
+            tokenUsage: null,
+            filesModified: [] as string[],
+            checkpointId: null,
+            toolUses: [] as Array<Record<string, unknown>>,
+          },
+        ]
+      : ([] as Array<Record<string, unknown>>)
   return {
     data: {
       interactionSession: summary
         ? {
             summary,
-            turns: [] as Array<Record<string, unknown>>,
+            turns,
             rawEvents: [] as Array<Record<string, unknown>>,
           }
         : null,
@@ -1012,7 +1051,7 @@ test.describe('Session detail', () => {
     await expect(page.getByText(FIRST_SESSION_PROMPT).last()).toBeVisible()
   })
 
-  test('sidebar turns tab shows the empty state from the stub detail', async ({
+  test('sidebar turns tab falls back to turn prompts when transcript fragments are unavailable', async ({
     page,
   }) => {
     await stubApiRoutes(page)
@@ -1021,7 +1060,11 @@ test.describe('Session detail', () => {
     await selectFirstStubSession(page)
     await page.getByRole('tab', { name: 'Turns' }).click()
 
-    await expect(page.getByText('No turns.')).toBeVisible()
+    await expect(page.getByText(FIRST_SESSION_TURN_ONE_PROMPT)).toBeVisible()
+    await expect(page.getByText(FIRST_SESSION_TURN_TWO_PROMPT)).toBeVisible()
+    await expect(
+      page.getByText('No transcript fragment available for this turn.'),
+    ).toHaveCount(0)
   })
 
   test('sidebar tool use tab shows the empty state from the stub detail', async ({

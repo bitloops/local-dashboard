@@ -30,6 +30,56 @@ function assistantTextLine(text: string, uuid: string, timestamp: string) {
   })
 }
 
+function makeTurn(
+  overrides: Partial<DashboardInteractionTurnDto> & {
+    turn_id: string
+    session_id?: string
+    turn_number: number
+  },
+): DashboardInteractionTurnDto {
+  const { turn_id, session_id, turn_number, ...rest } = overrides
+
+  return {
+    turn_id,
+    session_id: session_id ?? 's1',
+    turn_number,
+    branch: null,
+    actor: null,
+    prompt: null,
+    summary: null,
+    agent_type: 'agent',
+    model: null,
+    started_at: '2026-01-01T00:00:00Z',
+    ended_at: null,
+    token_usage: null,
+    files_modified: [],
+    checkpoint_id: null,
+    tool_uses: [],
+    ...rest,
+  }
+}
+
+function makeTurnEndEvent(
+  turnId: string,
+  eventId: string,
+  transcriptFragment: string,
+): DashboardInteractionEventDto {
+  return {
+    event_id: eventId,
+    session_id: 's1',
+    turn_id: turnId,
+    event_type: 'turn_end',
+    event_time: '2026-01-01T00:00:05Z',
+    agent_type: 'a',
+    model: null,
+    tool_use_id: null,
+    tool_kind: null,
+    task_description: null,
+    subagent_id: null,
+    payload: { transcript_fragment: transcriptFragment },
+  }
+}
+
 describe('getTurnTranscriptEntries', () => {
   it('uses the latest turn_end transcript fragment', () => {
     const rawEvents: DashboardInteractionEventDto[] = [
@@ -187,5 +237,215 @@ describe('buildTranscriptSectionsForTurns', () => {
     expect(t2.entries.some((m) => m.text.includes('second'))).toBe(true)
     expect(t2.entries.some((m) => m.text.includes('answer two'))).toBe(true)
     expect(t2.entries.some((m) => m.text.includes('first'))).toBe(false)
+  })
+
+  it('falls back to the formatted turn prompt when no usable transcript exists', () => {
+    const turns = [
+      makeTurn({
+        turn_id: 'turn-a',
+        turn_number: 1,
+        prompt: '  <user_query>\nshow my turn\n</user_query>  ',
+      }),
+    ]
+
+    const sections = buildTranscriptSectionsForTurns([], turns)
+
+    expect(sections).toHaveLength(1)
+    expect(sections[0]!.entries).toEqual([
+      expect.objectContaining({
+        id: 'prompt-turn-a',
+        timestamp: '2026-01-01T00:00:00Z',
+        actor: 'user',
+        variant: 'chat',
+        text: 'show my turn',
+      }),
+    ])
+  })
+
+  it('falls back to the turn prompt when the cumulative transcript covers only earlier turns', () => {
+    const turns = [
+      makeTurn({
+        turn_id: 'turn-a',
+        turn_number: 1,
+        prompt: 'first prompt fallback',
+      }),
+      makeTurn({
+        turn_id: 'turn-b',
+        turn_number: 2,
+        prompt: 'second prompt fallback',
+      }),
+    ]
+
+    const rawEvents = [
+      makeTurnEndEvent(
+        'turn-a',
+        'e1',
+        [
+          userLine('first real prompt', 'u1', '2026-01-01T00:00:01Z'),
+          assistantTextLine('answer one', 'a1', '2026-01-01T00:00:02Z'),
+          assistantTextLine('answer one extra', 'a1b', '2026-01-01T00:00:02Z'),
+          assistantTextLine(
+            'answer one extra two',
+            'a1c',
+            '2026-01-01T00:00:02Z',
+          ),
+        ].join('\n'),
+      ),
+    ]
+
+    const sections = buildTranscriptSectionsForTurns(rawEvents, turns)
+
+    expect(
+      sections[0]!.entries.some((m) => m.text.includes('first real prompt')),
+    ).toBe(true)
+    expect(sections[1]!.entries).toEqual([
+      expect.objectContaining({
+        id: 'prompt-turn-b',
+        text: 'second prompt fallback',
+      }),
+    ])
+  })
+
+  it('uses a turn-specific fragment when it contains exactly one user segment', () => {
+    const turns = [
+      makeTurn({
+        turn_id: 'turn-a',
+        turn_number: 1,
+        prompt: 'first prompt fallback',
+      }),
+      makeTurn({
+        turn_id: 'turn-b',
+        turn_number: 2,
+        prompt: 'second prompt fallback',
+      }),
+    ]
+
+    const rawEvents = [
+      makeTurnEndEvent(
+        'turn-a',
+        'e1',
+        [
+          userLine('first real prompt', 'u1', '2026-01-01T00:00:01Z'),
+          assistantTextLine('answer one', 'a1', '2026-01-01T00:00:02Z'),
+          assistantTextLine('answer one extra', 'a1b', '2026-01-01T00:00:02Z'),
+          assistantTextLine(
+            'answer one extra two',
+            'a1c',
+            '2026-01-01T00:00:02Z',
+          ),
+        ].join('\n'),
+      ),
+      makeTurnEndEvent(
+        'turn-b',
+        'e2',
+        [
+          userLine('second real prompt', 'u2', '2026-01-01T00:00:03Z'),
+          assistantTextLine('answer two', 'a2', '2026-01-01T00:00:04Z'),
+        ].join('\n'),
+      ),
+    ]
+
+    const sections = buildTranscriptSectionsForTurns(rawEvents, turns)
+
+    expect(
+      sections[1]!.entries.some((m) => m.text.includes('second real prompt')),
+    ).toBe(true)
+    expect(
+      sections[1]!.entries.some((m) =>
+        m.text.includes('second prompt fallback'),
+      ),
+    ).toBe(false)
+  })
+
+  it('ignores ambiguous turn-specific fragments and falls back to the prompt', () => {
+    const turns = [
+      makeTurn({
+        turn_id: 'turn-a',
+        turn_number: 1,
+        prompt: 'first prompt fallback',
+      }),
+      makeTurn({
+        turn_id: 'turn-b',
+        turn_number: 2,
+        prompt: 'second prompt fallback',
+      }),
+    ]
+
+    const rawEvents = [
+      makeTurnEndEvent(
+        'turn-a',
+        'e1',
+        [
+          userLine('first real prompt', 'u1', '2026-01-01T00:00:01Z'),
+          assistantTextLine('answer one', 'a1', '2026-01-01T00:00:02Z'),
+          assistantTextLine('answer one extra', 'a1b', '2026-01-01T00:00:02Z'),
+          assistantTextLine(
+            'answer one extra two',
+            'a1c',
+            '2026-01-01T00:00:02Z',
+          ),
+        ].join('\n'),
+      ),
+      makeTurnEndEvent(
+        'turn-b',
+        'e2',
+        [
+          userLine('ambiguous one', 'u2', '2026-01-01T00:00:03Z'),
+          assistantTextLine('answer two', 'a2', '2026-01-01T00:00:04Z'),
+          userLine('ambiguous two', 'u3', '2026-01-01T00:00:05Z'),
+        ].join('\n'),
+      ),
+    ]
+
+    const sections = buildTranscriptSectionsForTurns(rawEvents, turns)
+
+    expect(sections[1]!.entries).toEqual([
+      expect.objectContaining({
+        id: 'prompt-turn-b',
+        text: 'second prompt fallback',
+      }),
+    ])
+  })
+
+  it('prefers real cumulative transcript slices over the prompt fallback', () => {
+    const cumulative = [
+      userLine('first prompt', 'u1', '2026-01-01T00:00:01Z'),
+      assistantTextLine('answer one', 'a1', '2026-01-01T00:00:02Z'),
+      userLine('second prompt', 'u2', '2026-01-01T00:00:03Z'),
+      assistantTextLine('answer two', 'a2', '2026-01-01T00:00:04Z'),
+    ].join('\n')
+
+    const turns = [
+      makeTurn({
+        turn_id: 'turn-a',
+        turn_number: 1,
+        prompt: 'prompt fallback one',
+      }),
+      makeTurn({
+        turn_id: 'turn-b',
+        turn_number: 2,
+        prompt: 'prompt fallback two',
+      }),
+    ]
+
+    const rawEvents = [
+      makeTurnEndEvent('turn-a', 'e1', cumulative),
+      makeTurnEndEvent('turn-b', 'e2', cumulative),
+    ]
+
+    const sections = buildTranscriptSectionsForTurns(rawEvents, turns)
+
+    expect(
+      sections[0]!.entries.some((m) => m.text.includes('first prompt')),
+    ).toBe(true)
+    expect(
+      sections[0]!.entries.some((m) => m.text.includes('prompt fallback one')),
+    ).toBe(false)
+    expect(
+      sections[1]!.entries.some((m) => m.text.includes('second prompt')),
+    ).toBe(true)
+    expect(
+      sections[1]!.entries.some((m) => m.text.includes('prompt fallback two')),
+    ).toBe(false)
   })
 })
