@@ -27,6 +27,7 @@ import {
   filterDebugLogLines,
   subscribeRuntimeDebugEvents,
   validateDebugSync,
+  type DebugTask,
   type DebugValidateSyncResult,
   type DebugRuntimeEvent,
   type DebugLogLevelFilter,
@@ -75,7 +76,7 @@ type LiveState = {
 }
 
 type ValidationNotice = {
-  tone: 'success' | 'error'
+  tone: 'info' | 'success' | 'error'
   message: string
 }
 
@@ -111,6 +112,9 @@ export function Debug() {
   const [validationPending, setValidationPending] = useState(false)
   const [validationNotice, setValidationNotice] =
     useState<ValidationNotice | null>(null)
+  const [trackedValidationTaskId, setTrackedValidationTaskId] = useState<
+    string | null
+  >(null)
   const [refreshToken, setRefreshToken] = useState(0)
   const [liveState, setLiveState] = useState<LiveState>({
     status: 'idle',
@@ -210,12 +214,29 @@ export function Debug() {
     [repositories, selectedRepoId],
   )
   const currentSnapshot = snapshot?.repoId === selectedRepoId ? snapshot : null
-  const validateSyncActive = hasActiveValidateSyncTask(currentSnapshot)
+  const trackedValidationTask = useMemo(
+    () => findTaskById(currentSnapshot, trackedValidationTaskId),
+    [currentSnapshot, trackedValidationTaskId],
+  )
+  const trackedValidationActive =
+    trackedValidationTask != null
+      ? isActiveTaskStatus(trackedValidationTask.status)
+      : trackedValidationTaskId != null && validationNotice?.tone === 'info'
+  const validateSyncActive =
+    hasActiveValidateSyncTask(currentSnapshot) || trackedValidationActive
   const activeIssueCount = currentSnapshot?.issues.length ?? 0
   const effectiveLiveState =
     selectedRepoId && liveState.status === 'idle'
       ? { ...liveState, status: 'listening' as const }
       : liveState
+
+  useEffect(() => {
+    if (!trackedValidationTask) {
+      return
+    }
+
+    setValidationNotice(describeValidateSyncTask(trackedValidationTask))
+  }, [trackedValidationTask])
 
   const handleValidateSync = () => {
     if (!selectedRepoId) {
@@ -226,10 +247,8 @@ export function Debug() {
     setValidationNotice(null)
     validateDebugSync(selectedRepoId)
       .then((result) => {
-        setValidationNotice({
-          tone: 'success',
-          message: describeValidateSyncResult(result),
-        })
+        setTrackedValidationTaskId(result.task.taskId)
+        setValidationNotice(describeValidateSyncResult(result))
         setLoadingSnapshot(true)
         setRefreshToken((value) => value + 1)
       })
@@ -278,6 +297,7 @@ export function Debug() {
                 const nextRepoId = event.target.value
                 setLoadingSnapshot(nextRepoId.length > 0)
                 setValidationNotice(null)
+                setTrackedValidationTaskId(null)
                 setLiveState({ status: 'idle', lastEvent: null, error: null })
                 setSelectedRepoId(nextRepoId)
               }}
@@ -339,7 +359,9 @@ export function Debug() {
               'rounded-md border px-3 py-2 text-sm',
               validationNotice.tone === 'error'
                 ? 'border-destructive/30 bg-destructive/10 text-destructive'
-                : 'border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300',
+                : validationNotice.tone === 'info'
+                  ? 'border-sky-500/30 bg-sky-500/10 text-sky-700 dark:text-sky-300'
+                  : 'border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300',
             )}
           >
             {validationNotice.message}
@@ -1071,26 +1093,129 @@ function shortSha(sha: string) {
 
 function hasActiveValidateSyncTask(snapshot: RuntimeDebugSnapshot | null) {
   if (!snapshot) return false
-  return snapshot.taskQueue.currentRepoTasks.some((task) => {
-    const kind = task.kind.toLowerCase()
-    const status = task.status.toLowerCase()
-    return (
-      kind === 'sync' &&
-      task.syncSpec?.mode === 'validate' &&
-      ACTIVE_TASK_STATUSES.has(status)
-    )
-  })
+  return snapshot.taskQueue.currentRepoTasks.some(
+    (task) => isValidateSyncTask(task) && isActiveTaskStatus(task.status),
+  )
 }
 
-function describeValidateSyncResult(result: DebugValidateSyncResult) {
-  const shortTaskId =
-    result.task.taskId.length > 22
-      ? `${result.task.taskId.slice(0, 22)}...`
-      : result.task.taskId
+function findTaskById(
+  snapshot: RuntimeDebugSnapshot | null,
+  taskId: string | null,
+) {
+  if (!snapshot || !taskId) return null
+  return (
+    snapshot.taskQueue.currentRepoTasks.find(
+      (task) => task.taskId === taskId,
+    ) ?? null
+  )
+}
 
-  return result.merged
-    ? `Validate sync already active (${shortTaskId}).`
-    : `Validate sync queued (${shortTaskId}).`
+function isValidateSyncTask(task: DebugTask) {
+  return (
+    task.kind.toLowerCase() === 'sync' &&
+    task.syncSpec?.mode.toLowerCase() === 'validate'
+  )
+}
+
+function isActiveTaskStatus(status: string) {
+  return ACTIVE_TASK_STATUSES.has(status.toLowerCase())
+}
+
+function describeValidateSyncResult(
+  result: DebugValidateSyncResult,
+): ValidationNotice {
+  const taskNotice = describeValidateSyncTask(result.task)
+  if (!isActiveTaskStatus(result.task.status)) {
+    return taskNotice
+  }
+
+  return {
+    tone: 'info',
+    message: result.merged
+      ? `Validate sync already active (${shortTaskId(result.task.taskId)}).`
+      : taskNotice.message,
+  }
+}
+
+function describeValidateSyncTask(task: DebugTask): ValidationNotice {
+  const status = task.status.toLowerCase()
+  const taskId = shortTaskId(task.taskId)
+
+  if (status === 'queued') {
+    return { tone: 'info', message: `Validate sync queued (${taskId}).` }
+  }
+  if (status === 'running') {
+    return {
+      tone: 'info',
+      message: `Validate sync running (${taskId})${describeSyncProgress(task)}.`,
+    }
+  }
+  if (status === 'completed') {
+    if (task.syncResult?.success === false) {
+      return {
+        tone: 'error',
+        message: `Validate sync found drift (${taskId}): ${describeSyncValidationFailure(task)}.`,
+      }
+    }
+    return { tone: 'success', message: `Validate sync passed (${taskId}).` }
+  }
+  if (status === 'failed') {
+    return {
+      tone: 'error',
+      message: `Validate sync task failed (${taskId})${task.error ? `: ${task.error}` : '.'}`,
+    }
+  }
+  if (status === 'cancelled') {
+    return { tone: 'error', message: `Validate sync cancelled (${taskId}).` }
+  }
+
+  return {
+    tone: 'info',
+    message: `Validate sync status is ${task.status} (${taskId}).`,
+  }
+}
+
+function describeSyncProgress(task: DebugTask) {
+  const progress = task.syncProgress
+  if (!progress) return ''
+  const phase = progress.phase.toLowerCase().replaceAll('_', ' ')
+  if (progress.pathsTotal <= 0) {
+    return `, ${phase}`
+  }
+  return `, ${phase}, ${progress.pathsCompleted}/${progress.pathsTotal} paths`
+}
+
+function describeSyncValidationFailure(task: DebugTask) {
+  const validation = task.syncResult?.validation
+  if (!validation) {
+    return task.syncResult?.parseErrors
+      ? `${task.syncResult.parseErrors} parse errors`
+      : 'validation result was not clean'
+  }
+
+  const parts = [
+    formatDriftCount(validation.missingArtefacts, 'missing artefacts'),
+    formatDriftCount(validation.staleArtefacts, 'stale artefacts'),
+    formatDriftCount(validation.mismatchedArtefacts, 'mismatched artefacts'),
+    formatDriftCount(validation.missingEdges, 'missing edges'),
+    formatDriftCount(validation.staleEdges, 'stale edges'),
+    formatDriftCount(validation.mismatchedEdges, 'mismatched edges'),
+  ].filter(Boolean)
+  const fileCount = validation.filesWithDrift.length
+  const driftSummary =
+    parts.length > 0 ? parts.join(', ') : 'validation reported drift'
+
+  return fileCount > 0
+    ? `${driftSummary} across ${fileCount} files`
+    : driftSummary
+}
+
+function formatDriftCount(count: number, label: string) {
+  return count > 0 ? `${count} ${label}` : ''
+}
+
+function shortTaskId(taskId: string) {
+  return taskId.length > 22 ? `${taskId.slice(0, 22)}...` : taskId
 }
 
 function isAbortError(error: unknown): boolean {

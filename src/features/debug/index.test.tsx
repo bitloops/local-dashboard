@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { Debug } from './index'
-import type { DebugRuntimeEvent, RuntimeDebugSnapshot } from './api'
+import type { DebugRuntimeEvent, DebugTask, RuntimeDebugSnapshot } from './api'
 
 const mocks = vi.hoisted(() => ({
   fetchDebugRepositories: vi.fn(),
@@ -97,6 +97,30 @@ function mockRepositoryLoad() {
   ])
 }
 
+function validateSyncTask(overrides: Partial<DebugTask> = {}): DebugTask {
+  return {
+    taskId: 'sync-task-validate-1',
+    kind: 'Sync',
+    source: 'manual_cli',
+    status: 'Queued',
+    queuePosition: 1,
+    tasksAhead: 0,
+    error: null,
+    syncSpec: {
+      mode: 'validate',
+      paths: [],
+    },
+    syncProgress: {
+      phase: 'INITIALIZING',
+      pathsCompleted: 0,
+      pathsTotal: 0,
+      pathsRemaining: 0,
+    },
+    syncResult: null,
+    ...overrides,
+  }
+}
+
 describe('Debug', () => {
   beforeEach(() => {
     vi.useRealTimers()
@@ -104,25 +128,7 @@ describe('Debug', () => {
     mocks.subscribeRuntimeDebugEvents.mockReturnValue(vi.fn())
     mocks.validateDebugSync.mockResolvedValue({
       merged: false,
-      task: {
-        taskId: 'sync-task-validate-1',
-        kind: 'Sync',
-        source: 'manual_cli',
-        status: 'Queued',
-        queuePosition: 1,
-        tasksAhead: 0,
-        error: null,
-        syncSpec: {
-          mode: 'validate',
-          paths: [],
-        },
-        syncProgress: {
-          phase: 'INITIALIZING',
-          pathsCompleted: 0,
-          pathsTotal: 0,
-          pathsRemaining: 0,
-        },
-      },
+      task: validateSyncTask(),
     })
   })
 
@@ -217,27 +223,7 @@ describe('Debug', () => {
         taskQueue: {
           ...idleSnapshot.taskQueue,
           queuedTasks: 1,
-          currentRepoTasks: [
-            {
-              taskId: 'sync-task-validate-1',
-              kind: 'Sync',
-              source: 'manual_cli',
-              status: 'Queued',
-              queuePosition: 1,
-              tasksAhead: 0,
-              error: null,
-              syncSpec: {
-                mode: 'validate',
-                paths: [],
-              },
-              syncProgress: {
-                phase: 'INITIALIZING',
-                pathsCompleted: 0,
-                pathsTotal: 0,
-                pathsRemaining: 0,
-              },
-            },
-          ],
+          currentRepoTasks: [validateSyncTask()],
         },
       })
 
@@ -254,5 +240,156 @@ describe('Debug', () => {
     await waitFor(() => {
       expect(mocks.fetchRuntimeDebugSnapshot).toHaveBeenCalledTimes(2)
     })
+  })
+
+  it('reports when validate sync passes after the task completes', async () => {
+    mockRepositoryLoad()
+    mocks.fetchRuntimeDebugSnapshot
+      .mockResolvedValueOnce(idleSnapshot)
+      .mockResolvedValueOnce({
+        ...idleSnapshot,
+        taskQueue: {
+          ...idleSnapshot.taskQueue,
+          runningTasks: 1,
+          currentRepoTasks: [
+            validateSyncTask({
+              status: 'Running',
+              syncProgress: {
+                phase: 'VALIDATING',
+                pathsCompleted: 4,
+                pathsTotal: 8,
+                pathsRemaining: 4,
+              },
+            }),
+          ],
+        },
+      })
+      .mockResolvedValueOnce({
+        ...idleSnapshot,
+        taskQueue: {
+          ...idleSnapshot.taskQueue,
+          completedRecentTasks: 1,
+          currentRepoTasks: [
+            validateSyncTask({
+              status: 'Completed',
+              queuePosition: null,
+              tasksAhead: null,
+              syncResult: {
+                success: true,
+                mode: 'validate',
+                parseErrors: 0,
+                validation: {
+                  valid: true,
+                  expectedArtefacts: 10,
+                  actualArtefacts: 10,
+                  expectedEdges: 4,
+                  actualEdges: 4,
+                  missingArtefacts: 0,
+                  staleArtefacts: 0,
+                  mismatchedArtefacts: 0,
+                  missingEdges: 0,
+                  staleEdges: 0,
+                  mismatchedEdges: 0,
+                  filesWithDrift: [],
+                },
+              },
+            }),
+          ],
+        },
+      })
+
+    let onRuntimeEvent: ((event: DebugRuntimeEvent) => void) | undefined
+    mocks.subscribeRuntimeDebugEvents.mockImplementation(
+      (_repoId, handlers) => {
+        onRuntimeEvent = handlers.onEvent
+        return vi.fn()
+      },
+    )
+
+    const user = userEvent.setup()
+    render(<Debug />)
+
+    await waitFor(() => {
+      expect(mocks.fetchRuntimeDebugSnapshot).toHaveBeenCalledTimes(1)
+    })
+    await user.click(screen.getByRole('button', { name: /validate sync/i }))
+    expect(await screen.findByText(/validate sync running/i)).toBeVisible()
+
+    act(() => {
+      onRuntimeEvent?.({
+        domain: 'task_queue',
+        repoId: 'repo-1',
+        initSessionId: null,
+        updatedAtUnix: 1700000001,
+        taskId: 'sync-task-validate-1',
+        runId: null,
+        mailboxName: null,
+      })
+    })
+
+    await new Promise((resolve) => window.setTimeout(resolve, 450))
+    expect(await screen.findByText(/validate sync passed/i)).toBeVisible()
+  })
+
+  it('reports validation drift separately from task failure', async () => {
+    mockRepositoryLoad()
+    mocks.fetchRuntimeDebugSnapshot
+      .mockResolvedValueOnce(idleSnapshot)
+      .mockResolvedValueOnce({
+        ...idleSnapshot,
+        taskQueue: {
+          ...idleSnapshot.taskQueue,
+          completedRecentTasks: 1,
+          currentRepoTasks: [
+            validateSyncTask({
+              status: 'Completed',
+              queuePosition: null,
+              tasksAhead: null,
+              syncResult: {
+                success: false,
+                mode: 'validate',
+                parseErrors: 0,
+                validation: {
+                  valid: false,
+                  expectedArtefacts: 10,
+                  actualArtefacts: 11,
+                  expectedEdges: 4,
+                  actualEdges: 4,
+                  missingArtefacts: 0,
+                  staleArtefacts: 1,
+                  mismatchedArtefacts: 0,
+                  missingEdges: 0,
+                  staleEdges: 0,
+                  mismatchedEdges: 0,
+                  filesWithDrift: [
+                    {
+                      path: 'src/a.ts',
+                      missingArtefacts: 0,
+                      staleArtefacts: 1,
+                      mismatchedArtefacts: 0,
+                      missingEdges: 0,
+                      staleEdges: 0,
+                      mismatchedEdges: 0,
+                    },
+                  ],
+                },
+              },
+            }),
+          ],
+        },
+      })
+
+    const user = userEvent.setup()
+    render(<Debug />)
+
+    await waitFor(() => {
+      expect(mocks.fetchRuntimeDebugSnapshot).toHaveBeenCalledTimes(1)
+    })
+    await user.click(screen.getByRole('button', { name: /validate sync/i }))
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      /validate sync found drift/i,
+    )
+    expect(screen.getByRole('alert')).toHaveTextContent(/1 stale artefacts/i)
   })
 })

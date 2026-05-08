@@ -45,6 +45,39 @@ export type DebugTask = {
     pathsTotal: number
     pathsRemaining: number
   } | null
+  syncResult: DebugSyncResult | null
+}
+
+export type DebugSyncValidationFileDrift = {
+  path: string
+  missingArtefacts: number
+  staleArtefacts: number
+  mismatchedArtefacts: number
+  missingEdges: number
+  staleEdges: number
+  mismatchedEdges: number
+}
+
+export type DebugSyncValidationResult = {
+  valid: boolean
+  expectedArtefacts: number
+  actualArtefacts: number
+  expectedEdges: number
+  actualEdges: number
+  missingArtefacts: number
+  staleArtefacts: number
+  mismatchedArtefacts: number
+  missingEdges: number
+  staleEdges: number
+  mismatchedEdges: number
+  filesWithDrift: DebugSyncValidationFileDrift[]
+}
+
+export type DebugSyncResult = {
+  success: boolean
+  mode: string
+  parseErrors: number
+  validation: DebugSyncValidationResult | null
 }
 
 export type DebugTaskQueue = {
@@ -253,6 +286,33 @@ const RUNTIME_DEBUG_SNAPSHOT_QUERY = `
             pathsTotal
             pathsRemaining
           }
+          syncResult {
+            success
+            mode
+            parseErrors
+            validation {
+              valid
+              expectedArtefacts
+              actualArtefacts
+              expectedEdges
+              actualEdges
+              missingArtefacts
+              staleArtefacts
+              mismatchedArtefacts
+              missingEdges
+              staleEdges
+              mismatchedEdges
+              filesWithDrift {
+                path
+                missingArtefacts
+                staleArtefacts
+                mismatchedArtefacts
+                missingEdges
+                staleEdges
+                mismatchedEdges
+              }
+            }
+          }
         }
       }
       currentStateConsumer {
@@ -387,6 +447,33 @@ const VALIDATE_SYNC_MUTATION = `
           pathsCompleted
           pathsTotal
           pathsRemaining
+        }
+        syncResult {
+          success
+          mode
+          parseErrors
+          validation {
+            valid
+            expectedArtefacts
+            actualArtefacts
+            expectedEdges
+            actualEdges
+            missingArtefacts
+            staleArtefacts
+            mismatchedArtefacts
+            missingEdges
+            staleEdges
+            mismatchedEdges
+            filesWithDrift {
+              path
+              missingArtefacts
+              staleArtefacts
+              mismatchedArtefacts
+              missingEdges
+              staleEdges
+              mismatchedEdges
+            }
+          }
         }
       }
     }

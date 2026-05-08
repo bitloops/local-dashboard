@@ -213,6 +213,7 @@ describe('validateDebugSync', () => {
               pathsTotal: 0,
               pathsRemaining: 0,
             },
+            syncResult: null,
           },
         },
       },
