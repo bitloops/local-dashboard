@@ -95,6 +95,18 @@ export function formatAgentLabel(agentKey: string): string {
     .join(' ')
 }
 
+/** Reduce provider-style model paths to a readable slug for badges. */
+export function formatModelLabel(model: string): string {
+  const trimmed = model.trim()
+
+  if (!trimmed) {
+    return model
+  }
+
+  const segments = trimmed.split('/').filter(Boolean)
+  return segments.at(-1) ?? trimmed
+}
+
 export const mapAgentOptions = (agents: DashboardAgentDto[]): string[] =>
   Array.from(
     new Set(
