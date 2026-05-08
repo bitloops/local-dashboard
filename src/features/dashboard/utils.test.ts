@@ -4,6 +4,7 @@ import {
   endOfDayIso,
   endOfDayUnixSeconds,
   formatAgentLabel,
+  formatModelLabel,
   formatCheckpointTime,
   formatCommitDate,
   mapAgentOptions,
@@ -173,6 +174,18 @@ describe('formatAgentLabel', () => {
     expect(formatAgentLabel('claude-code')).toBe('Claude Code')
     expect(formatAgentLabel('gemini-cli')).toBe('Gemini Cli')
     expect(formatAgentLabel('cursor')).toBe('Cursor')
+  })
+})
+
+describe('formatModelLabel', () => {
+  it('shows the last provider path segment for account-scoped model ids', () => {
+    expect(formatModelLabel('accounts/fireworks/models/kimi-k2p6')).toBe(
+      'kimi-k2p6',
+    )
+  })
+
+  it('keeps simple model slugs unchanged', () => {
+    expect(formatModelLabel('claude-sonnet-4')).toBe('claude-sonnet-4')
   })
 })
 

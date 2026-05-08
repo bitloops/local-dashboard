@@ -11,7 +11,7 @@ import { Separator } from '@/components/ui/separator'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { XIcon } from 'lucide-react'
 import { fetchDashboardInteractionSessionDetail } from '../graphql/fetch-dashboard-data'
-import { formatAgentLabel } from '../utils'
+import { formatAgentLabel, formatModelLabel } from '../utils'
 import {
   formatDateTime,
   formatPromptForDisplay,
@@ -46,7 +46,9 @@ function SessionSummaryView({
         <Badge variant='secondary'>
           {formatAgentLabel(summary.agent_type)}
         </Badge>
-        {summary.model && <Badge variant='outline'>{summary.model}</Badge>}
+        {summary.model && (
+          <Badge variant='outline'>{formatModelLabel(summary.model)}</Badge>
+        )}
         {summary.branch && (
           <Badge variant='outline'>branch:{summary.branch}</Badge>
         )}

@@ -22,7 +22,7 @@ import { codeBlockStyle } from './code-block-style'
 import { FileTree } from './file-tree'
 import { type Checkpoint } from '../types'
 import { type CheckpointDetailLoadState } from '../types'
-import { formatAgentLabel } from '../utils'
+import { formatAgentLabel, formatModelLabel } from '../utils'
 import { fetchDashboardInteractionSessionDetail } from '../graphql/fetch-dashboard-data'
 import {
   formatDateTime,
@@ -686,7 +686,9 @@ export function TurnDetailContent({
       <div className='flex flex-wrap items-center gap-2 border-b border-border pb-3'>
         <CopyButton value={turn.turn_id} />
         <Badge variant='secondary'>{turn.agent_type}</Badge>
-        {turn.model && <Badge variant='outline'>{turn.model}</Badge>}
+        {turn.model && (
+          <Badge variant='outline'>{formatModelLabel(turn.model)}</Badge>
+        )}
         {turn.started_at && (
           <Badge variant='outline'>{formatDateTime(turn.started_at)}</Badge>
         )}
