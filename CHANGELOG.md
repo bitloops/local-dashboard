@@ -1,7 +1,25 @@
 ## [0.0.9]
 
+### Added
+
+- Live Code Atlas loading from the DevQL CodeCity GraphQL surface, including a typed `CodeCityWorldResult` query, repository resolution through the dashboard API, and a mapper from backend buildings, floors, zones, dependency arcs, render arcs, health signals, and architecture metadata into the existing renderer scene model.
+- Code Atlas enrichment from the DevQL architecture graph, including C4 Systems, Containers, Components, Deployment Units, Entry Points, and Flow traversal metadata joined onto buildings.
+- Architecture page with a 3D component-first view of Containers, Components, Deployment Units, Entry Points, flow-derived contract corridors, persistence read/write edges, and toggleable red direct module dependencies.
+- Architecture component parent grouping, with path-derived parent frames, group search results, group inspector details, and row-aware component layout so flat component lists can be scanned hierarchically.
+- Code Atlas data-source support for a live DevQL snapshot alongside the existing fixture catalogue, with the live source selected by default and `VITE_CODE_CITY_PROJECT_PATH` available for project-scoped CodeCity queries.
+- Unit and Playwright coverage for the live CodeCity data shape, including backend-compatible world mapping, render-arc fallback behaviour, live-route network stubs, search, selection, overlay toggles, and canvas rendering.
+
+### Changed
+
+- Updated the Code Atlas page copy, badges, source catalogue, loader, and schema to describe live DevQL data rather than mock-only fixtures.
+- Added Atlas inspector summaries and canvas markers for architecture graph containers, entry points, and flow arcs.
+- Extended the renderer scene schema for backend arc visibility, source paths, labels, tooltips, single-boundary/unknown world layouts, event-driven/unclassified architecture patterns, and empty live worlds.
+- Kept the Code Atlas public route export component-only so React refresh can validate the module boundary.
+
 ### Fixed
 
+- Fixed Code Atlas arc visibility so backend world/medium zoom arcs can render without requiring a selected building, while selection-only arcs retain the existing focused behaviour.
+- Fixed Code Atlas rendering and lint issues around floor stacking, camera focus dependencies, and React StrictMode live-load retries.
 - Improved session compatibility and tool reporting for OpenCode
 
 ## [0.0.8]

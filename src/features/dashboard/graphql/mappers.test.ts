@@ -4,6 +4,8 @@ import {
   mapDashboardBranches,
   mapDashboardCheckpointDetail,
   mapDashboardCommitRows,
+  mapDashboardInteractionSessionDetail,
+  mapDashboardInteractionSessions,
   mapDashboardInteractionUpdate,
   mapDashboardRepositories,
   mapDashboardUsers,
@@ -13,6 +15,10 @@ import type {
   DashboardBranchesQueryData,
   DashboardCheckpointDetailQueryData,
   DashboardCommitsQueryData,
+  DashboardInteractionSessionDetailQueryData,
+  DashboardInteractionSessionNode,
+  DashboardInteractionSessionsQueryData,
+  DashboardInteractionToolUseNode,
   DashboardInteractionUpdateNode,
   DashboardRepositoriesQueryData,
   DashboardUsersQueryData,
@@ -33,6 +39,78 @@ function checkpointNode(checkpointId: string, agents: string[] = ['codex']) {
     createdAt: '2025-01-01T00:00:00.000Z',
     isTask: false,
     toolUseId: `tool-${checkpointId}`,
+  }
+}
+
+function interactionToolUse(
+  overrides: Partial<DashboardInteractionToolUseNode> = {},
+): DashboardInteractionToolUseNode {
+  return {
+    toolInvocationId: 'invocation-1',
+    toolUseId: 'tool-1',
+    sessionId: 'session-1',
+    turnId: 'turn-1',
+    toolKind: 'shell',
+    taskDescription: 'Run tests',
+    inputSummary: 'pnpm test',
+    outputSummary: 'passed',
+    source: 'codex',
+    command: 'pnpm test',
+    commandBinary: 'pnpm',
+    commandArgv: ['test'],
+    transcriptPath: '/tmp/session.jsonl',
+    startedAt: '2025-01-01T00:00:00.000Z',
+    endedAt: '2025-01-01T00:01:00.000Z',
+    ...overrides,
+  }
+}
+
+function interactionSession(
+  overrides: Partial<DashboardInteractionSessionNode> = {},
+): DashboardInteractionSessionNode {
+  return {
+    sessionId: 'session-1',
+    branch: 'main',
+    actor: {
+      id: 'actor-1',
+      name: 'Alice',
+      email: 'alice@example.com',
+      source: 'git',
+    },
+    agentType: 'codex',
+    model: 'gpt-5',
+    firstPrompt: 'Fix failing tests',
+    startedAt: '2025-01-01T00:00:00.000Z',
+    endedAt: '2025-01-01T00:10:00.000Z',
+    lastEventAt: '2025-01-01T00:09:00.000Z',
+    turnCount: 2,
+    checkpointCount: 1,
+    tokenUsage: {
+      inputTokens: 100,
+      outputTokens: 50,
+      cacheCreationTokens: 10,
+      cacheReadTokens: 5,
+      apiCallCount: 2,
+    },
+    filePaths: ['src/App.tsx'],
+    toolUses: [interactionToolUse()],
+    linkedCheckpoints: [
+      {
+        checkpointId: 'checkpoint-1',
+        commitSha: 'abc123',
+        name: 'Alice',
+        email: 'alice@example.com',
+        committedAt: '2025-01-01T00:11:00.000Z',
+      },
+    ],
+    latestCommitAuthor: {
+      checkpointId: 'checkpoint-2',
+      commitSha: 'def456',
+      name: 'Bob',
+      email: 'bob@example.com',
+      committedAt: '2025-01-01T00:12:00.000Z',
+    },
+    ...overrides,
   }
 }
 
@@ -257,5 +335,240 @@ describe('mapDashboardInteractionUpdate', () => {
       latest_turn_id: 'turn-7',
       latest_turn_updated_at: '2025-01-01T00:01:00.000Z',
     })
+  })
+})
+
+describe('mapDashboardInteractionSessions', () => {
+  it('maps interaction sessions with actors, tool uses, checkpoints, and token usage', () => {
+    const data: DashboardInteractionSessionsQueryData = {
+      interactionSessions: [interactionSession()],
+    }
+
+    expect(mapDashboardInteractionSessions(data)).toEqual([
+      {
+        session_id: 'session-1',
+        branch: 'main',
+        actor: {
+          id: 'actor-1',
+          name: 'Alice',
+          email: 'alice@example.com',
+          source: 'git',
+        },
+        agent_type: 'codex',
+        model: 'gpt-5',
+        first_prompt: 'Fix failing tests',
+        started_at: '2025-01-01T00:00:00.000Z',
+        ended_at: '2025-01-01T00:10:00.000Z',
+        last_event_at: '2025-01-01T00:09:00.000Z',
+        turn_count: 2,
+        checkpoint_count: 1,
+        token_usage: {
+          input_tokens: 100,
+          output_tokens: 50,
+          cache_creation_tokens: 10,
+          cache_read_tokens: 5,
+          api_call_count: 2,
+        },
+        file_paths: ['src/App.tsx'],
+        tool_uses: [
+          {
+            tool_invocation_id: 'invocation-1',
+            tool_use_id: 'tool-1',
+            session_id: 'session-1',
+            turn_id: 'turn-1',
+            tool_kind: 'shell',
+            task_description: 'Run tests',
+            input_summary: 'pnpm test',
+            output_summary: 'passed',
+            source: 'codex',
+            command: 'pnpm test',
+            command_binary: 'pnpm',
+            command_argv: ['test'],
+            transcript_path: '/tmp/session.jsonl',
+            started_at: '2025-01-01T00:00:00.000Z',
+            ended_at: '2025-01-01T00:01:00.000Z',
+          },
+        ],
+        linked_checkpoints: [
+          {
+            checkpoint_id: 'checkpoint-1',
+            commit_sha: 'abc123',
+            name: 'Alice',
+            email: 'alice@example.com',
+            committed_at: '2025-01-01T00:11:00.000Z',
+          },
+        ],
+        latest_commit_author: {
+          checkpoint_id: 'checkpoint-2',
+          commit_sha: 'def456',
+          name: 'Bob',
+          email: 'bob@example.com',
+          committed_at: '2025-01-01T00:12:00.000Z',
+        },
+      },
+    ])
+  })
+
+  it('normalises absent interaction session optional fields', () => {
+    const data: DashboardInteractionSessionsQueryData = {
+      interactionSessions: [
+        interactionSession({
+          branch: null,
+          actor: {},
+          model: null,
+          firstPrompt: null,
+          endedAt: null,
+          lastEventAt: null,
+          tokenUsage: null,
+          filePaths: [],
+          toolUses: [
+            interactionToolUse({
+              toolInvocationId: '',
+              turnId: null,
+              toolKind: null,
+              taskDescription: null,
+              inputSummary: null,
+              outputSummary: null,
+              source: null,
+              command: null,
+              commandBinary: null,
+              commandArgv: null,
+              transcriptPath: null,
+              startedAt: null,
+              endedAt: null,
+            }),
+          ],
+          linkedCheckpoints: [
+            {
+              checkpointId: 'checkpoint-empty',
+              commitSha: 'abc123',
+              name: null,
+              email: null,
+              committedAt: null,
+            },
+          ],
+          latestCommitAuthor: null,
+        }),
+      ],
+    }
+
+    const [session] = mapDashboardInteractionSessions(data)
+
+    expect(session).toMatchObject({
+      branch: null,
+      actor: null,
+      model: null,
+      first_prompt: null,
+      ended_at: null,
+      last_event_at: null,
+      token_usage: null,
+      file_paths: [],
+      latest_commit_author: null,
+    })
+    expect(session?.tool_uses[0]).toMatchObject({
+      tool_invocation_id: '',
+      turn_id: null,
+      tool_kind: null,
+      command_argv: [],
+      transcript_path: null,
+      started_at: null,
+      ended_at: null,
+    })
+    expect(session?.linked_checkpoints[0]).toMatchObject({
+      checkpoint_id: 'checkpoint-empty',
+      name: null,
+      email: null,
+      committed_at: null,
+    })
+  })
+})
+
+describe('mapDashboardInteractionSessionDetail', () => {
+  it('maps interaction session detail turns and raw events', () => {
+    const data: DashboardInteractionSessionDetailQueryData = {
+      interactionSession: {
+        summary: interactionSession(),
+        turns: [
+          {
+            turnId: 'turn-1',
+            sessionId: 'session-1',
+            branch: 'main',
+            actor: {
+              id: 'actor-1',
+              name: null,
+              email: 'alice@example.com',
+              source: 'git',
+            },
+            turnNumber: 1,
+            prompt: 'Run tests',
+            summary: 'Tests passed',
+            agentType: 'codex',
+            model: 'gpt-5',
+            startedAt: '2025-01-01T00:00:00.000Z',
+            endedAt: null,
+            tokenUsage: null,
+            filesModified: ['src/App.tsx'],
+            checkpointId: null,
+            toolUses: [interactionToolUse()],
+          },
+        ],
+        rawEvents: [
+          {
+            eventId: 'event-1',
+            sessionId: 'session-1',
+            turnId: null,
+            eventType: 'tool_use',
+            eventTime: '2025-01-01T00:00:30.000Z',
+            agentType: 'codex',
+            model: null,
+            toolUseId: null,
+            toolKind: null,
+            taskDescription: null,
+            subagentId: null,
+            payload: { status: 'ok' },
+          },
+        ],
+      },
+    }
+
+    expect(mapDashboardInteractionSessionDetail(data)).toMatchObject({
+      summary: {
+        session_id: 'session-1',
+      },
+      turns: [
+        {
+          turn_id: 'turn-1',
+          actor: {
+            id: 'actor-1',
+            name: null,
+            email: 'alice@example.com',
+            source: 'git',
+          },
+          prompt: 'Run tests',
+          summary: 'Tests passed',
+          token_usage: null,
+          checkpoint_id: null,
+          files_modified: ['src/App.tsx'],
+        },
+      ],
+      raw_events: [
+        {
+          event_id: 'event-1',
+          turn_id: null,
+          model: null,
+          tool_use_id: null,
+          tool_kind: null,
+          task_description: null,
+          subagent_id: null,
+          payload: { status: 'ok' },
+        },
+      ],
+    })
+  })
+
+  it('returns null when interaction session detail is absent', () => {
+    expect(
+      mapDashboardInteractionSessionDetail({ interactionSession: null }),
+    ).toBeNull()
   })
 })

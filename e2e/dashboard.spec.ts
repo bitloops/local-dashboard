@@ -1183,7 +1183,9 @@ test.describe('Settings', () => {
 
     await expect(page.getByRole('heading', { name: 'Settings' })).toBeVisible()
     await expect(
-      page.getByText('Customize theme and display options.'),
+      page.getByText(
+        'Customise theme, display, and local Bitloops configuration.',
+      ),
     ).toBeVisible()
   })
 
