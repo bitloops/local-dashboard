@@ -218,6 +218,9 @@ export function Debug() {
     () => findTaskById(currentSnapshot, trackedValidationTaskId),
     [currentSnapshot, trackedValidationTaskId],
   )
+  const displayedValidationNotice = trackedValidationTask
+    ? describeValidateSyncTask(trackedValidationTask)
+    : validationNotice
   const trackedValidationActive =
     trackedValidationTask != null
       ? isActiveTaskStatus(trackedValidationTask.status)
@@ -229,14 +232,6 @@ export function Debug() {
     selectedRepoId && liveState.status === 'idle'
       ? { ...liveState, status: 'listening' as const }
       : liveState
-
-  useEffect(() => {
-    if (!trackedValidationTask) {
-      return
-    }
-
-    setValidationNotice(describeValidateSyncTask(trackedValidationTask))
-  }, [trackedValidationTask])
 
   const handleValidateSync = () => {
     if (!selectedRepoId) {
@@ -352,19 +347,21 @@ export function Debug() {
           </div>
         </header>
 
-        {validationNotice && (
+        {displayedValidationNotice && (
           <div
-            role={validationNotice.tone === 'error' ? 'alert' : 'status'}
+            role={
+              displayedValidationNotice.tone === 'error' ? 'alert' : 'status'
+            }
             className={cn(
               'rounded-md border px-3 py-2 text-sm',
-              validationNotice.tone === 'error'
+              displayedValidationNotice.tone === 'error'
                 ? 'border-destructive/30 bg-destructive/10 text-destructive'
-                : validationNotice.tone === 'info'
+                : displayedValidationNotice.tone === 'info'
                   ? 'border-sky-500/30 bg-sky-500/10 text-sky-700 dark:text-sky-300'
                   : 'border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300',
             )}
           >
-            {validationNotice.message}
+            {displayedValidationNotice.message}
           </div>
         )}
 
