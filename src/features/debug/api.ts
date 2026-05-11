@@ -203,6 +203,10 @@ export type DebugSupportingLogs = {
   available: boolean
   path: string
   lines: DebugLogLine[]
+  errorLines?: DebugLogLine[]
+  warnLines?: DebugLogLine[]
+  infoLines?: DebugLogLine[]
+  debugLines?: DebugLogLine[]
 }
 
 export type RuntimeDebugSnapshot = DebugRuntimeSnapshot & {
@@ -407,6 +411,30 @@ const RUNTIME_DEBUG_SNAPSHOT_QUERY = `
           raw
           timestampUnix
         }
+        errorLines {
+          level
+          message
+          raw
+          timestampUnix
+        }
+        warnLines {
+          level
+          message
+          raw
+          timestampUnix
+        }
+        infoLines {
+          level
+          message
+          raw
+          timestampUnix
+        }
+        debugLines {
+          level
+          message
+          raw
+          timestampUnix
+        }
       }
     }
   }
@@ -501,13 +529,18 @@ export async function fetchRuntimeDebugSnapshot(
     throw new Error('Runtime debug snapshot response was empty.')
   }
 
+  const supportingLogs = normalizeSupportingLogs(debugSnapshot.supportingLogs)
+
   return {
     ...runtimeSnapshot,
     producerSpool: debugSnapshot.producerSpool,
     repoState: debugSnapshot.repoState,
     watcher: debugSnapshot.watcher,
-    supportingLogs: debugSnapshot.supportingLogs,
-    issues: deriveDebugIssues(runtimeSnapshot, debugSnapshot),
+    supportingLogs,
+    issues: deriveDebugIssues(runtimeSnapshot, {
+      ...debugSnapshot,
+      supportingLogs,
+    }),
   }
 }
 
@@ -575,6 +608,38 @@ export function filterDebugLogLines(
     }
     return level === levelFilter
   })
+}
+
+export function selectDebugLogLines(
+  logs: DebugSupportingLogs,
+  levelFilter: DebugLogLevelFilter,
+): DebugLogLine[] {
+  if (levelFilter === 'all') {
+    return logs.lines
+  }
+
+  const levelSpecificLines =
+    levelFilter === 'error'
+      ? logs.errorLines
+      : levelFilter === 'warn'
+        ? logs.warnLines
+        : levelFilter === 'info'
+          ? logs.infoLines
+          : logs.debugLines
+
+  return levelSpecificLines ?? filterDebugLogLines(logs.lines, levelFilter)
+}
+
+function normalizeSupportingLogs(
+  logs: DebugSupportingLogs,
+): DebugSupportingLogs {
+  return {
+    ...logs,
+    errorLines: logs.errorLines ?? filterDebugLogLines(logs.lines, 'error'),
+    warnLines: logs.warnLines ?? filterDebugLogLines(logs.lines, 'warn'),
+    infoLines: logs.infoLines ?? filterDebugLogLines(logs.lines, 'info'),
+    debugLines: logs.debugLines ?? filterDebugLogLines(logs.lines, 'debug'),
+  }
 }
 
 function deriveDebugIssues(
@@ -680,9 +745,7 @@ function deriveDebugIssues(
     })
   }
 
-  const recentErrors = supportingLogs.lines.filter((line) =>
-    line.level?.toLowerCase().includes('error'),
-  )
+  const recentErrors = selectDebugLogLines(supportingLogs, 'error')
   if (recentErrors.length > 0) {
     issues.push({
       id: 'logs-have-errors',
