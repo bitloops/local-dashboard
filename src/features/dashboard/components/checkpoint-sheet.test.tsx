@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import * as checkpointSheetUtils from './checkpoint-sheet-utils'
 import {
   formatDateTime,
   prettyPrintJson,
@@ -279,5 +280,74 @@ describe('CheckpointSheet (component)', () => {
     expect(screen.getByText('+5')).toBeInTheDocument()
     expect(screen.getByText('−2')).toBeInTheDocument()
     expect(screen.getByText('−3')).toBeInTheDocument()
+  })
+
+  it('parses transcript data only for the active checkpoint session tab', async () => {
+    const parseSpy = vi.spyOn(checkpointSheetUtils, 'parseTranscriptEntries')
+    const checkpoint: Checkpoint = {
+      id: 'cp-2',
+      prompt: 'Review checkpoint memory usage',
+      timestamp: '10:00 AM',
+      createdAt: '2025-03-04T10:00:00.000Z',
+      agent: 'claude-code',
+    }
+    const checkpointDetail = {
+      checkpoint_id: 'cp-2',
+      strategy: 'default',
+      branch: 'main',
+      checkpoints_count: 1,
+      files_touched: [],
+      session_count: 2,
+      token_usage: null,
+      sessions: [
+        {
+          session_index: 0,
+          session_id: 'sess-1',
+          agent: 'claude-code',
+          created_at: '2025-03-04T10:00:00.000Z',
+          is_task: false,
+          tool_use_id: 'tool-1',
+          metadata_json: '{}',
+          transcript_jsonl:
+            '{"type":"user","message":{"content":"First session"}}',
+          prompts_text: 'First prompt',
+          context_text: 'First context',
+        },
+        {
+          session_index: 1,
+          session_id: 'sess-2',
+          agent: 'claude-code',
+          created_at: '2025-03-04T10:02:00.000Z',
+          is_task: false,
+          tool_use_id: 'tool-2',
+          metadata_json: '{}',
+          transcript_jsonl:
+            '{"type":"user","message":{"content":"Second session"}}',
+          prompts_text: 'Second prompt',
+          context_text: 'Second context',
+        },
+      ],
+    }
+
+    render(
+      <CheckpointSheet
+        {...defaultProps}
+        selectedCheckpoint={checkpoint}
+        checkpointDetail={checkpointDetail}
+        checkpointDetailSource='api'
+      />,
+    )
+
+    expect(parseSpy).toHaveBeenCalledTimes(1)
+    expect(parseSpy).toHaveBeenCalledWith(
+      checkpointDetail.sessions[0].transcript_jsonl,
+    )
+
+    await userEvent.click(screen.getByRole('tab', { name: 'Session 2' }))
+
+    expect(parseSpy).toHaveBeenCalledTimes(2)
+    expect(parseSpy).toHaveBeenLastCalledWith(
+      checkpointDetail.sessions[1].transcript_jsonl,
+    )
   })
 })

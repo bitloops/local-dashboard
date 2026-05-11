@@ -1,4 +1,12 @@
-import { lazy, startTransition, Suspense, useEffect, useState } from 'react'
+import {
+  lazy,
+  startTransition,
+  Suspense,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react'
 import {
   type DashboardInteractionSessionDetailResponse,
   type DashboardInteractionSessionDto,
@@ -20,6 +28,7 @@ import { SessionToolUseList } from '@/features/dashboard/components/session-tool
 import { sortedSessionToolUses } from '@/features/dashboard/utils/session-tool-uses'
 import { FileTree } from './file-tree'
 import { TurnsTimeline } from '@/features/dashboard/components/turns-timeline'
+import { buildSessionTranscriptAnalysis } from '@/features/dashboard/utils/turn-transcript'
 
 const TokenUsageChart = lazy(() =>
   import('./token-usage-chart').then((m) => ({ default: m.TokenUsageChart })),
@@ -156,6 +165,15 @@ type SessionDetailSidebarProps = {
   onClose?: () => void
 }
 
+type SessionDetailTab = 'details' | 'turns' | 'tools'
+
+function isAbortError(error: unknown): boolean {
+  return (
+    (error instanceof DOMException && error.name === 'AbortError') ||
+    (error instanceof Error && error.name === 'AbortError')
+  )
+}
+
 export function SessionDetailSidebar({
   sessionId,
   sessionSummary,
@@ -170,32 +188,79 @@ export function SessionDetailSidebar({
     'idle' | 'loading' | 'api' | 'error'
   >('idle')
   const [interactionError, setInteractionError] = useState<string | null>(null)
+  const [activeTab, setActiveTab] = useState<SessionDetailTab>('details')
+  const interactionAbortRef = useRef<AbortController | null>(null)
+  const loadedInteractionKeyRef = useRef<string | null>(null)
+  const interactionKey =
+    sessionId?.trim() != null && sessionId.trim() !== ''
+      ? `${repoId ?? ''}:${sessionId.trim()}:${refreshToken ?? 0}`
+      : null
 
   useEffect(() => {
-    if (!sessionId?.trim()) {
-      startTransition(() => {
-        setInteractionDetail(null)
-        setInteractionSource('idle')
-        setInteractionError(null)
-      })
+    return () => {
+      interactionAbortRef.current?.abort()
+      interactionAbortRef.current = null
+      loadedInteractionKeyRef.current = null
+    }
+  }, [])
+
+  useEffect(() => {
+    interactionAbortRef.current?.abort()
+    interactionAbortRef.current = null
+    loadedInteractionKeyRef.current = null
+
+    startTransition(() => {
+      setInteractionDetail(null)
+      setInteractionSource('idle')
+      setInteractionError(null)
+    })
+
+    if (!interactionKey) {
+      return
+    }
+  }, [interactionKey])
+
+  useEffect(() => {
+    if (activeTab === 'details') {
+      interactionAbortRef.current?.abort()
+      interactionAbortRef.current = null
       return
     }
 
-    let cancelled = false
+    if (!sessionId?.trim() || !interactionKey) {
+      return
+    }
+
+    if (
+      loadedInteractionKeyRef.current === interactionKey &&
+      interactionDetail != null
+    ) {
+      return
+    }
+
+    const controller = new AbortController()
+    interactionAbortRef.current?.abort()
+    interactionAbortRef.current = controller
+
     startTransition(() => {
       setInteractionSource('loading')
       setInteractionError(null)
-      setInteractionDetail(null)
     })
 
-    fetchDashboardInteractionSessionDetail({ repoId, sessionId })
+    fetchDashboardInteractionSessionDetail(
+      { repoId, sessionId },
+      { signal: controller.signal },
+    )
       .then((result) => {
-        if (cancelled) return
+        if (controller.signal.aborted) return
+        loadedInteractionKeyRef.current = interactionKey
         setInteractionDetail(result)
         setInteractionSource('api')
       })
       .catch((err: unknown) => {
-        if (cancelled) return
+        if (isAbortError(err) || controller.signal.aborted) {
+          return
+        }
         setInteractionDetail(null)
         setInteractionSource('error')
         setInteractionError(
@@ -204,13 +269,25 @@ export function SessionDetailSidebar({
       })
 
     return () => {
-      cancelled = true
+      controller.abort()
+      if (interactionAbortRef.current === controller) {
+        interactionAbortRef.current = null
+      }
     }
-  }, [refreshToken, repoId, sessionId])
+  }, [activeTab, interactionDetail, interactionKey, repoId, sessionId])
 
   const summary = interactionDetail?.summary ?? sessionSummary
   const turns = interactionDetail?.turns ?? []
-  const rawEvents = interactionDetail?.raw_events ?? []
+  const transcriptAnalysis = useMemo(
+    () =>
+      interactionDetail == null
+        ? null
+        : buildSessionTranscriptAnalysis(
+            interactionDetail.raw_events,
+            interactionDetail.turns,
+          ),
+    [interactionDetail],
+  )
   /** List query does not fetch `toolUses`; only session detail does. Avoid showing empty until detail returns. */
   const sessionToolsList =
     interactionDetail?.summary != null
@@ -253,7 +330,20 @@ export function SessionDetailSidebar({
               </p>
             )}
             {(interactionSource === 'api' || sessionSummary) && summary && (
-              <Tabs defaultValue='details' className='w-full'>
+              <Tabs
+                value={activeTab}
+                onValueChange={(value) => {
+                  const nextTab = value as SessionDetailTab
+                  setActiveTab(nextTab)
+                  if (nextTab === 'details') {
+                    interactionAbortRef.current?.abort()
+                    interactionAbortRef.current = null
+                    setInteractionSource(interactionDetail ? 'api' : 'idle')
+                    setInteractionError(null)
+                  }
+                }}
+                className='w-full'
+              >
                 <TabsList className='mb-2 grid w-full grid-cols-3'>
                   <TabsTrigger value='details'>Details</TabsTrigger>
                   <TabsTrigger value='turns'>Turns</TabsTrigger>
@@ -263,13 +353,22 @@ export function SessionDetailSidebar({
                   <SessionSummaryView summary={summary} />
                 </TabsContent>
                 <TabsContent value='turns' className='mt-0 space-y-2'>
-                  {turns.length === 0 ? (
+                  {interactionSource === 'loading' ? (
+                    <p className='text-sm text-muted-foreground'>
+                      Loading turns…
+                    </p>
+                  ) : interactionSource === 'error' ? (
+                    <p className='text-sm text-muted-foreground'>
+                      Could not load session detail; turns are unavailable.
+                    </p>
+                  ) : turns.length === 0 ? (
                     <p className='text-sm text-muted-foreground'>No turns.</p>
                   ) : (
                     <TurnsTimeline
                       turns={turns}
-                      rawEvents={rawEvents}
+                      rawEvents={interactionDetail?.raw_events ?? []}
                       userName={userName}
+                      sections={transcriptAnalysis?.sections}
                     />
                   )}
                 </TabsContent>
@@ -287,7 +386,8 @@ export function SessionDetailSidebar({
                     <SessionToolUseList
                       tools={sessionToolsList}
                       turns={turns}
-                      rawEvents={rawEvents}
+                      rawEvents={interactionDetail?.raw_events ?? []}
+                      transcriptEntries={transcriptAnalysis?.sessionEntries}
                       emptyMessage='No tool use entries.'
                     />
                   )}

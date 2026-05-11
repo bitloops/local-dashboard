@@ -38,6 +38,13 @@ function isRepoCheckoutUnknownError(error: unknown): boolean {
     : false
 }
 
+function isAbortError(error: unknown): boolean {
+  return (
+    (error instanceof DOMException && error.name === 'AbortError') ||
+    (error instanceof Error && error.name === 'AbortError')
+  )
+}
+
 function interactionUpdateKey(update: DashboardInteractionUpdateDto): string {
   return [
     update.repo_id,
@@ -167,6 +174,7 @@ export function useDashboardData() {
   >(null)
 
   const dashboardAbortRef = useRef<AbortController | null>(null)
+  const checkpointDetailAbortRef = useRef<AbortController | null>(null)
   const interactionRefreshInFlightRef = useRef(false)
   const interactionRefreshQueuedRef = useRef(false)
   const refreshSelectedSessionDetailRef = useRef(false)
@@ -859,20 +867,27 @@ export function useDashboardData() {
   ])
 
   useEffect(() => {
-    let cancelled = false
-
     if (!selectedCheckpoint || checkpointDetailSource !== 'loading') {
       return () => {
-        cancelled = true
+        checkpointDetailAbortRef.current?.abort()
       }
     }
 
-    fetchDashboardCheckpointDetail({
-      repoId: queryRepoId,
-      checkpointId: selectedCheckpoint.id,
-    })
+    const controller = new AbortController()
+    checkpointDetailAbortRef.current?.abort()
+    checkpointDetailAbortRef.current = controller
+
+    fetchDashboardCheckpointDetail(
+      {
+        repoId: queryRepoId,
+        checkpointId: selectedCheckpoint.id,
+      },
+      {
+        signal: controller.signal,
+      },
+    )
       .then((response) => {
-        if (cancelled) {
+        if (controller.signal.aborted) {
           return
         }
 
@@ -880,7 +895,9 @@ export function useDashboardData() {
         setCheckpointDetailSource('api')
       })
       .catch((error: unknown) => {
-        if (cancelled) return
+        if (isAbortError(error) || controller.signal.aborted) {
+          return
+        }
         console.error(
           `Failed to load checkpoint details for ${selectedCheckpoint.id}`,
           error,
@@ -890,7 +907,10 @@ export function useDashboardData() {
       })
 
     return () => {
-      cancelled = true
+      controller.abort()
+      if (checkpointDetailAbortRef.current === controller) {
+        checkpointDetailAbortRef.current = null
+      }
     }
   }, [
     checkpointDetailSource,

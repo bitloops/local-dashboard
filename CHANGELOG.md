@@ -1,3 +1,28 @@
+## [0.0.13] - 2026-05-11
+
+### Added
+
+- Regression coverage for lazy session detail loading, active-tab-only checkpoint transcript parsing, and abortable session and checkpoint detail requests.
+
+### Changed
+
+- Dashboard session detail now keeps the summary view lightweight and loads heavy turn and tool data only when the `Turns` or `Tool use` tabs are opened.
+- Checkpoint detail now renders transcript-heavy content only for the active session tab and reuses shared transcript analysis between the `Turns` and `Tool use` views.
+- Transcript and tool derivation now index the latest turn-end payloads once per session and reuse parsed transcript entries across views instead of reparsing large raw event payloads repeatedly.
+- Added local `.worktrees/` ignore support so isolated worktrees do not show up as untracked dashboard changes.
+
+### Fixed
+
+- Aborted stale session and checkpoint detail requests when the selection changes or panels unmount, preventing outdated heavy payloads from lingering in memory.
+- Reduced duplicate raw-event filtering, sorting, and transcript parsing that caused Chrome RAM spikes on large sessions and checkpoints.
+
+## [0.0.12]
+
+### Fixed
+
+- Restored missing session and checkpoint turn timelines when heavy interaction detail loads on demand, so turn content appears reliably after opening the `Turns` view.
+- OpenCode turn model badges now show readable model slugs like `kimi-k2p6` instead of full provider account paths such as `accounts/fireworks/models/kimi-k2p6`.
+
 ## [0.0.9]
 
 ### Added

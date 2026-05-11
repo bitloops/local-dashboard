@@ -13,7 +13,10 @@ import {
 } from '@/features/dashboard/components/checkpoint-sheet-utils'
 import { FileTree } from '@/features/dashboard/components/file-tree'
 import { ChatTranscript } from '@/features/dashboard/components/chat-transcript'
-import { buildTranscriptSectionsForTurns } from '@/features/dashboard/utils/turn-transcript'
+import {
+  buildTranscriptSectionsForTurns,
+  type TurnTranscriptSection,
+} from '@/features/dashboard/utils/turn-transcript'
 
 const TokenUsageChart = lazy(() =>
   import('./token-usage-chart').then((m) => ({ default: m.TokenUsageChart })),
@@ -23,6 +26,7 @@ type TurnsTimelineProps = {
   turns: DashboardInteractionTurnDto[]
   rawEvents: DashboardInteractionEventDto[]
   userName: string
+  sections?: TurnTranscriptSection[]
 }
 
 function TurnDetailsPanel({ turn }: { turn: DashboardInteractionTurnDto }) {
@@ -140,12 +144,13 @@ export function TurnsTimeline({
   turns,
   rawEvents,
   userName,
+  sections: providedSections,
 }: TurnsTimelineProps) {
   const [openTurnIds, setOpenTurnIds] = useState<Record<string, boolean>>({})
 
   const sections = useMemo(
-    () => buildTranscriptSectionsForTurns(rawEvents, turns),
-    [rawEvents, turns],
+    () => providedSections ?? buildTranscriptSectionsForTurns(rawEvents, turns),
+    [providedSections, rawEvents, turns],
   )
 
   return (

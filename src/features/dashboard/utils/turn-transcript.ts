@@ -8,15 +8,67 @@ import {
   type TranscriptMessage,
 } from '@/features/dashboard/components/checkpoint-sheet-utils'
 
-function getTurnEndPayload(
+export type TurnTranscriptSection = {
+  turn: DashboardInteractionTurnDto
+  entries: TranscriptMessage[]
+}
+
+export type SessionTranscriptAnalysis = {
+  sessionEntries: TranscriptMessage[]
+  sections: TurnTranscriptSection[]
+}
+
+function getTranscriptFragment(
+  payload: Record<string, unknown> | null | undefined,
+): string {
+  return (
+    (payload?.transcript_fragment as string | undefined) ??
+    (payload?.transcriptFragment as string | undefined) ??
+    ''
+  )
+}
+
+function indexLatestTurnEndPayloads(
   rawEvents: DashboardInteractionEventDto[],
+): Map<string, Record<string, unknown> | null> {
+  const latestByTurnId = new Map<string, DashboardInteractionEventDto>()
+
+  for (const event of rawEvents) {
+    if (event.event_type !== 'turn_end' || !event.turn_id) {
+      continue
+    }
+
+    const existing = latestByTurnId.get(event.turn_id)
+    if (
+      existing == null ||
+      (existing.event_time || '').localeCompare(event.event_time || '') <= 0
+    ) {
+      latestByTurnId.set(event.turn_id, event)
+    }
+  }
+
+  return new Map(
+    [...latestByTurnId.entries()].map(([turnId, event]) => [
+      turnId,
+      (event.payload as Record<string, unknown> | null | undefined) ?? null,
+    ]),
+  )
+}
+
+function getCachedTurnTranscriptEntries(
   turnId: string,
-): Record<string, unknown> | null {
-  const latest = rawEvents
-    .filter((e) => e.turn_id === turnId && e.event_type === 'turn_end')
-    .sort((a, b) => (a.event_time || '').localeCompare(b.event_time || ''))
-    .at(-1)
-  return (latest?.payload as Record<string, unknown> | null | undefined) ?? null
+  latestPayloadsByTurnId: Map<string, Record<string, unknown> | null>,
+  parsedByTurnId: Map<string, TranscriptMessage[]>,
+): TranscriptMessage[] {
+  const cached = parsedByTurnId.get(turnId)
+  if (cached) {
+    return cached
+  }
+
+  const fragment = getTranscriptFragment(latestPayloadsByTurnId.get(turnId))
+  const parsed = fragment ? parseTranscriptEntries(fragment) : []
+  parsedByTurnId.set(turnId, parsed)
+  return parsed
 }
 
 /** Parsed transcript lines from the latest turn_end payload for this turn_id (may be cumulative). */
@@ -24,12 +76,12 @@ export function getTurnTranscriptEntries(
   rawEvents: DashboardInteractionEventDto[],
   turn: Pick<DashboardInteractionTurnDto, 'turn_id'>,
 ): TranscriptMessage[] {
-  const payload = getTurnEndPayload(rawEvents, turn.turn_id)
-  const fragment =
-    (payload?.transcript_fragment as string | undefined) ??
-    (payload?.transcriptFragment as string | undefined) ??
-    ''
-  return fragment ? parseTranscriptEntries(fragment) : []
+  const latestPayloadsByTurnId = indexLatestTurnEndPayloads(rawEvents)
+  return getCachedTurnTranscriptEntries(
+    turn.turn_id,
+    latestPayloadsByTurnId,
+    new Map<string, TranscriptMessage[]>(),
+  )
 }
 
 function buildPromptFallbackEntries(
@@ -52,10 +104,15 @@ function buildPromptFallbackEntries(
 }
 
 function getSingleSegmentTurnTranscriptEntries(
-  rawEvents: DashboardInteractionEventDto[],
+  latestPayloadsByTurnId: Map<string, Record<string, unknown> | null>,
+  parsedByTurnId: Map<string, TranscriptMessage[]>,
   turn: Pick<DashboardInteractionTurnDto, 'turn_id'>,
 ): TranscriptMessage[] {
-  const entries = getTurnTranscriptEntries(rawEvents, turn)
+  const entries = getCachedTurnTranscriptEntries(
+    turn.turn_id,
+    latestPayloadsByTurnId,
+    parsedByTurnId,
+  )
   if (entries.length === 0) {
     return []
   }
@@ -65,7 +122,8 @@ function getSingleSegmentTurnTranscriptEntries(
 }
 
 function resolveTranscriptEntriesForTurn(
-  rawEvents: DashboardInteractionEventDto[],
+  latestPayloadsByTurnId: Map<string, Record<string, unknown> | null>,
+  parsedByTurnId: Map<string, TranscriptMessage[]>,
   turn: Pick<DashboardInteractionTurnDto, 'turn_id' | 'prompt' | 'started_at'>,
   sessionSegments: TranscriptMessage[][],
   segmentIndex: number,
@@ -77,7 +135,8 @@ function resolveTranscriptEntriesForTurn(
   }
 
   const turnFragmentSegment = getSingleSegmentTurnTranscriptEntries(
-    rawEvents,
+    latestPayloadsByTurnId,
+    parsedByTurnId,
     turn,
   )
   if (turnFragmentSegment.length > 0) {
@@ -100,9 +159,15 @@ export function getSessionTranscriptEntriesBestEffort(
   rawEvents: DashboardInteractionEventDto[],
   turns: DashboardInteractionTurnDto[],
 ): TranscriptMessage[] {
+  const latestPayloadsByTurnId = indexLatestTurnEndPayloads(rawEvents)
+  const parsedByTurnId = new Map<string, TranscriptMessage[]>()
   let best: TranscriptMessage[] = []
   for (const turn of turns) {
-    const entries = getTurnTranscriptEntries(rawEvents, turn)
+    const entries = getCachedTurnTranscriptEntries(
+      turn.turn_id,
+      latestPayloadsByTurnId,
+      parsedByTurnId,
+    )
     if (entries.length > best.length) {
       best = entries
     }
@@ -143,13 +208,43 @@ export function partitionTranscriptEntriesByUserPrompt(
 export function buildTranscriptSectionsForTurns(
   rawEvents: DashboardInteractionEventDto[],
   turns: DashboardInteractionTurnDto[],
-): Array<{ turn: DashboardInteractionTurnDto; entries: TranscriptMessage[] }> {
-  const sorted = [...turns].sort((a, b) => a.turn_number - b.turn_number)
-  const pool = getSessionTranscriptEntriesBestEffort(rawEvents, sorted)
-  const segments = partitionTranscriptEntriesByUserPrompt(pool)
+): TurnTranscriptSection[] {
+  return buildSessionTranscriptAnalysis(rawEvents, turns).sections
+}
 
-  return sorted.map((turn, idx) => ({
-    turn,
-    entries: resolveTranscriptEntriesForTurn(rawEvents, turn, segments, idx),
-  }))
+export function buildSessionTranscriptAnalysis(
+  rawEvents: DashboardInteractionEventDto[],
+  turns: DashboardInteractionTurnDto[],
+): SessionTranscriptAnalysis {
+  const sorted = [...turns].sort((a, b) => a.turn_number - b.turn_number)
+  const latestPayloadsByTurnId = indexLatestTurnEndPayloads(rawEvents)
+  const parsedByTurnId = new Map<string, TranscriptMessage[]>()
+
+  let sessionEntries: TranscriptMessage[] = []
+  for (const turn of sorted) {
+    const entries = getCachedTurnTranscriptEntries(
+      turn.turn_id,
+      latestPayloadsByTurnId,
+      parsedByTurnId,
+    )
+    if (entries.length > sessionEntries.length) {
+      sessionEntries = entries
+    }
+  }
+
+  const segments = partitionTranscriptEntriesByUserPrompt(sessionEntries)
+
+  return {
+    sessionEntries,
+    sections: sorted.map((turn, idx) => ({
+      turn,
+      entries: resolveTranscriptEntriesForTurn(
+        latestPayloadsByTurnId,
+        parsedByTurnId,
+        turn,
+        segments,
+        idx,
+      ),
+    })),
+  }
 }
