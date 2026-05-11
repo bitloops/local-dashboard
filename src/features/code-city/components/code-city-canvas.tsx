@@ -283,6 +283,10 @@ function supportsWebGL() {
   )
 }
 
+function isBrowserAutomation() {
+  return typeof navigator !== 'undefined' && navigator.webdriver === true
+}
+
 function clipDistrictByBuildingBudget(
   district: CodeCityDistrict,
   budget: {
@@ -2418,6 +2422,7 @@ export function CodeCityCanvas({
 }: CodeCityCanvasProps) {
   const fallbackPreset = resolveCodeCityCameraPreset(scene, null)
   const webglSupported = useMemo(() => supportsWebGL(), [])
+  const preserveDrawingBuffer = useMemo(() => isBrowserAutomation(), [])
   const frame = useMemo(() => getCodeCitySceneFrame(scene), [scene])
   const totalRenderableBuildingCount = useMemo(
     () => getSceneBuildings(scene, { includeTests: showTests }).length,
@@ -2516,7 +2521,11 @@ export function CodeCityCanvas({
         <Canvas
           shadows
           dpr={[1, 2]}
-          gl={{ antialias: true, powerPreference: 'high-performance' }}
+          gl={{
+            antialias: true,
+            powerPreference: 'high-performance',
+            preserveDrawingBuffer,
+          }}
           camera={{
             position: initialPosition as [number, number, number],
             fov: 42,
