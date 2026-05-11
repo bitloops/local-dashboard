@@ -964,10 +964,15 @@ describe('useDashboardData', () => {
     })
 
     await waitFor(() => {
-      expect(mockFetchDashboardCheckpointDetail).toHaveBeenCalledWith({
-        repoId: 'repo-1',
-        checkpointId: 'cp-1',
-      })
+      expect(mockFetchDashboardCheckpointDetail).toHaveBeenCalledWith(
+        {
+          repoId: 'repo-1',
+          checkpointId: 'cp-1',
+        },
+        expect.objectContaining({
+          signal: expect.any(AbortSignal),
+        }),
+      )
       expect(result.current.selectedCheckpoint?.id).toBe('cp-1')
       expect(result.current.checkpointDetailSource).toBe('api')
     })
@@ -983,12 +988,77 @@ describe('useDashboardData', () => {
     expect(result.current.checkpointDetailSource).toBe('loading')
 
     await waitFor(() => {
-      expect(mockFetchDashboardCheckpointDetail).toHaveBeenCalledWith({
-        repoId: 'repo-1',
-        checkpointId: 'cp-2',
-      })
+      expect(mockFetchDashboardCheckpointDetail).toHaveBeenCalledWith(
+        {
+          repoId: 'repo-1',
+          checkpointId: 'cp-2',
+        },
+        expect.objectContaining({
+          signal: expect.any(AbortSignal),
+        }),
+      )
       expect(result.current.selectedCheckpoint?.id).toBe('cp-2')
       expect(result.current.checkpointDetailSource).toBe('api')
     })
+  })
+
+  it('aborts an in-flight checkpoint detail request when the selection changes', async () => {
+    mockFetchDashboardCommitsPage.mockResolvedValue({
+      rows: [
+        makeCommitRow('aaaaaaa000000000000000000000000000000000', [
+          makeCheckpoint('cp-1'),
+          makeCheckpoint('cp-2'),
+        ]),
+      ],
+      hasNextPage: false,
+    })
+
+    const pendingSignals: AbortSignal[] = []
+    mockFetchDashboardCheckpointDetail.mockImplementation(
+      async (_variables, options) => {
+        if (options?.signal) {
+          pendingSignals.push(options.signal)
+        }
+        return new Promise<DashboardCheckpointDetailResponse>(() => {})
+      },
+    )
+
+    const { result } = renderHook(() => useDashboardData())
+
+    await waitFor(() => {
+      expect(result.current.rows[0]?.checkpointList.length).toBe(2)
+    })
+
+    act(() => {
+      result.current.onCheckpointSelect(
+        result.current.rows[0]!.checkpointList[0]!,
+      )
+    })
+
+    await waitFor(() => {
+      expect(mockFetchDashboardCheckpointDetail).toHaveBeenCalledTimes(1)
+      expect(pendingSignals[0]).toBeDefined()
+    })
+
+    act(() => {
+      result.current.onCheckpointSelect(
+        result.current.rows[0]!.checkpointList[1]!,
+      )
+    })
+
+    await waitFor(() => {
+      expect(pendingSignals[0]?.aborted).toBe(true)
+      expect(mockFetchDashboardCheckpointDetail).toHaveBeenCalledTimes(2)
+    })
+
+    expect(mockFetchDashboardCheckpointDetail).toHaveBeenLastCalledWith(
+      {
+        repoId: 'repo-1',
+        checkpointId: 'cp-2',
+      },
+      expect.objectContaining({
+        signal: expect.any(AbortSignal),
+      }),
+    )
   })
 })

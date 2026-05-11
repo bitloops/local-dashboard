@@ -1,11 +1,20 @@
-import { describe, expect, it, vi } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { act, render, screen, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { SessionDetailSidebar } from './session-detail-sidebar'
-import type { DashboardInteractionSessionDto } from '../api-types'
+import type {
+  DashboardInteractionSessionDetailResponse,
+  DashboardInteractionSessionDto,
+} from '../api-types'
+import { fetchDashboardInteractionSessionDetail } from '../graphql/fetch-dashboard-data'
 
 vi.mock('../graphql/fetch-dashboard-data', () => ({
   fetchDashboardInteractionSessionDetail: vi.fn(),
 }))
+
+const mockFetchDashboardInteractionSessionDetail = vi.mocked(
+  fetchDashboardInteractionSessionDetail,
+)
 
 const sessionSummary: DashboardInteractionSessionDto = {
   session_id: 'sess-1',
@@ -26,7 +35,35 @@ const sessionSummary: DashboardInteractionSessionDto = {
   latest_commit_author: null,
 }
 
+function makeInteractionDetail(
+  overrides: Partial<DashboardInteractionSessionDetailResponse> = {},
+): DashboardInteractionSessionDetailResponse {
+  return {
+    summary: sessionSummary,
+    turns: [],
+    raw_events: [],
+    ...overrides,
+  }
+}
+
+function deferred<T>() {
+  let resolve!: (value: T) => void
+  let reject!: (reason?: unknown) => void
+  const promise = new Promise<T>((res, rej) => {
+    resolve = res
+    reject = rej
+  })
+  return { promise, resolve, reject }
+}
+
 describe('SessionDetailSidebar', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockFetchDashboardInteractionSessionDetail.mockResolvedValue(
+      makeInteractionDetail(),
+    )
+  })
+
   it('shows the provider model slug instead of the full account path', () => {
     render(
       <SessionDetailSidebar
@@ -41,5 +78,134 @@ describe('SessionDetailSidebar', () => {
     expect(
       screen.queryByText('accounts/fireworks/models/kimi-k2p6'),
     ).not.toBeInTheDocument()
+  })
+
+  it('defers heavy session detail loading until a heavy tab is opened', async () => {
+    const user = userEvent.setup()
+
+    render(
+      <SessionDetailSidebar
+        sessionId='sess-1'
+        sessionSummary={sessionSummary}
+        repoId='repo-1'
+        userName='Test User'
+      />,
+    )
+
+    expect(mockFetchDashboardInteractionSessionDetail).not.toHaveBeenCalled()
+
+    await user.click(screen.getByRole('tab', { name: 'Turns' }))
+
+    await waitFor(() => {
+      expect(mockFetchDashboardInteractionSessionDetail).toHaveBeenCalledTimes(
+        1,
+      )
+    })
+    expect(mockFetchDashboardInteractionSessionDetail).toHaveBeenCalledWith(
+      { repoId: 'repo-1', sessionId: 'sess-1' },
+      expect.objectContaining({
+        signal: expect.any(AbortSignal),
+      }),
+    )
+
+    await user.click(screen.getByRole('tab', { name: 'Tool use' }))
+
+    expect(mockFetchDashboardInteractionSessionDetail).toHaveBeenCalledTimes(1)
+  })
+
+  it('aborts the previous heavy-detail request when the selected session changes', async () => {
+    const user = userEvent.setup()
+    const neverSettles = new Promise<DashboardInteractionSessionDetailResponse>(
+      () => {},
+    )
+    mockFetchDashboardInteractionSessionDetail
+      .mockImplementationOnce(() => neverSettles)
+      .mockResolvedValueOnce(
+        makeInteractionDetail({
+          summary: { ...sessionSummary, session_id: 'sess-2' },
+        }),
+      )
+
+    const { rerender } = render(
+      <SessionDetailSidebar
+        sessionId='sess-1'
+        sessionSummary={sessionSummary}
+        repoId='repo-1'
+        userName='Test User'
+      />,
+    )
+
+    await user.click(screen.getByRole('tab', { name: 'Turns' }))
+
+    await waitFor(() => {
+      expect(mockFetchDashboardInteractionSessionDetail).toHaveBeenCalledTimes(
+        1,
+      )
+    })
+
+    const firstSignal = mockFetchDashboardInteractionSessionDetail.mock
+      .calls[0]?.[1]?.signal as AbortSignal | undefined
+
+    rerender(
+      <SessionDetailSidebar
+        sessionId='sess-2'
+        sessionSummary={{ ...sessionSummary, session_id: 'sess-2' }}
+        repoId='repo-1'
+        userName='Test User'
+      />,
+    )
+
+    await waitFor(() => {
+      expect(firstSignal?.aborted).toBe(true)
+      expect(mockFetchDashboardInteractionSessionDetail).toHaveBeenCalledTimes(
+        2,
+      )
+    })
+
+    expect(mockFetchDashboardInteractionSessionDetail).toHaveBeenLastCalledWith(
+      { repoId: 'repo-1', sessionId: 'sess-2' },
+      expect.objectContaining({
+        signal: expect.any(AbortSignal),
+      }),
+    )
+  })
+
+  it('keeps the heavy-detail request alive long enough to render the loaded turns view', async () => {
+    const user = userEvent.setup()
+    const request = deferred<DashboardInteractionSessionDetailResponse>()
+    mockFetchDashboardInteractionSessionDetail.mockReturnValueOnce(
+      request.promise,
+    )
+
+    render(
+      <SessionDetailSidebar
+        sessionId='sess-1'
+        sessionSummary={sessionSummary}
+        repoId='repo-1'
+        userName='Test User'
+      />,
+    )
+
+    await user.click(screen.getByRole('tab', { name: 'Turns' }))
+
+    await waitFor(() => {
+      expect(mockFetchDashboardInteractionSessionDetail).toHaveBeenCalledTimes(
+        1,
+      )
+    })
+
+    const signal = mockFetchDashboardInteractionSessionDetail.mock.calls[0]?.[1]
+      ?.signal as AbortSignal | undefined
+
+    expect(signal?.aborted).toBe(false)
+
+    await act(async () => {
+      request.resolve(makeInteractionDetail())
+      await request.promise
+    })
+
+    await waitFor(() => {
+      expect(screen.getByText('No turns.')).toBeInTheDocument()
+    })
   })
 })

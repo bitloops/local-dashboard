@@ -1,4 +1,4 @@
-import { lazy, Suspense, useState } from 'react'
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react'
 import {
   type DashboardCheckpointDetailResponse,
   type DashboardCheckpointSessionDetailDto,
@@ -33,6 +33,7 @@ import {
 import { SessionToolUseList } from '@/features/dashboard/components/session-tool-use-list'
 import { sortedSessionToolUses } from '@/features/dashboard/utils/session-tool-uses'
 import { TurnsTimeline } from '@/features/dashboard/components/turns-timeline'
+import { buildSessionTranscriptAnalysis } from '@/features/dashboard/utils/turn-transcript'
 
 SyntaxHighlighter.registerLanguage('json', json)
 
@@ -57,6 +58,13 @@ type CheckpointSheetProps = CheckpointDetailContentProps & {
 type SheetViewMode = 'session' | 'summary'
 type SessionSubView = 'detail' | 'turns' | 'tools'
 
+function isAbortError(error: unknown): boolean {
+  return (
+    (error instanceof DOMException && error.name === 'AbortError') ||
+    (error instanceof Error && error.name === 'AbortError')
+  )
+}
+
 /** Inner content for checkpoint detail. Use inside Sheet (CheckpointSheet) or Sidebar. */
 export function CheckpointDetailContent(props: CheckpointDetailContentProps) {
   return <CheckpointDetailContentInner {...props} />
@@ -79,6 +87,7 @@ function CheckpointDetailContentInner({
     'idle' | 'loading' | 'api' | 'error'
   >('idle')
   const [interactionError, setInteractionError] = useState<string | null>(null)
+  const interactionAbortRef = useRef<AbortController | null>(null)
 
   const selectedCheckpointCreatedAt = selectedCheckpoint?.createdAt
     ? formatDateTime(selectedCheckpoint.createdAt)
@@ -103,17 +112,46 @@ function CheckpointDetailContentInner({
   const activeCheckpointSession =
     detailSessions[Number(selectedSessionTab)] ?? null
 
+  useEffect(() => {
+    return () => {
+      interactionAbortRef.current?.abort()
+      interactionAbortRef.current = null
+    }
+  }, [])
+
   async function ensureInteractionDetailLoaded(sessionId: string) {
+    if (
+      interactionDetail?.summary.session_id === sessionId &&
+      interactionSource === 'api'
+    ) {
+      return
+    }
+
+    const controller = new AbortController()
+    interactionAbortRef.current?.abort()
+    interactionAbortRef.current = controller
+
     setInteractionSource('loading')
     setInteractionError(null)
     try {
-      const result = await fetchDashboardInteractionSessionDetail({
-        repoId,
-        sessionId,
-      })
+      const result = await fetchDashboardInteractionSessionDetail(
+        {
+          repoId,
+          sessionId,
+        },
+        {
+          signal: controller.signal,
+        },
+      )
+      if (controller.signal.aborted) {
+        return
+      }
       setInteractionDetail(result)
       setInteractionSource('api')
     } catch (err) {
+      if (isAbortError(err) || controller.signal.aborted) {
+        return
+      }
       const message =
         err instanceof Error
           ? err.message
@@ -121,6 +159,10 @@ function CheckpointDetailContentInner({
       setInteractionDetail(null)
       setInteractionSource('error')
       setInteractionError(message)
+    } finally {
+      if (interactionAbortRef.current === controller) {
+        interactionAbortRef.current = null
+      }
     }
   }
 
@@ -140,11 +182,30 @@ function CheckpointDetailContentInner({
     interactionSource === 'error'
 
   const turns: DashboardInteractionTurnDto[] = interactionDetail?.turns ?? []
-  const rawEvents: DashboardInteractionEventDto[] =
-    interactionDetail?.raw_events ?? []
+  const transcriptAnalysis = useMemo(
+    () =>
+      interactionDetail == null
+        ? null
+        : buildSessionTranscriptAnalysis(
+            interactionDetail.raw_events,
+            interactionDetail.turns,
+          ),
+    [interactionDetail],
+  )
   const sessionToolUsesList = sortedSessionToolUses(
     interactionDetail?.summary ?? null,
   )
+  const activeTranscriptEntries = useMemo(() => {
+    if (
+      viewMode !== 'session' ||
+      sessionSubView !== 'detail' ||
+      activeCheckpointSession == null
+    ) {
+      return []
+    }
+
+    return parseTranscriptEntries(activeCheckpointSession.transcript_jsonl)
+  }, [activeCheckpointSession, sessionSubView, viewMode])
 
   const metadataJson = selectedCheckpoint
     ? JSON.stringify(
@@ -262,6 +323,8 @@ function CheckpointDetailContentInner({
                           key={selectedCheckpoint.id}
                           value={selectedSessionTab}
                           onValueChange={(value) => {
+                            interactionAbortRef.current?.abort()
+                            interactionAbortRef.current = null
                             setSelectedSessionTab(value)
                             setSessionSubView('detail')
                             setInteractionDetail(null)
@@ -291,224 +354,237 @@ function CheckpointDetailContentInner({
                               )}
                             </TabsList>
                           </div>
-                          {detailSessions.map(
-                            (
-                              session: DashboardCheckpointSessionDetailDto,
-                              idx: number,
-                            ) => {
-                              const transcriptEntries = parseTranscriptEntries(
-                                session.transcript_jsonl,
-                              )
-                              return (
-                                <TabsContent
-                                  key={`${session.session_id}-${session.session_index}`}
-                                  value={String(idx)}
-                                  className='mt-0 min-w-0 space-y-3 px-4 pt-4 pb-6 sm:px-6'
-                                >
-                                  <div
-                                    className='flex min-w-0 w-full rounded-lg border border-border bg-muted/40 p-0.5'
-                                    role='tablist'
-                                    aria-label='Session view'
-                                  >
-                                    {(
-                                      [
-                                        {
-                                          key: 'detail',
-                                          label: 'Session detail',
-                                        },
-                                        { key: 'turns', label: 'Turns' },
-                                        { key: 'tools', label: 'Tool use' },
-                                      ] as const
-                                    ).map((item) => (
-                                      <button
-                                        key={item.key}
-                                        type='button'
-                                        role='tab'
-                                        aria-selected={
-                                          sessionSubView === item.key
+                          {activeCheckpointSession && (
+                            <TabsContent
+                              key={`${activeCheckpointSession.session_id}-${activeCheckpointSession.session_index}`}
+                              value={selectedSessionTab}
+                              className='mt-0 min-w-0 space-y-3 px-4 pt-4 pb-6 sm:px-6'
+                            >
+                              <div
+                                className='flex min-w-0 w-full rounded-lg border border-border bg-muted/40 p-0.5'
+                                role='tablist'
+                                aria-label='Session view'
+                              >
+                                {(
+                                  [
+                                    {
+                                      key: 'detail',
+                                      label: 'Session detail',
+                                    },
+                                    { key: 'turns', label: 'Turns' },
+                                    { key: 'tools', label: 'Tool use' },
+                                  ] as const
+                                ).map((item) => (
+                                  <button
+                                    key={item.key}
+                                    type='button'
+                                    role='tab'
+                                    aria-selected={sessionSubView === item.key}
+                                    onClick={() => {
+                                      setSessionSubView(item.key)
+                                      if (item.key === 'detail') {
+                                        if (interactionSource === 'loading') {
+                                          interactionAbortRef.current?.abort()
+                                          interactionAbortRef.current = null
+                                          setInteractionSource(
+                                            interactionDetail ? 'api' : 'idle',
+                                          )
                                         }
-                                        onClick={() => {
-                                          setSessionSubView(item.key)
-                                          if (item.key !== 'detail') {
-                                            openInteractionForActiveSession()
-                                          }
-                                        }}
-                                        className={cn(
-                                          'min-w-0 flex-1 rounded-md px-3 py-2 text-sm font-medium transition-colors',
-                                          sessionSubView === item.key
-                                            ? 'bg-background text-foreground shadow-sm'
-                                            : 'text-muted-foreground hover:text-foreground',
-                                        )}
-                                      >
-                                        {item.label}
-                                      </button>
-                                    ))}
-                                  </div>
+                                        return
+                                      }
+                                      void openInteractionForActiveSession()
+                                    }}
+                                    className={cn(
+                                      'min-w-0 flex-1 rounded-md px-3 py-2 text-sm font-medium transition-colors',
+                                      sessionSubView === item.key
+                                        ? 'bg-background text-foreground shadow-sm'
+                                        : 'text-muted-foreground hover:text-foreground',
+                                    )}
+                                  >
+                                    {item.label}
+                                  </button>
+                                ))}
+                              </div>
 
-                                  {showInteractionFetchBanner && (
+                              {showInteractionFetchBanner && (
+                                <p className='text-sm text-muted-foreground'>
+                                  Could not load interaction data for this
+                                  session.
+                                  {interactionError
+                                    ? ` ${interactionError}`
+                                    : ''}
+                                </p>
+                              )}
+
+                              {sessionSubView === 'turns' && (
+                                <div className='space-y-2'>
+                                  {interactionSource === 'loading' && (
                                     <p className='text-sm text-muted-foreground'>
-                                      Could not load interaction data for this
-                                      session.
-                                      {interactionError
-                                        ? ` ${interactionError}`
-                                        : ''}
+                                      Loading turns…
                                     </p>
                                   )}
+                                  {interactionSource === 'api' &&
+                                    turns.length === 0 && (
+                                      <p className='text-sm text-muted-foreground'>
+                                        No turns were returned for this session.
+                                      </p>
+                                    )}
+                                  {interactionSource === 'api' &&
+                                    turns.length > 0 && (
+                                      <TurnsTimeline
+                                        turns={turns}
+                                        rawEvents={
+                                          interactionDetail?.raw_events ?? []
+                                        }
+                                        userName={userName}
+                                        sections={transcriptAnalysis?.sections}
+                                      />
+                                    )}
+                                </div>
+                              )}
 
-                                  {sessionSubView === 'turns' && (
-                                    <div className='space-y-2'>
-                                      {interactionSource === 'loading' && (
-                                        <p className='text-sm text-muted-foreground'>
-                                          Loading turns…
-                                        </p>
+                              {sessionSubView === 'tools' && (
+                                <div className='space-y-2'>
+                                  {interactionSource === 'loading' && (
+                                    <p className='text-sm text-muted-foreground'>
+                                      Loading tool use…
+                                    </p>
+                                  )}
+                                  {interactionSource === 'api' && (
+                                    <SessionToolUseList
+                                      tools={sessionToolUsesList}
+                                      turns={turns}
+                                      rawEvents={
+                                        interactionDetail?.raw_events ?? []
+                                      }
+                                      transcriptEntries={
+                                        transcriptAnalysis?.sessionEntries
+                                      }
+                                      emptyMessage='No tool use entries were returned for this session.'
+                                    />
+                                  )}
+                                </div>
+                              )}
+
+                              {sessionSubView === 'detail' && (
+                                <div className='space-y-3'>
+                                  <div className='min-w-0 flex flex-wrap items-center gap-2'>
+                                    <CardTitle className='text-sm'>
+                                      Session{' '}
+                                      {activeCheckpointSession.session_index +
+                                        1}
+                                    </CardTitle>
+                                    <CardDescription className='min-w-0 flex items-center gap-1 font-mono text-xs'>
+                                      <span className='min-w-0 break-all'>
+                                        {activeCheckpointSession.session_id}
+                                      </span>
+                                      <CopyButton
+                                        value={
+                                          activeCheckpointSession.session_id
+                                        }
+                                      />
+                                    </CardDescription>
+                                  </div>
+                                  <div className='flex flex-wrap gap-2'>
+                                    <Badge variant='secondary'>
+                                      {formatAgentLabel(
+                                        activeCheckpointSession.agent,
                                       )}
-                                      {interactionSource === 'api' &&
-                                        turns.length === 0 && (
-                                          <p className='text-sm text-muted-foreground'>
-                                            No turns were returned for this
-                                            session.
-                                          </p>
+                                    </Badge>
+                                    <Badge variant='outline'>
+                                      {formatDateTime(
+                                        activeCheckpointSession.created_at,
+                                      )}
+                                    </Badge>
+                                  </div>
+
+                                  <div className='space-y-1'>
+                                    <p className='text-xs text-muted-foreground'>
+                                      Prompt(s)
+                                    </p>
+                                    <pre className='max-h-40 overflow-auto rounded-md border bg-background p-2 text-xs whitespace-pre-wrap break-words'>
+                                      {activeCheckpointSession.prompts_text
+                                        ? formatPromptForDisplay(
+                                            activeCheckpointSession.prompts_text,
+                                          ) || '-'
+                                        : '-'}
+                                    </pre>
+                                  </div>
+
+                                  <div className='space-y-1'>
+                                    <p className='text-xs text-muted-foreground'>
+                                      Context
+                                    </p>
+                                    <pre className='max-h-40 overflow-auto rounded-md border bg-background p-2 text-xs whitespace-pre-wrap break-words'>
+                                      {activeCheckpointSession.context_text
+                                        ? formatPromptForDisplay(
+                                            activeCheckpointSession.context_text,
+                                          ) || '-'
+                                        : '-'}
+                                    </pre>
+                                  </div>
+
+                                  <div className='space-y-1'>
+                                    <div className='flex items-center justify-between'>
+                                      <p className='text-xs text-muted-foreground'>
+                                        Metadata JSON
+                                      </p>
+                                      <CopyButton
+                                        value={prettyPrintJson(
+                                          activeCheckpointSession.metadata_json,
                                         )}
-                                      {interactionSource === 'api' &&
-                                        turns.length > 0 && (
-                                          <TurnsTimeline
-                                            turns={turns}
-                                            rawEvents={rawEvents}
-                                            userName={userName}
-                                          />
+                                      />
+                                    </div>
+                                    <div className='max-h-36 min-w-0 w-full overflow-auto rounded-md border bg-background p-2'>
+                                      <SyntaxHighlighter
+                                        language='json'
+                                        style={codeBlockStyle}
+                                        customStyle={{
+                                          margin: 0,
+                                          padding: 0,
+                                          maxWidth: '100%',
+                                          minWidth: 0,
+                                          width: '100%',
+                                          overflow: 'auto',
+                                        }}
+                                        showLineNumbers={false}
+                                        PreTag='div'
+                                        codeTagProps={{
+                                          style: {
+                                            fontSize: '11px',
+                                            whiteSpace: 'pre-wrap',
+                                            wordBreak: 'break-word',
+                                          },
+                                        }}
+                                        wrapLongLines
+                                      >
+                                        {prettyPrintJson(
+                                          activeCheckpointSession.metadata_json,
                                         )}
+                                      </SyntaxHighlighter>
                                     </div>
-                                  )}
+                                  </div>
 
-                                  {sessionSubView === 'tools' && (
-                                    <div className='space-y-2'>
-                                      {interactionSource === 'loading' && (
-                                        <p className='text-sm text-muted-foreground'>
-                                          Loading tool use…
-                                        </p>
-                                      )}
-                                      {interactionSource === 'api' && (
-                                        <SessionToolUseList
-                                          tools={sessionToolUsesList}
-                                          turns={turns}
-                                          rawEvents={rawEvents}
-                                          emptyMessage='No tool use entries were returned for this session.'
-                                        />
-                                      )}
+                                  <div className='space-y-1'>
+                                    <p className='text-xs text-muted-foreground'>
+                                      Transcript
+                                    </p>
+                                    <div className='max-h-72 min-w-0 overflow-auto rounded-md border bg-background p-2'>
+                                      <ChatTranscript
+                                        entries={activeTranscriptEntries}
+                                        sessionId={
+                                          activeCheckpointSession.session_id
+                                        }
+                                        agentName={formatAgentLabel(
+                                          activeCheckpointSession.agent,
+                                        )}
+                                        userName={userName}
+                                      />
                                     </div>
-                                  )}
-
-                                  {sessionSubView === 'detail' && (
-                                    <div className='space-y-3'>
-                                      <div className='min-w-0 flex flex-wrap items-center gap-2'>
-                                        <CardTitle className='text-sm'>
-                                          Session {session.session_index + 1}
-                                        </CardTitle>
-                                        <CardDescription className='min-w-0 flex items-center gap-1 font-mono text-xs'>
-                                          <span className='min-w-0 break-all'>
-                                            {session.session_id}
-                                          </span>
-                                          <CopyButton
-                                            value={session.session_id}
-                                          />
-                                        </CardDescription>
-                                      </div>
-                                      <div className='flex flex-wrap gap-2'>
-                                        <Badge variant='secondary'>
-                                          {formatAgentLabel(session.agent)}
-                                        </Badge>
-                                        <Badge variant='outline'>
-                                          {formatDateTime(session.created_at)}
-                                        </Badge>
-                                      </div>
-
-                                      <div className='space-y-1'>
-                                        <p className='text-xs text-muted-foreground'>
-                                          Prompt(s)
-                                        </p>
-                                        <pre className='max-h-40 overflow-auto rounded-md border bg-background p-2 text-xs whitespace-pre-wrap break-words'>
-                                          {session.prompts_text
-                                            ? formatPromptForDisplay(
-                                                session.prompts_text,
-                                              ) || '-'
-                                            : '-'}
-                                        </pre>
-                                      </div>
-
-                                      <div className='space-y-1'>
-                                        <p className='text-xs text-muted-foreground'>
-                                          Context
-                                        </p>
-                                        <pre className='max-h-40 overflow-auto rounded-md border bg-background p-2 text-xs whitespace-pre-wrap break-words'>
-                                          {session.context_text
-                                            ? formatPromptForDisplay(
-                                                session.context_text,
-                                              ) || '-'
-                                            : '-'}
-                                        </pre>
-                                      </div>
-
-                                      <div className='space-y-1'>
-                                        <div className='flex items-center justify-between'>
-                                          <p className='text-xs text-muted-foreground'>
-                                            Metadata JSON
-                                          </p>
-                                          <CopyButton
-                                            value={prettyPrintJson(
-                                              session.metadata_json,
-                                            )}
-                                          />
-                                        </div>
-                                        <div className='max-h-36 min-w-0 w-full overflow-auto rounded-md border bg-background p-2'>
-                                          <SyntaxHighlighter
-                                            language='json'
-                                            style={codeBlockStyle}
-                                            customStyle={{
-                                              margin: 0,
-                                              padding: 0,
-                                              maxWidth: '100%',
-                                              minWidth: 0,
-                                              width: '100%',
-                                              overflow: 'auto',
-                                            }}
-                                            showLineNumbers={false}
-                                            PreTag='div'
-                                            codeTagProps={{
-                                              style: {
-                                                fontSize: '11px',
-                                                whiteSpace: 'pre-wrap',
-                                                wordBreak: 'break-word',
-                                              },
-                                            }}
-                                            wrapLongLines
-                                          >
-                                            {prettyPrintJson(
-                                              session.metadata_json,
-                                            )}
-                                          </SyntaxHighlighter>
-                                        </div>
-                                      </div>
-
-                                      <div className='space-y-1'>
-                                        <p className='text-xs text-muted-foreground'>
-                                          Transcript
-                                        </p>
-                                        <div className='max-h-72 min-w-0 overflow-auto rounded-md border bg-background p-2'>
-                                          <ChatTranscript
-                                            entries={transcriptEntries}
-                                            sessionId={session.session_id}
-                                            agentName={formatAgentLabel(
-                                              session.agent,
-                                            )}
-                                            userName={userName}
-                                          />
-                                        </div>
-                                      </div>
-                                    </div>
-                                  )}
-                                </TabsContent>
-                              )
-                            },
+                                  </div>
+                                </div>
+                              )}
+                            </TabsContent>
                           )}
                         </Tabs>
                       </Card>
