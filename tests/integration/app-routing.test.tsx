@@ -1,3 +1,4 @@
+import { vi } from 'vitest'
 import { describe, expect, it } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
@@ -5,6 +6,15 @@ import { ThemeProvider } from '@/context/theme-provider'
 import { FontProvider } from '@/context/font-provider'
 import { NavigationProvider } from '@/context/navigation-provider'
 import { App } from '@/App'
+
+vi.mock('@/features/code-city', () => ({
+  CodeCity: () => (
+    <>
+      <h1>Code Atlas</h1>
+      <p>Mocked Code Atlas route.</p>
+    </>
+  ),
+}))
 
 function renderApp() {
   return render(
@@ -34,7 +44,9 @@ describe('App routing integration', () => {
       screen.getByRole('heading', { name: 'Settings' }),
     ).toBeInTheDocument()
     expect(
-      screen.getByText('Customize theme and display options.'),
+      screen.getByText(
+        'Customise theme, display, and local Bitloops configuration.',
+      ),
     ).toBeInTheDocument()
   })
 
@@ -63,6 +75,9 @@ describe('App routing integration', () => {
     renderApp()
     expect(
       screen.getByRole('link', { name: /Query Explorer/i }),
+    ).toBeInTheDocument()
+    expect(
+      screen.getByRole('link', { name: /Code Atlas/i }),
     ).toBeInTheDocument()
   })
 
@@ -93,5 +108,14 @@ describe('App routing integration', () => {
     expect(
       screen.getByRole('heading', { name: 'Sessions', level: 1 }),
     ).toBeInTheDocument()
+  })
+
+  it('navigates to Code Atlas when the sidebar link is clicked', async () => {
+    renderApp()
+    await userEvent.click(screen.getByRole('link', { name: /Code Atlas/i }))
+    expect(
+      screen.getByRole('heading', { name: 'Code Atlas' }),
+    ).toBeInTheDocument()
+    expect(screen.getByText('Mocked Code Atlas route.')).toBeInTheDocument()
   })
 })

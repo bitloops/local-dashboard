@@ -1,4 +1,4 @@
-import { Palette } from 'lucide-react'
+import { FileCog, Palette } from 'lucide-react'
 import { Separator } from '@/components/ui/separator'
 import { ConfigDrawer } from '@/components/config-drawer'
 import { Header } from '@/components/layout/header'
@@ -6,6 +6,8 @@ import { Main } from '@/components/layout/main'
 import { ThemeSwitch } from '@/components/theme-switch'
 import { SidebarNav } from './components/sidebar-nav'
 import { SettingsAppearance } from './appearance'
+import { SettingsConfiguration } from './configuration'
+import { useLocation } from '@/context/use-navigation'
 
 const sidebarNavItems = [
   {
@@ -13,9 +15,22 @@ const sidebarNavItems = [
     href: '/settings',
     icon: <Palette size={18} />,
   },
+  {
+    title: 'Configuration',
+    href: '/settings/configuration',
+    icon: <FileCog size={18} />,
+  },
 ]
 
 export function SettingsPage() {
+  const { pathname } = useLocation()
+  const content =
+    pathname === '/settings/configuration' ? (
+      <SettingsConfiguration />
+    ) : (
+      <SettingsAppearance />
+    )
+
   return (
     <>
       <Header>
@@ -31,7 +46,7 @@ export function SettingsPage() {
             Settings
           </h1>
           <p className='text-muted-foreground'>
-            Customize theme and display options.
+            Customise theme, display, and local Bitloops configuration.
           </p>
         </div>
         <Separator className='my-4 lg:my-6' />
@@ -39,9 +54,7 @@ export function SettingsPage() {
           <aside className='top-0 lg:sticky lg:w-1/5'>
             <SidebarNav items={sidebarNavItems} />
           </aside>
-          <div className='flex w-full overflow-y-hidden p-1'>
-            <SettingsAppearance />
-          </div>
+          <div className='flex w-full overflow-y-hidden p-1'>{content}</div>
         </div>
       </Main>
     </>

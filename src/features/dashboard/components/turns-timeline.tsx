@@ -6,7 +6,7 @@ import type {
 import { CopyButton } from '@/components/copy-button'
 import { Badge } from '@/components/ui/badge'
 import { Separator } from '@/components/ui/separator'
-import { formatAgentLabel } from '@/features/dashboard/utils'
+import { formatAgentLabel, formatModelLabel } from '@/features/dashboard/utils'
 import {
   formatDateTime,
   formatPromptForDisplay,
@@ -41,7 +41,7 @@ function TurnDetailsPanel({ turn }: { turn: DashboardInteractionTurnDto }) {
         <Badge variant='secondary'>{formatAgentLabel(turn.agent_type)}</Badge>
         {turn.model ? (
           <Badge variant='outline' className='max-w-[200px] truncate'>
-            {turn.model}
+            {formatModelLabel(turn.model)}
           </Badge>
         ) : null}
         <Badge variant='outline'>{formatDateTime(turn.started_at)}</Badge>
