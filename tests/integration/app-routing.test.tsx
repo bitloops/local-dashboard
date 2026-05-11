@@ -44,7 +44,9 @@ describe('App routing integration', () => {
       screen.getByRole('heading', { name: 'Settings' }),
     ).toBeInTheDocument()
     expect(
-      screen.getByText('Customize theme and display options.'),
+      screen.getByText(
+        'Customise theme, display, and local Bitloops configuration.',
+      ),
     ).toBeInTheDocument()
   })
 

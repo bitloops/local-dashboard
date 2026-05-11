@@ -3,6 +3,7 @@ coverage
 test-results
 playwright-report
 .pnpm-store
+.opencode
 src/api/types/schema
 swagger.json
 pnpm-lock.yaml

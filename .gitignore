@@ -38,3 +38,4 @@ public/mock-data
 .cursor/
 .claude/
 .codex/
+.opencode/
