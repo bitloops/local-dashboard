@@ -117,13 +117,16 @@ export function buildSessionToolUseDisplayItems({
   tools,
   turns,
   rawEvents,
+  transcriptEntries,
 }: {
   tools: DashboardInteractionToolUseDto[]
-  turns: DashboardInteractionTurnDto[]
-  rawEvents: DashboardInteractionEventDto[]
+  turns?: DashboardInteractionTurnDto[]
+  rawEvents?: DashboardInteractionEventDto[]
+  transcriptEntries?: TranscriptMessage[]
 }): SessionToolUseDisplayItem[] {
   const transcriptTraces = groupTranscriptToolTraces(
-    getSessionTranscriptEntriesBestEffort(rawEvents, turns),
+    transcriptEntries ??
+      getSessionTranscriptEntriesBestEffort(rawEvents ?? [], turns ?? []),
   )
 
   if (tools.length === 0) {
