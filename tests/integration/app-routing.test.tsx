@@ -81,6 +81,12 @@ describe('App routing integration', () => {
     ).toBeInTheDocument()
   })
 
+  it('navigates to Debug when Debug link is clicked', async () => {
+    renderApp()
+    await userEvent.click(screen.getByRole('link', { name: /Debug/i }))
+    expect(screen.getByRole('heading', { name: 'Debug' })).toBeInTheDocument()
+  })
+
   it('navigates to Query Explorer when Query Explorer link is clicked', async () => {
     renderApp()
     await userEvent.click(screen.getByRole('link', { name: /Query Explorer/i }))

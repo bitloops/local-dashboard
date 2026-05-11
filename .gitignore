@@ -35,7 +35,10 @@ _tmp_*
 public/mock-data
 
 .bitloops/
+.superpowers/
 .cursor/
 .claude/
 .codex/
 .opencode/
+docs/superpowers/
+

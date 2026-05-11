@@ -1,6 +1,7 @@
 import {
   MessageSquare,
   Search,
+  Activity,
   Settings,
   HelpCircle,
   Command,
@@ -40,6 +41,11 @@ export const sidebarData: SidebarData = {
           title: 'Architecture',
           url: '/architecture',
           icon: Network,
+        },
+        {
+          title: 'Debug',
+          url: '/debug',
+          icon: Activity,
         },
       ],
     },

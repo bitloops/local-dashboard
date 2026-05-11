@@ -50,6 +50,12 @@ export default defineConfig(({ mode }) => {
           secure: proxySecure,
           ws: true,
         },
+        '/devql/runtime': {
+          target: apiProxyTarget,
+          changeOrigin: true,
+          secure: proxySecure,
+          ws: true,
+        },
       },
     },
   }
