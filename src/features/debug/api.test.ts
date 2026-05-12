@@ -6,6 +6,7 @@ import {
 import {
   fetchRuntimeDebugSnapshot,
   filterDebugLogLines,
+  selectDebugLogLines,
   subscribeRuntimeDebugEvents,
   validateDebugSync,
 } from './api'
@@ -250,5 +251,45 @@ describe('filterDebugLogLines', () => {
       ['error'],
     )
     expect(filterDebugLogLines(lines, 'debug')).toHaveLength(0)
+  })
+
+  it('uses level-specific log tails when selecting filtered logs', () => {
+    const supportingLogs = {
+      available: true,
+      path: '/tmp/daemon.log',
+      lines: [
+        {
+          level: 'INFO',
+          message: 'new info',
+          raw: 'info',
+          timestampUnix: null,
+        },
+      ],
+      errorLines: [
+        {
+          level: 'ERROR',
+          message: 'older failure',
+          raw: 'error',
+          timestampUnix: null,
+        },
+      ],
+      warnLines: [],
+      infoLines: [
+        {
+          level: 'INFO',
+          message: 'new info',
+          raw: 'info',
+          timestampUnix: null,
+        },
+      ],
+      debugLines: [],
+    }
+
+    expect(
+      selectDebugLogLines(supportingLogs, 'all').map((line) => line.raw),
+    ).toEqual(['info'])
+    expect(
+      selectDebugLogLines(supportingLogs, 'error').map((line) => line.raw),
+    ).toEqual(['error'])
   })
 })

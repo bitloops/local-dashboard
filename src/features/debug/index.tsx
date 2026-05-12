@@ -24,7 +24,7 @@ import { cn } from '@/lib/utils'
 import {
   fetchDebugRepositories,
   fetchRuntimeDebugSnapshot,
-  filterDebugLogLines,
+  selectDebugLogLines,
   subscribeRuntimeDebugEvents,
   validateDebugSync,
   type DebugTask,
@@ -874,8 +874,8 @@ function RepoPanel({ snapshot }: { snapshot: RuntimeDebugSnapshot }) {
 
 function LogsPanel({ snapshot }: { snapshot: RuntimeDebugSnapshot }) {
   const [levelFilter, setLevelFilter] = useState<DebugLogLevelFilter>('all')
-  const filteredLines = filterDebugLogLines(
-    snapshot.supportingLogs.lines,
+  const filteredLines = selectDebugLogLines(
+    snapshot.supportingLogs,
     levelFilter,
   )
   const filters: DebugLogLevelFilter[] = [
