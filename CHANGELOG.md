@@ -1,3 +1,9 @@
+## [0.0.14] - 2026-05-12
+
+### Fixed
+
+- Debug log level tabs now use level-specific daemon log tails so noisy recent `INFO` lines no longer hide older `ERROR`, `WARN`, or `DEBUG` entries.
+
 ## [0.0.13] - 2026-05-11
 
 ### Added
