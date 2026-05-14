@@ -42,6 +42,7 @@ function makeInteractionDetail(
     summary: sessionSummary,
     turns: [],
     raw_events: [],
+    session_transcript_entries: [],
     ...overrides,
   }
 }

@@ -1,25 +1,17 @@
 import { useMemo } from 'react'
-import type {
-  DashboardInteractionEventDto,
-  DashboardInteractionToolUseDto,
-  DashboardInteractionTurnDto,
-} from '@/features/dashboard/api-types'
+import type { DashboardInteractionToolUseDto } from '@/features/dashboard/api-types'
 import type { TranscriptMessage } from '@/features/dashboard/components/checkpoint-sheet-utils'
 import { ToolTraceCallResponse } from '@/features/dashboard/components/tool-trace-pair'
 import { buildSessionToolUseDisplayItems } from '@/features/dashboard/utils/session-tool-use-display'
 
 type SessionToolUseListProps = {
   tools: DashboardInteractionToolUseDto[]
-  turns?: DashboardInteractionTurnDto[]
-  rawEvents?: DashboardInteractionEventDto[]
-  transcriptEntries?: TranscriptMessage[]
+  transcriptEntries: TranscriptMessage[]
   emptyMessage: string
 }
 
 export function SessionToolUseList({
   tools,
-  turns,
-  rawEvents,
   transcriptEntries,
   emptyMessage,
 }: SessionToolUseListProps) {
@@ -27,11 +19,9 @@ export function SessionToolUseList({
     () =>
       buildSessionToolUseDisplayItems({
         tools,
-        turns,
-        rawEvents,
         transcriptEntries,
       }),
-    [rawEvents, tools, transcriptEntries, turns],
+    [tools, transcriptEntries],
   )
 
   if (items.length === 0) {

@@ -1,8 +1,5 @@
 import { lazy, Suspense, useMemo, useState } from 'react'
-import type {
-  DashboardInteractionEventDto,
-  DashboardInteractionTurnDto,
-} from '@/features/dashboard/api-types'
+import type { DashboardInteractionTurnDto } from '@/features/dashboard/api-types'
 import { CopyButton } from '@/components/copy-button'
 import { Badge } from '@/components/ui/badge'
 import { Separator } from '@/components/ui/separator'
@@ -24,7 +21,6 @@ const TokenUsageChart = lazy(() =>
 
 type TurnsTimelineProps = {
   turns: DashboardInteractionTurnDto[]
-  rawEvents: DashboardInteractionEventDto[]
   userName: string
   sections?: TurnTranscriptSection[]
 }
@@ -142,15 +138,14 @@ function TurnDetailsPanel({ turn }: { turn: DashboardInteractionTurnDto }) {
 
 export function TurnsTimeline({
   turns,
-  rawEvents,
   userName,
   sections: providedSections,
 }: TurnsTimelineProps) {
   const [openTurnIds, setOpenTurnIds] = useState<Record<string, boolean>>({})
 
   const sections = useMemo(
-    () => providedSections ?? buildTranscriptSectionsForTurns(rawEvents, turns),
-    [providedSections, rawEvents, turns],
+    () => providedSections ?? buildTranscriptSectionsForTurns(turns),
+    [providedSections, turns],
   )
 
   return (

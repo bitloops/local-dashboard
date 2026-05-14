@@ -181,6 +181,20 @@ export const DASHBOARD_CHECKPOINT_DETAIL_QUERY = `
         transcriptJsonl
         promptsText
         contextText
+        transcriptEntries {
+          entryId
+          sessionId
+          turnId
+          order
+          timestamp
+          actor
+          variant
+          source
+          text
+          toolUseId
+          toolKind
+          isError
+        }
       }
     }
   }
@@ -379,6 +393,20 @@ export const DASHBOARD_INTERACTION_SESSION_DETAIL_QUERY = `
           startedAt
           endedAt
         }
+        transcriptEntries {
+          entryId
+          sessionId
+          turnId
+          order
+          timestamp
+          actor
+          variant
+          source
+          text
+          toolUseId
+          toolKind
+          isError
+        }
       }
       rawEvents {
         eventId
@@ -393,6 +421,20 @@ export const DASHBOARD_INTERACTION_SESSION_DETAIL_QUERY = `
         taskDescription
         subagentId
         payload
+      }
+      sessionTranscriptEntries {
+        entryId
+        sessionId
+        turnId
+        order
+        timestamp
+        actor
+        variant
+        source
+        text
+        toolUseId
+        toolKind
+        isError
       }
     }
   }

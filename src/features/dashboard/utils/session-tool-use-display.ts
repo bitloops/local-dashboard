@@ -1,10 +1,5 @@
-import type {
-  DashboardInteractionEventDto,
-  DashboardInteractionToolUseDto,
-  DashboardInteractionTurnDto,
-} from '@/features/dashboard/api-types'
+import type { DashboardInteractionToolUseDto } from '@/features/dashboard/api-types'
 import { type TranscriptMessage } from '@/features/dashboard/components/checkpoint-sheet-utils'
-import { getSessionTranscriptEntriesBestEffort } from '@/features/dashboard/utils/turn-transcript'
 
 function commandLine(tool: DashboardInteractionToolUseDto): string | null {
   const cmd = tool.command?.trim()
@@ -115,19 +110,12 @@ function groupTranscriptToolTraces(
 
 export function buildSessionToolUseDisplayItems({
   tools,
-  turns,
-  rawEvents,
   transcriptEntries,
 }: {
   tools: DashboardInteractionToolUseDto[]
-  turns?: DashboardInteractionTurnDto[]
-  rawEvents?: DashboardInteractionEventDto[]
-  transcriptEntries?: TranscriptMessage[]
+  transcriptEntries: TranscriptMessage[]
 }): SessionToolUseDisplayItem[] {
-  const transcriptTraces = groupTranscriptToolTraces(
-    transcriptEntries ??
-      getSessionTranscriptEntriesBestEffort(rawEvents ?? [], turns ?? []),
-  )
+  const transcriptTraces = groupTranscriptToolTraces(transcriptEntries)
 
   if (tools.length === 0) {
     return transcriptTraces.map((trace) => ({

@@ -170,6 +170,7 @@ function makeInteractionSessionDetail(
     summary: makeInteractionSession(sessionId),
     turns: [],
     raw_events: [],
+    session_transcript_entries: [],
   }
 }
 

@@ -1,11 +1,9 @@
 import { describe, expect, it, vi } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import * as checkpointSheetUtils from './checkpoint-sheet-utils'
 import {
   formatDateTime,
   prettyPrintJson,
-  parseTranscriptEntries,
   stripUserQueryTags,
 } from './checkpoint-sheet-utils'
 import { CheckpointSheet } from './checkpoint-sheet'
@@ -59,129 +57,6 @@ describe('prettyPrintJson', () => {
 
   it('returns original value when parse fails', () => {
     expect(prettyPrintJson('not json')).toBe('not json')
-  })
-})
-
-describe('parseTranscriptEntries', () => {
-  it('parses user string content as user chat and strips user_query tags', () => {
-    const jsonl = JSON.stringify({
-      type: 'user',
-      message: { content: '<user_query>\nWhat is 2+2?\n</user_query>' },
-      timestamp: '2025-03-04T10:00:03.000Z',
-    })
-    const entries = parseTranscriptEntries(jsonl)
-    expect(entries).toHaveLength(1)
-    expect(entries[0]).toMatchObject({
-      actor: 'user',
-      variant: 'chat',
-      text: 'What is 2+2?\n',
-    })
-  })
-
-  it('parses user array of tool_result as assistant tool_result messages', () => {
-    const jsonl = JSON.stringify({
-      type: 'user',
-      message: {
-        content: [
-          {
-            type: 'tool_result',
-            tool_use_id: 'toolu_1',
-            content: 'total 32',
-            is_error: false,
-          },
-          {
-            type: 'tool_result',
-            tool_use_id: 'toolu_2',
-            content: 'Error',
-            is_error: true,
-          },
-        ],
-      },
-      timestamp: '2025-03-04T10:00:04.000Z',
-      uuid: 'u1',
-    })
-    const entries = parseTranscriptEntries(jsonl)
-    expect(entries).toHaveLength(2)
-    expect(entries[0]).toMatchObject({
-      actor: 'assistant',
-      variant: 'tool_result',
-      text: 'total 32',
-      isError: false,
-      toolUseId: 'toolu_1',
-    })
-    expect(entries[1]).toMatchObject({
-      actor: 'assistant',
-      variant: 'tool_result',
-      text: 'Error',
-      isError: true,
-      toolUseId: 'toolu_2',
-    })
-  })
-
-  it('parses assistant content blocks as thinking, chat, and tool_use', () => {
-    const jsonl = JSON.stringify({
-      type: 'assistant',
-      message: {
-        content: [
-          { type: 'thinking', thinking: 'The user is asking...' },
-          { type: 'text', text: 'I need to find the code first.' },
-          {
-            type: 'tool_use',
-            id: 'toolu_glob_1',
-            name: 'Glob',
-            input: { pattern: '**/*.js' },
-          },
-        ],
-      },
-      timestamp: '2025-03-04T10:00:05.000Z',
-      uuid: 'a1',
-    })
-    const entries = parseTranscriptEntries(jsonl)
-    expect(entries).toHaveLength(3)
-    expect(entries[0]).toMatchObject({
-      actor: 'assistant',
-      variant: 'thinking',
-      text: 'Thinking: The user is asking...',
-    })
-    expect(entries[1]).toMatchObject({
-      actor: 'assistant',
-      variant: 'chat',
-      text: 'I need to find the code first.',
-    })
-    expect(entries[2]).toMatchObject({
-      actor: 'assistant',
-      variant: 'tool_use',
-      text: 'Tool: Glob\n{\n  "pattern": "**/*.js"\n}',
-      toolUseId: 'toolu_glob_1',
-    })
-  })
-
-  it('sorts messages by timestamp then id', () => {
-    const jsonl = [
-      JSON.stringify({
-        type: 'user',
-        message: { content: 'Last' },
-        timestamp: '2025-03-04T10:00:10.000Z',
-        uuid: 'u2',
-      }),
-      JSON.stringify({
-        type: 'user',
-        message: { content: 'First' },
-        timestamp: '2025-03-04T10:00:00.000Z',
-        uuid: 'u1',
-      }),
-    ].join('\n')
-    const entries = parseTranscriptEntries(jsonl)
-    expect(entries).toHaveLength(2)
-    expect(entries[0].text).toBe('First')
-    expect(entries[1].text).toBe('Last')
-  })
-
-  it('skips malformed lines', () => {
-    const jsonl =
-      '{"type":"user","message":{"content":"Hi"}}\nnot json\n{"type":"progress","data":{"hookEvent":"x"}}'
-    const entries = parseTranscriptEntries(jsonl)
-    expect(entries).toHaveLength(1)
   })
 })
 
@@ -282,8 +157,7 @@ describe('CheckpointSheet (component)', () => {
     expect(screen.getByText('−3')).toBeInTheDocument()
   })
 
-  it('parses transcript data only for the active checkpoint session tab', async () => {
-    const parseSpy = vi.spyOn(checkpointSheetUtils, 'parseTranscriptEntries')
+  it('renders canonical transcript entries for the active checkpoint session tab', async () => {
     const checkpoint: Checkpoint = {
       id: 'cp-2',
       prompt: 'Review checkpoint memory usage',
@@ -308,10 +182,25 @@ describe('CheckpointSheet (component)', () => {
           is_task: false,
           tool_use_id: 'tool-1',
           metadata_json: '{}',
-          transcript_jsonl:
-            '{"type":"user","message":{"content":"First session"}}',
+          transcript_jsonl: '',
           prompts_text: 'First prompt',
           context_text: 'First context',
+          transcript_entries: [
+            {
+              entry_id: 'e1',
+              session_id: 'sess-1',
+              turn_id: null,
+              order: 0,
+              timestamp: null,
+              actor: 'USER' as const,
+              variant: 'CHAT' as const,
+              source: 'TRANSCRIPT' as const,
+              text: 'first session text',
+              tool_use_id: null,
+              tool_kind: null,
+              is_error: false,
+            },
+          ],
         },
         {
           session_index: 1,
@@ -321,10 +210,25 @@ describe('CheckpointSheet (component)', () => {
           is_task: false,
           tool_use_id: 'tool-2',
           metadata_json: '{}',
-          transcript_jsonl:
-            '{"type":"user","message":{"content":"Second session"}}',
+          transcript_jsonl: '',
           prompts_text: 'Second prompt',
           context_text: 'Second context',
+          transcript_entries: [
+            {
+              entry_id: 'e2',
+              session_id: 'sess-2',
+              turn_id: null,
+              order: 0,
+              timestamp: null,
+              actor: 'USER' as const,
+              variant: 'CHAT' as const,
+              source: 'TRANSCRIPT' as const,
+              text: 'second session text',
+              tool_use_id: null,
+              tool_kind: null,
+              is_error: false,
+            },
+          ],
         },
       ],
     }
@@ -338,16 +242,10 @@ describe('CheckpointSheet (component)', () => {
       />,
     )
 
-    expect(parseSpy).toHaveBeenCalledTimes(1)
-    expect(parseSpy).toHaveBeenCalledWith(
-      checkpointDetail.sessions[0].transcript_jsonl,
-    )
+    expect(screen.getByText('first session text')).toBeInTheDocument()
 
     await userEvent.click(screen.getByRole('tab', { name: 'Session 2' }))
 
-    expect(parseSpy).toHaveBeenCalledTimes(2)
-    expect(parseSpy).toHaveBeenLastCalledWith(
-      checkpointDetail.sessions[1].transcript_jsonl,
-    )
+    expect(screen.getByText('second session text')).toBeInTheDocument()
   })
 })

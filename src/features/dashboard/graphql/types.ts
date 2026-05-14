@@ -47,6 +47,31 @@ export type DashboardTokenUsageNode = {
   apiCallCount: number
 }
 
+export type DashboardTranscriptActor = 'USER' | 'ASSISTANT' | 'SYSTEM'
+
+export type DashboardTranscriptVariant =
+  | 'CHAT'
+  | 'THINKING'
+  | 'TOOL_USE'
+  | 'TOOL_RESULT'
+
+export type DashboardTranscriptSource = 'TRANSCRIPT' | 'PROMPT_FALLBACK'
+
+export type DashboardTranscriptEntryNode = {
+  entryId: string
+  sessionId: string
+  turnId?: string | null
+  order: number
+  timestamp?: string | null
+  actor: DashboardTranscriptActor
+  variant: DashboardTranscriptVariant
+  source: DashboardTranscriptSource
+  text: string
+  toolUseId?: string | null
+  toolKind?: string | null
+  isError: boolean
+}
+
 export type DashboardCheckpointNode = {
   checkpointId: string
   strategy: string
@@ -99,6 +124,8 @@ export type DashboardCheckpointDetailQueryData = {
       transcriptJsonl: string
       promptsText: string
       contextText: string
+      /** Optional during the dual-read window; defaults to [] in the mapper. */
+      transcriptEntries?: DashboardTranscriptEntryNode[] | null
     }>
   }
 }
@@ -189,6 +216,8 @@ export type DashboardInteractionTurnNode = {
   filesModified: string[]
   checkpointId?: string | null
   toolUses: DashboardInteractionToolUseNode[]
+  /** Optional during the dual-read window; defaults to [] in the mapper. */
+  transcriptEntries?: DashboardTranscriptEntryNode[] | null
 }
 
 export type DashboardInteractionEventNode = {
@@ -237,6 +266,8 @@ export type DashboardInteractionSessionDetailQueryData = {
     summary: DashboardInteractionSessionNode
     turns: DashboardInteractionTurnNode[]
     rawEvents: DashboardInteractionEventNode[]
+    /** Optional during the dual-read window; defaults to [] in the mapper. */
+    sessionTranscriptEntries?: DashboardTranscriptEntryNode[] | null
   } | null
 }
 

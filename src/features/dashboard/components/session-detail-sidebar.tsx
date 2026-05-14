@@ -283,8 +283,8 @@ export function SessionDetailSidebar({
       interactionDetail == null
         ? null
         : buildSessionTranscriptAnalysis(
-            interactionDetail.raw_events,
             interactionDetail.turns,
+            interactionDetail.session_transcript_entries,
           ),
     [interactionDetail],
   )
@@ -366,7 +366,6 @@ export function SessionDetailSidebar({
                   ) : (
                     <TurnsTimeline
                       turns={turns}
-                      rawEvents={interactionDetail?.raw_events ?? []}
                       userName={userName}
                       sections={transcriptAnalysis?.sections}
                     />
@@ -385,9 +384,9 @@ export function SessionDetailSidebar({
                   ) : (
                     <SessionToolUseList
                       tools={sessionToolsList}
-                      turns={turns}
-                      rawEvents={interactionDetail?.raw_events ?? []}
-                      transcriptEntries={transcriptAnalysis?.sessionEntries}
+                      transcriptEntries={
+                        transcriptAnalysis?.sessionEntries ?? []
+                      }
                       emptyMessage='No tool use entries.'
                     />
                   )}

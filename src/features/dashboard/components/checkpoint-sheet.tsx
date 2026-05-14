@@ -2,7 +2,6 @@ import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react'
 import {
   type DashboardCheckpointDetailResponse,
   type DashboardCheckpointSessionDetailDto,
-  type DashboardInteractionEventDto,
   type DashboardInteractionSessionDetailResponse,
   type DashboardInteractionTurnDto,
 } from '../api-types'
@@ -27,13 +26,13 @@ import { fetchDashboardInteractionSessionDetail } from '../graphql/fetch-dashboa
 import {
   formatDateTime,
   formatPromptForDisplay,
-  parseTranscriptEntries,
   prettyPrintJson,
 } from './checkpoint-sheet-utils'
 import { SessionToolUseList } from '@/features/dashboard/components/session-tool-use-list'
 import { sortedSessionToolUses } from '@/features/dashboard/utils/session-tool-uses'
 import { TurnsTimeline } from '@/features/dashboard/components/turns-timeline'
 import { buildSessionTranscriptAnalysis } from '@/features/dashboard/utils/turn-transcript'
+import { transcriptEntriesToMessages } from '@/features/dashboard/utils/transcript-entries'
 
 SyntaxHighlighter.registerLanguage('json', json)
 
@@ -187,8 +186,8 @@ function CheckpointDetailContentInner({
       interactionDetail == null
         ? null
         : buildSessionTranscriptAnalysis(
-            interactionDetail.raw_events,
             interactionDetail.turns,
+            interactionDetail.session_transcript_entries,
           ),
     [interactionDetail],
   )
@@ -204,7 +203,9 @@ function CheckpointDetailContentInner({
       return []
     }
 
-    return parseTranscriptEntries(activeCheckpointSession.transcript_jsonl)
+    return transcriptEntriesToMessages(
+      activeCheckpointSession.transcript_entries ?? [],
+    )
   }, [activeCheckpointSession, sessionSubView, viewMode])
 
   const metadataJson = selectedCheckpoint
@@ -433,9 +434,6 @@ function CheckpointDetailContentInner({
                                     turns.length > 0 && (
                                       <TurnsTimeline
                                         turns={turns}
-                                        rawEvents={
-                                          interactionDetail?.raw_events ?? []
-                                        }
                                         userName={userName}
                                         sections={transcriptAnalysis?.sections}
                                       />
@@ -453,12 +451,8 @@ function CheckpointDetailContentInner({
                                   {interactionSource === 'api' && (
                                     <SessionToolUseList
                                       tools={sessionToolUsesList}
-                                      turns={turns}
-                                      rawEvents={
-                                        interactionDetail?.raw_events ?? []
-                                      }
                                       transcriptEntries={
-                                        transcriptAnalysis?.sessionEntries
+                                        transcriptAnalysis?.sessionEntries ?? []
                                       }
                                       emptyMessage='No tool use entries were returned for this session.'
                                     />
@@ -732,29 +726,14 @@ function CheckpointDetailContentInner({
 /** Turn detail body (prompt, transcript, token chart, files) — use inside sheet/sidebar accordions. */
 export function TurnDetailContent({
   turn,
-  rawEvents,
   userName,
 }: {
   turn: DashboardInteractionTurnDto
-  rawEvents: DashboardInteractionEventDto[]
   userName: string
 }) {
-  const payloadForTurnEnd = () => {
-    const relevant = rawEvents
-      .filter((e) => e.turn_id === turn.turn_id && e.event_type === 'turn_end')
-      .sort((a, b) => (a.event_time || '').localeCompare(b.event_time || ''))
-    const latest = relevant[relevant.length - 1]
-    return (
-      (latest?.payload as Record<string, unknown> | null | undefined) ?? null
-    )
-  }
-
-  const payload = payloadForTurnEnd()
-  const fragment =
-    (payload?.transcript_fragment as string | undefined) ??
-    (payload?.transcriptFragment as string | undefined) ??
-    ''
-  const transcriptEntries = fragment ? parseTranscriptEntries(fragment) : []
+  const transcriptEntries = transcriptEntriesToMessages(
+    turn.transcript_entries ?? [],
+  )
 
   return (
     <div className='space-y-4'>

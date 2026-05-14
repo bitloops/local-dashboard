@@ -308,6 +308,7 @@ describe('mapDashboardCheckpointDetail', () => {
           transcript_jsonl: '',
           prompts_text: '',
           context_text: '',
+          transcript_entries: [],
         },
       ],
     })
