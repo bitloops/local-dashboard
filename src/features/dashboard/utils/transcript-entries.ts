@@ -3,17 +3,13 @@
  * the backend and the legacy `TranscriptMessage` shape consumed by
  * `<ChatTranscript>` and friends.
  *
- * This is the dual-read seam for the transcript-normalization migration:
- *
- * 1. During migration, components prefer canonical entries from the backend
- *    when present (`turn.transcript_entries.length > 0`,
- *    `session_transcript_entries`, `checkpoint_session.transcript_entries`).
- * 2. When canonical entries are empty (older sessions, agents without a
- *    deriver, or the backend hasn't rolled out yet), components fall back to
- *    the existing JSONL parsers in `checkpoint-sheet-utils.ts` and
- *    `turn-transcript.ts`.
- * 3. Once parity is confirmed across all six agents the legacy parsers can
- *    delete and this file becomes the only path.
+ * Canonical entries are now the *sole* source for transcript rendering across
+ * the dashboard. The dual-read phase of the transcript-normalization migration
+ * has been completed: the legacy JSONL parsers in `checkpoint-sheet-utils.ts`
+ * and `turn-transcript.ts` were removed, and components consume canonical
+ * entries directly via the helpers in this module. When a turn has no
+ * canonical entries the section renders as empty rather than falling back to
+ * raw events.
  *
  * Keep this module pure and dependency-free — it should not pull in raw-event
  * parsing or any agent-specific knowledge.

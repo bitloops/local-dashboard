@@ -110,8 +110,10 @@ export type DashboardCheckpointSessionDetailDto = {
   /**
    * Canonical transcript rows derived by the backend agent's deriver.
    * Empty when the agent has no deriver or transcript_jsonl was unparseable.
-   * Prefer these for rendering; fall back to parsing transcript_jsonl only
-   * during the dual-read migration window.
+   * This is the sole rendering source — the dashboard no longer parses
+   * `transcript_jsonl` directly. `transcript_jsonl` remains on the wire for
+   * downstream consumers (debug tooling, exports) but should not be parsed
+   * for display.
    */
   transcript_entries: DashboardTranscriptEntryDto[]
 }
@@ -197,8 +199,9 @@ export type DashboardInteractionTurnDto = {
   tool_uses: DashboardInteractionToolUseDto[]
   /**
    * Canonical transcript rows for this turn, derived by the backend.
-   * Empty when the agent's deriver returned nothing — components should
-   * fall back to the existing transcript-fragment parser during migration.
+   * Empty when the agent's deriver returned nothing. The dashboard renders
+   * an empty section in that case rather than parsing raw events — the
+   * legacy transcript-fragment fallback has been removed.
    */
   transcript_entries: DashboardTranscriptEntryDto[]
 }
@@ -224,8 +227,10 @@ export type DashboardInteractionSessionDetailResponse = {
   raw_events: DashboardInteractionEventDto[]
   /**
    * Canonical transcript rows for the entire session. Used by the session
-   * sidebar and tool-use tab. Empty during the dual-read window when the
-   * backend has no deriver for the session's agent.
+   * sidebar and tool-use tab. Empty when the backend has no deriver for the
+   * session's agent or the transcript was unparseable — in that case the
+   * affected panels render an empty state rather than falling back to raw
+   * events.
    */
   session_transcript_entries: DashboardTranscriptEntryDto[]
 }
