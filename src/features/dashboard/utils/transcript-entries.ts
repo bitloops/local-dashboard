@@ -55,8 +55,21 @@ export function toTranscriptMessage(
   }
 }
 
+function compareTranscriptEntriesByStreamOrder(
+  a: DashboardTranscriptEntryDto,
+  b: DashboardTranscriptEntryDto,
+): number {
+  if (a.order !== b.order) {
+    return a.order - b.order
+  }
+  return a.entry_id.localeCompare(b.entry_id)
+}
+
 /**
- * Convert a list of canonical entries to legacy messages, preserving order.
+ * Convert a list of canonical entries to legacy messages.
+ *
+ * Entries are sorted by ascending `order`, then `entry_id`, so rendering stays
+ * correct if the API returns rows out of sequence.
  *
  * Returns an empty array for empty input so callers can use length-based
  * branching for dual-read:
@@ -70,7 +83,9 @@ export function toTranscriptMessage(
 export function transcriptEntriesToMessages(
   entries: ReadonlyArray<DashboardTranscriptEntryDto>,
 ): TranscriptMessage[] {
-  return entries.map(toTranscriptMessage)
+  return [...entries]
+    .sort(compareTranscriptEntriesByStreamOrder)
+    .map(toTranscriptMessage)
 }
 
 /**

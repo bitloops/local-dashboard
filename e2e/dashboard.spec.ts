@@ -307,6 +307,22 @@ function buildDashboardInteractionSessionDetailResponse(sessionId?: string) {
             filesModified: [] as string[],
             checkpointId: null,
             toolUses: [] as Array<Record<string, unknown>>,
+            transcriptEntries: [
+              {
+                entryId: 'stub-turn-01-e0',
+                sessionId: 'sess-01',
+                turnId: 'turn-01',
+                order: 0,
+                timestamp: '2025-02-14T10:12:00.000Z',
+                actor: 'USER',
+                variant: 'CHAT',
+                source: 'TRANSCRIPT',
+                text: FIRST_SESSION_TURN_ONE_PROMPT,
+                toolUseId: null,
+                toolKind: null,
+                isError: false,
+              },
+            ],
           },
           {
             turnId: 'turn-02',
@@ -323,6 +339,22 @@ function buildDashboardInteractionSessionDetailResponse(sessionId?: string) {
             filesModified: [] as string[],
             checkpointId: null,
             toolUses: [] as Array<Record<string, unknown>>,
+            transcriptEntries: [
+              {
+                entryId: 'stub-turn-02-e0',
+                sessionId: 'sess-01',
+                turnId: 'turn-02',
+                order: 0,
+                timestamp: '2025-02-14T10:28:00.000Z',
+                actor: 'USER',
+                variant: 'CHAT',
+                source: 'TRANSCRIPT',
+                text: FIRST_SESSION_TURN_TWO_PROMPT,
+                toolUseId: null,
+                toolKind: null,
+                isError: false,
+              },
+            ],
           },
         ]
       : ([] as Array<Record<string, unknown>>)
@@ -333,6 +365,7 @@ function buildDashboardInteractionSessionDetailResponse(sessionId?: string) {
             summary,
             turns,
             rawEvents: [] as Array<Record<string, unknown>>,
+            sessionTranscriptEntries: [] as Array<Record<string, unknown>>,
           }
         : null,
     },
@@ -1051,7 +1084,7 @@ test.describe('Session detail', () => {
     await expect(page.getByText(FIRST_SESSION_PROMPT).last()).toBeVisible()
   })
 
-  test('sidebar turns tab falls back to turn prompts when transcript fragments are unavailable', async ({
+  test('sidebar turns tab renders canonical transcript entries per turn', async ({
     page,
   }) => {
     await stubApiRoutes(page)

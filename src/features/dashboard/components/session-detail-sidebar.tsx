@@ -112,7 +112,17 @@ function SessionSummaryView({
       <Separator />
       <div>
         <h3 className='mb-2 text-sm font-semibold'>Token Usage</h3>
-        {summary.token_usage ? (
+        {/*
+          Cursor does not expose reliable per-session token counts through its
+          transcript or hooks, so any numbers we would otherwise show are
+          incomplete. Treat Cursor sessions as having no token data regardless
+          of what's stored.
+        */}
+        {summary.agent_type === 'cursor' ? (
+          <p className='text-sm text-muted-foreground'>
+            No token information available.
+          </p>
+        ) : summary.token_usage ? (
           <Suspense
             fallback={
               <div className='h-40 animate-pulse rounded-md bg-muted/30' />
