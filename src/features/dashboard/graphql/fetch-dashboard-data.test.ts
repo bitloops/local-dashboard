@@ -324,6 +324,7 @@ describe('fetchDashboardCheckpointDetail', () => {
           transcript_jsonl: '',
           prompts_text: '',
           context_text: '',
+          transcript_entries: [],
         },
       ],
     })

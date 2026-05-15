@@ -14,6 +14,7 @@ import type {
   DashboardInteractionUpdateDto,
   DashboardRepositoryOption,
   DashboardTokenUsageDto,
+  DashboardTranscriptEntryDto,
   DashboardUserDto,
 } from '../api-types'
 import type {
@@ -34,8 +35,28 @@ import type {
   DashboardRepositoriesQueryData,
   DashboardInteractionSessionsQueryData,
   DashboardTokenUsageNode,
+  DashboardTranscriptEntryNode,
   DashboardUsersQueryData,
 } from './types'
+
+function mapTranscriptEntry(
+  node: DashboardTranscriptEntryNode,
+): DashboardTranscriptEntryDto {
+  return {
+    entry_id: node.entryId,
+    session_id: node.sessionId,
+    turn_id: node.turnId ?? null,
+    order: node.order,
+    timestamp: node.timestamp ?? null,
+    actor: node.actor,
+    variant: node.variant,
+    source: node.source,
+    text: node.text,
+    tool_use_id: node.toolUseId ?? null,
+    tool_kind: node.toolKind ?? null,
+    is_error: node.isError,
+  }
+}
 
 function mapFileDiff(
   node: DashboardCommitFileDiffNode,
@@ -184,6 +205,7 @@ function mapInteractionTurn(
     files_modified: node.filesModified ?? [],
     checkpoint_id: node.checkpointId ?? null,
     tool_uses: (node.toolUses ?? []).map(mapInteractionToolUse),
+    transcript_entries: (node.transcriptEntries ?? []).map(mapTranscriptEntry),
   }
 }
 
@@ -308,6 +330,9 @@ export function mapDashboardCheckpointDetail(
       transcript_jsonl: session.transcriptJsonl,
       prompts_text: session.promptsText,
       context_text: session.contextText,
+      transcript_entries: (session.transcriptEntries ?? []).map(
+        mapTranscriptEntry,
+      ),
     })),
   }
 }
@@ -340,5 +365,8 @@ export function mapDashboardInteractionSessionDetail(
     summary: mapInteractionSession(session.summary),
     turns: (session.turns ?? []).map(mapInteractionTurn),
     raw_events: (session.rawEvents ?? []).map(mapInteractionEvent),
+    session_transcript_entries: (session.sessionTranscriptEntries ?? []).map(
+      mapTranscriptEntry,
+    ),
   }
 }

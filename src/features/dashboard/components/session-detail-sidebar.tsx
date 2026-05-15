@@ -112,7 +112,17 @@ function SessionSummaryView({
       <Separator />
       <div>
         <h3 className='mb-2 text-sm font-semibold'>Token Usage</h3>
-        {summary.token_usage ? (
+        {/*
+          Cursor does not expose reliable per-session token counts through its
+          transcript or hooks, so any numbers we would otherwise show are
+          incomplete. Treat Cursor sessions as having no token data regardless
+          of what's stored.
+        */}
+        {summary.agent_type === 'cursor' ? (
+          <p className='text-sm text-muted-foreground'>
+            No token information available.
+          </p>
+        ) : summary.token_usage ? (
           <Suspense
             fallback={
               <div className='h-40 animate-pulse rounded-md bg-muted/30' />
@@ -283,8 +293,8 @@ export function SessionDetailSidebar({
       interactionDetail == null
         ? null
         : buildSessionTranscriptAnalysis(
-            interactionDetail.raw_events,
             interactionDetail.turns,
+            interactionDetail.session_transcript_entries,
           ),
     [interactionDetail],
   )
@@ -366,7 +376,6 @@ export function SessionDetailSidebar({
                   ) : (
                     <TurnsTimeline
                       turns={turns}
-                      rawEvents={interactionDetail?.raw_events ?? []}
                       userName={userName}
                       sections={transcriptAnalysis?.sections}
                     />
@@ -385,9 +394,9 @@ export function SessionDetailSidebar({
                   ) : (
                     <SessionToolUseList
                       tools={sessionToolsList}
-                      turns={turns}
-                      rawEvents={interactionDetail?.raw_events ?? []}
-                      transcriptEntries={transcriptAnalysis?.sessionEntries}
+                      transcriptEntries={
+                        transcriptAnalysis?.sessionEntries ?? []
+                      }
                       emptyMessage='No tool use entries.'
                     />
                   )}

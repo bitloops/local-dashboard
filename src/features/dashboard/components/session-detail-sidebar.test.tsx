@@ -42,6 +42,7 @@ function makeInteractionDetail(
     summary: sessionSummary,
     turns: [],
     raw_events: [],
+    session_transcript_entries: [],
     ...overrides,
   }
 }
@@ -168,6 +169,42 @@ describe('SessionDetailSidebar', () => {
         signal: expect.any(AbortSignal),
       }),
     )
+  })
+
+  it('masks token usage for Cursor sessions even when token_usage is populated', () => {
+    // Cursor does not expose reliable token counts; the dashboard should
+    // suppress whatever the backend recorded and surface a clear "no info"
+    // message instead of rendering the chart or count.
+    const cursorSummary: DashboardInteractionSessionDto = {
+      ...sessionSummary,
+      session_id: 'cursor-sess',
+      agent_type: 'cursor',
+      model: null,
+      token_usage: {
+        input_tokens: 1234,
+        output_tokens: 5678,
+        cache_read_tokens: 0,
+        cache_creation_tokens: 0,
+        api_call_count: 1,
+      },
+    }
+
+    render(
+      <SessionDetailSidebar
+        sessionId={null}
+        sessionSummary={cursorSummary}
+        repoId={null}
+        userName='Test User'
+      />,
+    )
+
+    expect(screen.getByText('Token Usage')).toBeInTheDocument()
+    expect(
+      screen.getByText('No token information available.'),
+    ).toBeInTheDocument()
+    // The populated token numbers must not leak into the UI.
+    expect(screen.queryByText(/1234/)).not.toBeInTheDocument()
+    expect(screen.queryByText(/5678/)).not.toBeInTheDocument()
   })
 
   it('keeps the heavy-detail request alive long enough to render the loaded turns view', async () => {

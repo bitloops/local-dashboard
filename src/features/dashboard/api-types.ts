@@ -30,6 +30,31 @@ export type DashboardTokenUsageDto = {
   api_call_count: number
 }
 
+export type DashboardTranscriptActorDto = 'USER' | 'ASSISTANT' | 'SYSTEM'
+
+export type DashboardTranscriptVariantDto =
+  | 'CHAT'
+  | 'THINKING'
+  | 'TOOL_USE'
+  | 'TOOL_RESULT'
+
+export type DashboardTranscriptSourceDto = 'TRANSCRIPT' | 'PROMPT_FALLBACK'
+
+export type DashboardTranscriptEntryDto = {
+  entry_id: string
+  session_id: string
+  turn_id: string | null
+  order: number
+  timestamp: string | null
+  actor: DashboardTranscriptActorDto
+  variant: DashboardTranscriptVariantDto
+  source: DashboardTranscriptSourceDto
+  text: string
+  tool_use_id: string | null
+  tool_kind: string | null
+  is_error: boolean
+}
+
 export type DashboardCommitFileDiffDto = {
   filepath: string
   additionsCount: number
@@ -82,6 +107,15 @@ export type DashboardCheckpointSessionDetailDto = {
   transcript_jsonl: string
   prompts_text: string
   context_text: string
+  /**
+   * Canonical transcript rows derived by the backend agent's deriver.
+   * Empty when the agent has no deriver or transcript_jsonl was unparseable.
+   * This is the sole rendering source — the dashboard no longer parses
+   * `transcript_jsonl` directly. `transcript_jsonl` remains on the wire for
+   * downstream consumers (debug tooling, exports) but should not be parsed
+   * for display.
+   */
+  transcript_entries: DashboardTranscriptEntryDto[]
 }
 
 export type DashboardCheckpointDetailResponse = {
@@ -163,6 +197,13 @@ export type DashboardInteractionTurnDto = {
   files_modified: string[]
   checkpoint_id: string | null
   tool_uses: DashboardInteractionToolUseDto[]
+  /**
+   * Canonical transcript rows for this turn, derived by the backend.
+   * Empty when the agent's deriver returned nothing. The dashboard renders
+   * an empty section in that case rather than parsing raw events — the
+   * legacy transcript-fragment fallback has been removed.
+   */
+  transcript_entries: DashboardTranscriptEntryDto[]
 }
 
 export type DashboardInteractionEventDto = {
@@ -184,6 +225,14 @@ export type DashboardInteractionSessionDetailResponse = {
   summary: DashboardInteractionSessionDto
   turns: DashboardInteractionTurnDto[]
   raw_events: DashboardInteractionEventDto[]
+  /**
+   * Canonical transcript rows for the entire session. Used by the session
+   * sidebar and tool-use tab. Empty when the backend has no deriver for the
+   * session's agent or the transcript was unparseable — in that case the
+   * affected panels render an empty state rather than falling back to raw
+   * events.
+   */
+  session_transcript_entries: DashboardTranscriptEntryDto[]
 }
 
 export type DashboardInteractionUpdateDto = {
