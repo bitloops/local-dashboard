@@ -16,9 +16,6 @@ vi.mock('@/api/runtime/config', () => ({
   updateRuntimeConfig: vi.fn(),
 }))
 
-const startupPreferencesKey = 'settings-startup-preferences'
-const capabilityPackPreferencesKey = 'settings-capability-pack-preferences'
-
 const target: RuntimeConfigTarget = {
   id: 'target-daemon',
   kind: 'daemon',
@@ -41,6 +38,135 @@ function snapshot(overrides: Partial<RuntimeConfigSnapshot> = {}) {
     rawValue: {},
     effectiveValue: {},
     sections: [
+      {
+        key: 'context_guidance',
+        title: 'Context Guidance',
+        description: 'Guided context generation settings',
+        order: 5,
+        advanced: false,
+        value: {},
+        effectiveValue: {},
+        fields: [
+          {
+            key: 'context_guidance.inference.guidance_generation',
+            path: ['context_guidance', 'inference', 'guidance_generation'],
+            label: 'Guidance generation',
+            description: 'Profile binding for context guidance.',
+            fieldType: 'string',
+            value: 'guidance_llm',
+            effectiveValue: 'guidance_llm',
+            defaultValue: null,
+            allowedValues: [],
+            validationHints: [],
+            required: false,
+            readOnly: false,
+            secret: false,
+            order: 0,
+            source: 'effective',
+          },
+        ],
+      },
+      {
+        key: 'architecture',
+        title: 'Architecture',
+        description: 'Architecture pack settings',
+        order: 6,
+        advanced: false,
+        value: {},
+        effectiveValue: {},
+        fields: [
+          {
+            key: 'architecture.inference.fact_synthesis',
+            path: ['architecture', 'inference', 'fact_synthesis'],
+            label: 'Fact synthesis',
+            description: 'Profile binding for architecture fact synthesis.',
+            fieldType: 'string',
+            value: 'architecture_fact_synthesis_codex',
+            effectiveValue: 'architecture_fact_synthesis_codex',
+            defaultValue: null,
+            allowedValues: [],
+            validationHints: [],
+            required: false,
+            readOnly: false,
+            secret: false,
+            order: 0,
+            source: 'effective',
+          },
+          {
+            key: 'architecture.inference.role_adjudication',
+            path: ['architecture', 'inference', 'role_adjudication'],
+            label: 'Role adjudication',
+            description: 'Profile binding for architecture role adjudication.',
+            fieldType: 'string',
+            value: 'architecture_role_adjudication_codex',
+            effectiveValue: 'architecture_role_adjudication_codex',
+            defaultValue: null,
+            allowedValues: [],
+            validationHints: [],
+            required: false,
+            readOnly: false,
+            secret: false,
+            order: 1,
+            source: 'effective',
+          },
+        ],
+      },
+      {
+        key: 'knowledge',
+        title: 'Knowledge',
+        description: 'Knowledge pack settings',
+        order: 7,
+        advanced: false,
+        value: {},
+        effectiveValue: {},
+        fields: [
+          {
+            key: 'knowledge.refresh_interval_secs',
+            path: ['knowledge', 'refresh_interval_secs'],
+            label: 'Refresh interval',
+            description: 'Refresh interval in seconds.',
+            fieldType: 'integer',
+            value: 60,
+            effectiveValue: 60,
+            defaultValue: null,
+            allowedValues: [],
+            validationHints: [],
+            required: false,
+            readOnly: false,
+            secret: false,
+            order: 0,
+            source: 'effective',
+          },
+        ],
+      },
+      {
+        key: 'semantic_clones',
+        title: 'Semantic clones',
+        description: 'Semantic clone detection settings',
+        order: 8,
+        advanced: false,
+        value: {},
+        effectiveValue: {},
+        fields: [
+          {
+            key: 'semantic_clones.similarity_threshold',
+            path: ['semantic_clones', 'similarity_threshold'],
+            label: 'Similarity threshold',
+            description: 'Threshold for clone matching.',
+            fieldType: 'integer',
+            value: 90,
+            effectiveValue: 90,
+            defaultValue: null,
+            allowedValues: [],
+            validationHints: [],
+            required: false,
+            readOnly: false,
+            secret: false,
+            order: 0,
+            source: 'effective',
+          },
+        ],
+      },
       {
         key: 'stores',
         title: 'Stores',
@@ -170,87 +296,111 @@ describe('SettingsConfiguration', () => {
     expect(container.querySelector('input[type="password"]')).not.toBeNull()
   })
 
-  it('renders startup behavior preferences and saves them locally', async () => {
-    const user = userEvent.setup()
+  it('renders cross-pack checkbox controls and keeps disabled packs visible', async () => {
     render(<SettingsConfiguration />)
 
     expect(
-      await screen.findByRole('heading', { name: 'Startup behavior' }),
+      await screen.findByRole('heading', { name: 'Capability Packs' }),
     ).toBeInTheDocument()
     expect(
       screen.getByRole('checkbox', { name: 'Start daemon on app startup' }),
     ).toBeChecked()
-    expect(screen.getByLabelText('Run sync on startup')).toHaveValue('auto')
-    expect(screen.getByLabelText('Run ingest on startup')).toHaveValue('auto')
+    expect(screen.getByRole('checkbox', { name: 'Sync enabled' })).toBeChecked()
+    expect(
+      screen.getByRole('checkbox', { name: 'Ingest enabled' }),
+    ).toBeChecked()
+    expect(
+      screen.getByRole('checkbox', { name: 'Observability enabled' }),
+    ).toBeChecked()
 
-    await user.click(
-      screen.getByRole('checkbox', { name: 'Start daemon on app startup' }),
+    const semanticClonesCard = screen.getByTestId(
+      'capability-pack-card-semantic-clones',
     )
-    await user.selectOptions(
-      screen.getByLabelText('Run sync on startup'),
-      'always',
-    )
-    await user.selectOptions(
-      screen.getByLabelText('Run ingest on startup'),
-      'off',
-    )
-    await user.click(
-      screen.getByRole('button', { name: 'Save startup behavior' }),
-    )
+    expect(within(semanticClonesCard).getByText('Disabled')).toBeInTheDocument()
+    expect(
+      within(semanticClonesCard).queryByText('Advanced config'),
+    ).not.toBeInTheDocument()
+  })
 
-    expect(localStorage.setItem).toHaveBeenCalledWith(
-      startupPreferencesKey,
-      JSON.stringify({
-        daemonStartOnStartup: false,
-        syncOnStartup: 'always',
-        ingestOnStartup: 'off',
-      }),
+  it('shows guided settings for guided packs and expands advanced packs when enabled', async () => {
+    const user = userEvent.setup()
+    render(<SettingsConfiguration />)
+
+    const architectureCard = await screen.findByTestId(
+      'capability-pack-card-architecture-graph',
     )
     expect(
-      await screen.findByText('Startup behavior saved.'),
+      within(architectureCard).getByText('Guided settings'),
+    ).toBeInTheDocument()
+    expect(
+      within(architectureCard).getByLabelText('Fact synthesis runtime'),
+    ).toBeInTheDocument()
+    expect(
+      within(architectureCard).getByLabelText('Role adjudication runtime'),
+    ).toBeInTheDocument()
+
+    const semanticClonesCard = screen.getByTestId(
+      'capability-pack-card-semantic-clones',
+    )
+    await user.click(
+      within(semanticClonesCard).getByRole('checkbox', {
+        name: 'Enable Semantic clones',
+      }),
+    )
+
+    expect(
+      within(semanticClonesCard).getByText('Advanced config'),
+    ).toBeInTheDocument()
+    expect(
+      within(semanticClonesCard).getByRole('heading', {
+        name: 'Semantic clones',
+      }),
     ).toBeInTheDocument()
   })
 
-  it('renders the complete capability-pack catalog and saves it locally', async () => {
+  it('opens a review sheet and surfaces backend handoff blockers', async () => {
     const user = userEvent.setup()
     render(<SettingsConfiguration />)
 
     expect(
-      await screen.findByRole('heading', { name: 'Capability packs' }),
+      await screen.findByRole('heading', { name: 'Capability Packs' }),
     ).toBeInTheDocument()
-    expect(screen.getByText('CodeCity')).toBeInTheDocument()
-    expect(screen.getByText('Architecture graph')).toBeInTheDocument()
-    expect(screen.getByText('Navigation context')).toBeInTheDocument()
-    expect(screen.getByText('Test harness')).toBeInTheDocument()
-    expect(screen.getByText('Knowledge pack')).toBeInTheDocument()
-    expect(screen.getByText('Semantic clones')).toBeInTheDocument()
-    expect(
-      screen.getByRole('checkbox', { name: 'Enable Architecture graph' }),
-    ).toBeChecked()
 
     await user.click(
-      screen.getByRole('checkbox', { name: 'Enable Architecture graph' }),
+      screen.getByRole('checkbox', { name: 'Observability enabled' }),
     )
-    await user.click(
-      screen.getByRole('checkbox', { name: 'Enable Semantic clones' }),
-    )
-    await user.click(
-      screen.getByRole('button', { name: 'Save capability packs' }),
-    )
+    await user.click(screen.getByRole('button', { name: 'Review changes' }))
 
-    expect(localStorage.setItem).toHaveBeenCalledWith(
-      capabilityPackPreferencesKey,
-      JSON.stringify({
-        codecity: true,
-        'architecture-graph': false,
-        'navigation-context': true,
-        'test-harness': true,
-        'knowledge-pack': true,
-        'semantic-clones': false,
-      }),
-    )
+    const reviewPanel = screen.getByTestId('capability-pack-review-panel')
     expect(
-      await screen.findByText('Capability packs saved.'),
+      screen.getByRole('heading', { name: 'Review changes' }),
+    ).toBeInTheDocument()
+    expect(screen.getByText('Backend handoff needed')).toBeInTheDocument()
+    expect(
+      within(reviewPanel).getByText('/settings/configuration'),
+    ).toBeInTheDocument()
+    expect(
+      within(reviewPanel).getByText(/planCapabilityPackConfig/i),
+    ).toBeInTheDocument()
+    expect(
+      within(reviewPanel).getByRole('button', { name: 'Save & Run' }),
+    ).toBeDisabled()
+    expect(
+      within(reviewPanel).getByText('Observability enabled'),
+    ).toBeInTheDocument()
+  })
+
+  it('keeps the generic runtime configuration editor available', async () => {
+    render(<SettingsConfiguration />)
+
+    expect(await screen.findByText('Daemon config')).toBeInTheDocument()
+    expect(
+      screen.getByText(
+        'Edit runtime-discovered Bitloops config files without leaving the dashboard.',
+      ),
+    ).toBeInTheDocument()
+    expect(
+      screen.getByRole('button', { name: 'Save runtime config' }),
     ).toBeInTheDocument()
   })
 
@@ -263,7 +413,9 @@ describe('SettingsConfiguration', () => {
     )) as HTMLInputElement
     await user.clear(input)
     await user.type(input, 'new.db')
-    await user.click(screen.getByRole('button', { name: 'Save' }))
+    await user.click(
+      screen.getByRole('button', { name: 'Save runtime config' }),
+    )
 
     expect(updateRuntimeConfig).toHaveBeenCalledWith({
       targetId: 'target-daemon',
@@ -275,7 +427,7 @@ describe('SettingsConfiguration', () => {
         },
       ],
     })
-    expect(await screen.findByText('Configuration saved.')).toBeInTheDocument()
+    expect(await screen.findByText('Runtime config saved.')).toBeInTheDocument()
   })
 
   it('validates JSON fields before saving', async () => {
@@ -288,7 +440,9 @@ describe('SettingsConfiguration', () => {
     const textarea = within(section as HTMLElement).getByRole('textbox')
     await user.clear(textarea)
     await user.type(textarea, '{{')
-    await user.click(screen.getByRole('button', { name: 'Save' }))
+    await user.click(
+      screen.getByRole('button', { name: 'Save runtime config' }),
+    )
 
     expect(updateRuntimeConfig).not.toHaveBeenCalled()
     expect(screen.getByRole('alert')).toHaveTextContent(

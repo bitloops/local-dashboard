@@ -2,6 +2,8 @@ import { useEffect, useMemo, useState } from 'react'
 import {
   AlertCircle,
   CheckCircle2,
+  ChevronDown,
+  ChevronRight,
   Loader2,
   RotateCcw,
   Save,
@@ -35,31 +37,91 @@ import { Textarea } from '@/components/ui/textarea'
 import { cn } from '@/lib/utils'
 
 type Drafts = Record<string, string>
-type StartupBehaviorMode = 'off' | 'auto' | 'always'
-type StartupBehaviorPreferences = {
+type CrossPackPreferences = {
   daemonStartOnStartup: boolean
-  syncOnStartup: StartupBehaviorMode
-  ingestOnStartup: StartupBehaviorMode
+  syncEnabled: boolean
+  ingestEnabled: boolean
+  observabilityEnabled: boolean
 }
-const capabilityPackCatalog = [
+type CapabilityPackStatus = 'Needs setup' | 'Ready' | 'Applying' | 'Failed'
+type CapabilityPackSelectionKind = 'Explicit' | 'Dependency-selected'
+
+type GuidedSettingDefinition = {
+  key: string
+  label: string
+  options: string[]
+}
+
+type CapabilityPackDefinition = {
+  id: string
+  label: string
+  summary: string
+  evidence: string
+  status: CapabilityPackStatus
+  selectionKind: CapabilityPackSelectionKind
+  experimental?: boolean
+  dependencies: string[]
+  initiallyEnabled: boolean
+  initiallyExpanded?: boolean
+  guidedSettings?: GuidedSettingDefinition[]
+  advancedSectionKeys: string[]
+}
+
+const capabilityPackCatalog: CapabilityPackDefinition[] = [
   {
     id: 'codecity',
     label: 'CodeCity',
     summary: 'Builds the file/world visualisation and health overlays.',
     evidence: 'bitloops/src/capability_packs/codecity',
+    status: 'Ready',
+    selectionKind: 'Explicit',
+    dependencies: [],
+    initiallyEnabled: true,
+    advancedSectionKeys: ['codecity'],
   },
   {
     id: 'architecture-graph',
     label: 'Architecture graph',
     summary: 'Builds components, contracts, entry points, and system facts.',
     evidence: 'bitloops/src/capability_packs/architecture_graph',
+    status: 'Needs setup',
+    selectionKind: 'Explicit',
+    dependencies: ['Knowledge pack'],
+    initiallyEnabled: true,
+    initiallyExpanded: true,
+    guidedSettings: [
+      {
+        key: 'factSynthesisRuntime',
+        label: 'Fact synthesis runtime',
+        options: ['Codex', 'Claude', 'Bitloops-managed'],
+      },
+      {
+        key: 'roleAdjudicationRuntime',
+        label: 'Role adjudication runtime',
+        options: ['Codex', 'Claude', 'Bitloops-managed'],
+      },
+    ],
+    advancedSectionKeys: ['architecture'],
   },
   {
-    id: 'navigation-context',
-    label: 'Navigation context',
+    id: 'context-guidance',
+    label: 'Context Guidance',
     summary:
-      'Tracks primitives, signatures, stale reasons, and materialised architecture context.',
-    evidence: 'bitloops/src/capability_packs/navigation_context',
+      'Guides repository-aware text generation with knowledge-backed prompts.',
+    evidence: 'bitloops/src/capability_packs/context_guidance',
+    status: 'Ready',
+    selectionKind: 'Explicit',
+    dependencies: ['Knowledge pack'],
+    initiallyEnabled: true,
+    initiallyExpanded: true,
+    guidedSettings: [
+      {
+        key: 'guidanceGenerationRuntime',
+        label: 'Guidance generation runtime',
+        options: ['Bitloops-managed', 'Local LLM', 'Codex', 'Claude'],
+      },
+    ],
+    advancedSectionKeys: ['context_guidance'],
   },
   {
     id: 'test-harness',
@@ -67,150 +129,146 @@ const capabilityPackCatalog = [
     summary:
       'Discovers tests, coverage, classifications, and verification records.',
     evidence: 'bitloops/src/capability_packs/test_harness',
+    status: 'Ready',
+    selectionKind: 'Dependency-selected',
+    dependencies: [],
+    initiallyEnabled: true,
+    advancedSectionKeys: ['test_harness'],
   },
   {
     id: 'knowledge-pack',
     label: 'Knowledge pack',
     summary: 'Stores and refreshes durable knowledge records.',
     evidence: 'bitloops/src/capability_packs/knowledge.rs',
+    status: 'Ready',
+    selectionKind: 'Dependency-selected',
+    dependencies: [],
+    initiallyEnabled: true,
+    advancedSectionKeys: ['knowledge'],
   },
   {
     id: 'semantic-clones',
     label: 'Semantic clones',
     summary: 'Identifies similar symbols and clone edges.',
     evidence: 'bitloops/src/capability_packs/semantic_clones',
+    status: 'Failed',
+    selectionKind: 'Explicit',
+    experimental: true,
+    dependencies: [],
+    initiallyEnabled: false,
+    advancedSectionKeys: ['semantic_clones'],
   },
 ] as const
 
 type CapabilityPackId = (typeof capabilityPackCatalog)[number]['id']
-type CapabilityPackPreferences = Record<CapabilityPackId, boolean>
+type CapabilityPackGuidedDraft = Record<string, string>
+type CapabilityPackDraft = {
+  enabled: boolean
+  guidedSettings: CapabilityPackGuidedDraft
+}
+type CapabilityPackDrafts = Record<CapabilityPackId, CapabilityPackDraft>
 
-const startupPreferencesStorageKey = 'settings-startup-preferences'
-const capabilityPackPreferencesStorageKey =
-  'settings-capability-pack-preferences'
-const startupModeOptions: Array<{
-  value: StartupBehaviorMode
-  label: string
-}> = [
-  { value: 'off', label: 'Off' },
-  { value: 'auto', label: 'Auto' },
-  { value: 'always', label: 'Always' },
-]
-
-function defaultStartupBehaviorPreferences(): StartupBehaviorPreferences {
+function defaultCrossPackPreferences(): CrossPackPreferences {
   return {
     daemonStartOnStartup: true,
-    syncOnStartup: 'auto',
-    ingestOnStartup: 'auto',
+    syncEnabled: true,
+    ingestEnabled: true,
+    observabilityEnabled: true,
   }
 }
 
-function isStartupBehaviorMode(value: unknown): value is StartupBehaviorMode {
-  return value === 'off' || value === 'auto' || value === 'always'
-}
-
-function loadStartupBehaviorPreferences(): StartupBehaviorPreferences {
-  if (typeof window === 'undefined') {
-    return defaultStartupBehaviorPreferences()
-  }
-
-  try {
-    const raw = window.localStorage.getItem(startupPreferencesStorageKey)
-    if (!raw) {
-      return defaultStartupBehaviorPreferences()
-    }
-
-    const parsed = JSON.parse(raw) as Partial<StartupBehaviorPreferences>
-    return {
-      daemonStartOnStartup:
-        typeof parsed.daemonStartOnStartup === 'boolean'
-          ? parsed.daemonStartOnStartup
-          : true,
-      syncOnStartup: isStartupBehaviorMode(parsed.syncOnStartup)
-        ? parsed.syncOnStartup
-        : 'auto',
-      ingestOnStartup: isStartupBehaviorMode(parsed.ingestOnStartup)
-        ? parsed.ingestOnStartup
-        : 'auto',
-    }
-  } catch {
-    return defaultStartupBehaviorPreferences()
-  }
-}
-
-function saveStartupBehaviorPreferences(
-  preferences: StartupBehaviorPreferences,
-): void {
-  if (typeof window === 'undefined') {
-    return
-  }
-
-  window.localStorage.setItem(
-    startupPreferencesStorageKey,
-    JSON.stringify(preferences),
-  )
-}
-
-function startupBehaviorDirty(
-  current: StartupBehaviorPreferences,
-  initial: StartupBehaviorPreferences,
+function crossPackDirty(
+  current: CrossPackPreferences,
+  initial: CrossPackPreferences,
 ): boolean {
   return (
     current.daemonStartOnStartup !== initial.daemonStartOnStartup ||
-    current.syncOnStartup !== initial.syncOnStartup ||
-    current.ingestOnStartup !== initial.ingestOnStartup
+    current.syncEnabled !== initial.syncEnabled ||
+    current.ingestEnabled !== initial.ingestEnabled ||
+    current.observabilityEnabled !== initial.observabilityEnabled
   )
 }
 
-function defaultCapabilityPackPreferences(): CapabilityPackPreferences {
-  return capabilityPackCatalog.reduce((preferences, pack) => {
-    preferences[pack.id] = true
-    return preferences
-  }, {} as CapabilityPackPreferences)
+function defaultCapabilityPackDrafts(): CapabilityPackDrafts {
+  return capabilityPackCatalog.reduce((drafts, pack) => {
+    drafts[pack.id] = {
+      enabled: pack.initiallyEnabled,
+      guidedSettings: (pack.guidedSettings ?? []).reduce(
+        (settings, definition) => {
+          settings[definition.key] = definition.options[0] ?? ''
+          return settings
+        },
+        {} as CapabilityPackGuidedDraft,
+      ),
+    }
+    return drafts
+  }, {} as CapabilityPackDrafts)
 }
 
-function loadCapabilityPackPreferences(): CapabilityPackPreferences {
-  if (typeof window === 'undefined') {
-    return defaultCapabilityPackPreferences()
-  }
-
-  try {
-    const raw = window.localStorage.getItem(capabilityPackPreferencesStorageKey)
-    if (!raw) {
-      return defaultCapabilityPackPreferences()
+function capabilityPackDraftsDirty(
+  current: CapabilityPackDrafts,
+  initial: CapabilityPackDrafts,
+): boolean {
+  return capabilityPackCatalog.some((pack) => {
+    const currentPack = current[pack.id]
+    const initialPack = initial[pack.id]
+    if (currentPack.enabled !== initialPack.enabled) {
+      return true
     }
 
-    const parsed = JSON.parse(raw) as Partial<Record<CapabilityPackId, unknown>>
-    return capabilityPackCatalog.reduce((preferences, pack) => {
-      const storedValue = parsed[pack.id]
-      preferences[pack.id] =
-        typeof storedValue === 'boolean' ? storedValue : true
-      return preferences
-    }, {} as CapabilityPackPreferences)
-  } catch {
-    return defaultCapabilityPackPreferences()
-  }
+    return Object.keys(currentPack.guidedSettings).some(
+      (key) =>
+        currentPack.guidedSettings[key] !== initialPack.guidedSettings[key],
+    )
+  })
 }
 
-function saveCapabilityPackPreferences(
-  preferences: CapabilityPackPreferences,
-): void {
-  if (typeof window === 'undefined') {
-    return
-  }
-
-  window.localStorage.setItem(
-    capabilityPackPreferencesStorageKey,
-    JSON.stringify(preferences),
-  )
+function defaultExpandedPackIds(): string[] {
+  return capabilityPackCatalog
+    .filter((pack) => pack.initiallyEnabled && pack.initiallyExpanded)
+    .map((pack) => pack.id)
 }
 
-function capabilityPackPreferencesDirty(
-  current: CapabilityPackPreferences,
-  initial: CapabilityPackPreferences,
-): boolean {
-  return capabilityPackCatalog.some(
-    (pack) => current[pack.id] !== initial[pack.id],
+function statusForPack(
+  pack: CapabilityPackDefinition,
+  draft: CapabilityPackDraft,
+): string {
+  if (!draft.enabled) {
+    return 'Disabled'
+  }
+
+  return pack.status
+}
+
+function changedPackIds(
+  current: CapabilityPackDrafts,
+  initial: CapabilityPackDrafts,
+): CapabilityPackId[] {
+  return capabilityPackCatalog
+    .filter((pack) => {
+      const currentPack = current[pack.id]
+      const initialPack = initial[pack.id]
+      if (currentPack.enabled !== initialPack.enabled) {
+        return true
+      }
+      return Object.keys(currentPack.guidedSettings).some(
+        (key) =>
+          currentPack.guidedSettings[key] !== initialPack.guidedSettings[key],
+      )
+    })
+    .map((pack) => pack.id)
+}
+
+function advancedSectionsForPack(
+  sections: RuntimeConfigSection[],
+  pack: CapabilityPackDefinition,
+): RuntimeConfigSection[] {
+  return sortedSections(sections).filter(
+    (section) =>
+      pack.advancedSectionKeys.includes(section.key) ||
+      section.fields.some((field) =>
+        pack.advancedSectionKeys.includes(field.path[0] ?? ''),
+      ),
   )
 }
 
@@ -420,259 +478,340 @@ function ConfigFieldRow({
   )
 }
 
-function StartupBehaviorSection({
+function CrossPackControls({
   preferences,
-  initialPreferences,
-  saveMessage,
-  error,
-  onChange,
-  onReset,
-  onSave,
+  onToggle,
 }: {
-  preferences: StartupBehaviorPreferences
-  initialPreferences: StartupBehaviorPreferences
-  saveMessage: string | null
-  error: string | null
-  onChange: <K extends keyof StartupBehaviorPreferences>(
-    key: K,
-    value: StartupBehaviorPreferences[K],
-  ) => void
-  onReset: () => void
-  onSave: () => void
+  preferences: CrossPackPreferences
+  onToggle: (key: keyof CrossPackPreferences, value: boolean) => void
 }) {
-  const dirty = startupBehaviorDirty(preferences, initialPreferences)
+  const controls: Array<{
+    key: keyof CrossPackPreferences
+    label: string
+    description: string
+  }> = [
+    {
+      key: 'daemonStartOnStartup',
+      label: 'Start daemon on app startup',
+      description:
+        'Automatically launch the Bitloops daemon when the dashboard opens.',
+    },
+    {
+      key: 'syncEnabled',
+      label: 'Sync enabled',
+      description: 'Keep repository sync available across enabled packs.',
+    },
+    {
+      key: 'ingestEnabled',
+      label: 'Ingest enabled',
+      description: 'Keep repository ingest available for pack-owned knowledge.',
+    },
+    {
+      key: 'observabilityEnabled',
+      label: 'Observability enabled',
+      description: 'Match the existing Bitloops CLI observability concept.',
+    },
+  ]
 
   return (
-    <section className='rounded-md border bg-background px-4 py-3'>
-      <div className='flex flex-wrap items-start justify-between gap-3'>
-        <div>
-          <h3 className='text-base font-semibold'>Startup behavior</h3>
-          <p className='mt-1 text-sm text-muted-foreground'>
-            Control which dashboard-managed Bitloops tasks should start
-            automatically.
-          </p>
-        </div>
-        <div className='flex flex-wrap gap-2'>
-          <Button
-            type='button'
-            variant='outline'
-            onClick={onReset}
-            disabled={!dirty}
-          >
-            <RotateCcw className='me-2 size-4' />
-            Reset startup behavior
-          </Button>
-          <Button type='button' onClick={onSave} disabled={!dirty}>
-            <Save className='me-2 size-4' />
-            Save startup behavior
-          </Button>
-        </div>
-      </div>
-
-      {error ? (
+    <div className='grid gap-3 lg:grid-cols-2'>
+      {controls.map((control) => (
         <div
-          role='alert'
-          className='mt-4 rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive'
+          key={control.key}
+          className='rounded-md border bg-muted/20 px-4 py-3'
         >
-          {error}
-        </div>
-      ) : null}
-      {saveMessage ? (
-        <div className='mt-4 rounded-md border border-emerald-500/40 bg-emerald-500/10 px-3 py-2 text-sm text-emerald-700 dark:text-emerald-300'>
-          {saveMessage}
-        </div>
-      ) : null}
-
-      <Separator className='mt-4' />
-      <div className='divide-y'>
-        <div className='grid gap-2 py-4 md:grid-cols-[minmax(180px,260px)_minmax(0,1fr)] md:gap-6'>
-          <div className='space-y-1.5'>
-            <Label htmlFor='startup-daemon-toggle'>
-              Start daemon on app startup
-            </Label>
-            <p className='text-xs leading-5 text-muted-foreground'>
-              Automatically launch the Bitloops daemon when the dashboard opens.
-            </p>
-          </div>
-          <div id='startup-daemon-toggle'>
+          <div className='flex items-start justify-between gap-3'>
+            <div className='space-y-1'>
+              <Label htmlFor={`cross-pack-${control.key}`}>
+                {control.label}
+              </Label>
+              <p className='text-xs leading-5 text-muted-foreground'>
+                {control.description}
+              </p>
+            </div>
             <label className='flex h-9 w-fit items-center gap-2 rounded-md border border-input px-3 text-sm shadow-xs'>
               <input
+                id={`cross-pack-${control.key}`}
                 type='checkbox'
-                checked={preferences.daemonStartOnStartup}
+                checked={preferences[control.key]}
                 onChange={(event) =>
-                  onChange('daemonStartOnStartup', event.currentTarget.checked)
+                  onToggle(control.key, event.currentTarget.checked)
                 }
-                aria-label='Start daemon on app startup'
+                aria-label={control.label}
               />
               Enabled
             </label>
           </div>
         </div>
+      ))}
+    </div>
+  )
+}
 
-        <div className='grid gap-2 py-4 md:grid-cols-[minmax(180px,260px)_minmax(0,1fr)] md:gap-6'>
-          <div className='space-y-1.5'>
-            <Label htmlFor='startup-sync-mode'>Run sync on startup</Label>
-            <p className='text-xs leading-5 text-muted-foreground'>
-              Choose whether repository sync runs automatically when the
-              dashboard starts.
-            </p>
-          </div>
-          <div id='startup-sync-mode'>
-            <select
-              id='startup-sync-mode'
-              aria-label='Run sync on startup'
-              value={preferences.syncOnStartup}
-              onChange={(event) =>
-                onChange(
-                  'syncOnStartup',
-                  event.currentTarget.value as StartupBehaviorMode,
-                )
-              }
-              className='h-9 w-full rounded-md border border-input bg-background px-3 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 sm:max-w-md'
-            >
-              {startupModeOptions.map((option) => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
-          </div>
-        </div>
+function CapabilityPackCard({
+  pack,
+  draft,
+  expanded,
+  sections,
+  drafts,
+  initialDrafts,
+  onToggleEnabled,
+  onToggleExpanded,
+  onGuidedSettingChange,
+  onDraftChange,
+}: {
+  pack: CapabilityPackDefinition
+  draft: CapabilityPackDraft
+  expanded: boolean
+  sections: RuntimeConfigSection[]
+  drafts: Drafts
+  initialDrafts: Drafts
+  onToggleEnabled: (enabled: boolean) => void
+  onToggleExpanded: () => void
+  onGuidedSettingChange: (key: string, value: string) => void
+  onDraftChange: (field: RuntimeConfigField, value: string) => void
+}) {
+  const status = statusForPack(pack, draft)
 
-        <div className='grid gap-2 py-4 md:grid-cols-[minmax(180px,260px)_minmax(0,1fr)] md:gap-6'>
-          <div className='space-y-1.5'>
-            <Label htmlFor='startup-ingest-mode'>Run ingest on startup</Label>
+  return (
+    <section
+      data-testid={`capability-pack-card-${pack.id}`}
+      className='rounded-md border bg-background px-4 py-4'
+    >
+      <div className='flex flex-wrap items-start justify-between gap-3'>
+        <div className='space-y-2'>
+          <button
+            type='button'
+            onClick={onToggleExpanded}
+            className='flex items-center gap-2 text-left'
+          >
+            {expanded ? (
+              <ChevronDown className='size-4 text-muted-foreground' />
+            ) : (
+              <ChevronRight className='size-4 text-muted-foreground' />
+            )}
+            <span className='text-sm font-semibold'>{pack.label}</span>
+          </button>
+          <div className='flex flex-wrap items-center gap-2'>
+            <Badge variant={draft.enabled ? 'default' : 'secondary'}>
+              {status}
+            </Badge>
+            <Badge variant='outline'>{pack.selectionKind}</Badge>
+            {pack.experimental ? (
+              <Badge variant='secondary'>Experimental</Badge>
+            ) : null}
+          </div>
+          <p className='text-sm text-muted-foreground'>{pack.summary}</p>
+          {pack.dependencies.length > 0 ? (
             <p className='text-xs leading-5 text-muted-foreground'>
-              Choose whether ingest runs automatically when the dashboard
-              starts.
+              Dependencies: {pack.dependencies.join(', ')}
             </p>
-          </div>
-          <div id='startup-ingest-mode'>
-            <select
-              id='startup-ingest-mode'
-              aria-label='Run ingest on startup'
-              value={preferences.ingestOnStartup}
-              onChange={(event) =>
-                onChange(
-                  'ingestOnStartup',
-                  event.currentTarget.value as StartupBehaviorMode,
-                )
-              }
-              className='h-9 w-full rounded-md border border-input bg-background px-3 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 sm:max-w-md'
-            >
-              {startupModeOptions.map((option) => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
-          </div>
+          ) : null}
+          <p className='break-all text-xs text-muted-foreground'>
+            {pack.evidence}
+          </p>
         </div>
+        <label className='flex h-9 w-fit items-center gap-2 rounded-md border border-input px-3 text-sm shadow-xs'>
+          <input
+            type='checkbox'
+            checked={draft.enabled}
+            onChange={(event) => onToggleEnabled(event.currentTarget.checked)}
+            aria-label={`Enable ${pack.label}`}
+          />
+          Enabled
+        </label>
       </div>
+
+      {expanded ? (
+        <div className='mt-4 space-y-4'>
+          <div className='rounded-md border bg-muted/20 px-4 py-3'>
+            <h5 className='text-sm font-semibold'>Overview</h5>
+            <p className='mt-2 text-xs leading-5 text-muted-foreground'>
+              {draft.enabled
+                ? `${pack.label} is currently ${status.toLowerCase()}.`
+                : `${pack.label} is disabled but remains available for review.`}
+            </p>
+            {pack.selectionKind === 'Dependency-selected' ? (
+              <p className='mt-2 text-xs leading-5 text-muted-foreground'>
+                This pack is currently marked as dependency-selected, so disable
+                behavior should stay backend-owned.
+              </p>
+            ) : null}
+          </div>
+
+          {pack.guidedSettings?.length ? (
+            <div className='rounded-md border bg-muted/20 px-4 py-3'>
+              <h5 className='text-sm font-semibold'>Guided settings</h5>
+              <div className='mt-3 grid gap-3 md:grid-cols-2'>
+                {pack.guidedSettings.map((setting) => (
+                  <div key={setting.key} className='space-y-1.5'>
+                    <Label htmlFor={`${pack.id}-${setting.key}`}>
+                      {setting.label}
+                    </Label>
+                    <select
+                      id={`${pack.id}-${setting.key}`}
+                      aria-label={setting.label}
+                      value={draft.guidedSettings[setting.key] ?? ''}
+                      onChange={(event) =>
+                        onGuidedSettingChange(
+                          setting.key,
+                          event.currentTarget.value,
+                        )
+                      }
+                      className='h-9 w-full rounded-md border border-input bg-background px-3 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50'
+                    >
+                      {setting.options.map((option) => (
+                        <option key={option} value={option}>
+                          {option}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : null}
+
+          <div className='space-y-3'>
+            <div className='rounded-md border bg-muted/20 px-4 py-3'>
+              <h5 className='text-sm font-semibold'>Advanced config</h5>
+              <p className='mt-1 text-xs leading-5 text-muted-foreground'>
+                Related runtime-config fields stay grouped under the owning
+                capability pack when the backend does not yet expose a dedicated
+                guided contract.
+              </p>
+            </div>
+            {sections.length > 0 ? (
+              sections.map((section) => (
+                <ConfigSectionPanel
+                  key={`${pack.id}-${section.key}`}
+                  section={section}
+                  drafts={drafts}
+                  initialDrafts={initialDrafts}
+                  onDraftChange={onDraftChange}
+                />
+              ))
+            ) : (
+              <div className='rounded-md border border-dashed px-4 py-3 text-sm text-muted-foreground'>
+                No advanced config fields are currently exposed for this pack.
+              </div>
+            )}
+          </div>
+        </div>
+      ) : null}
     </section>
   )
 }
 
-function CapabilityPacksSection({
-  preferences,
-  initialPreferences,
-  saveMessage,
-  error,
-  onChange,
-  onReset,
-  onSave,
+function CapabilityPackReviewPanel({
+  crossPackPreferences,
+  initialCrossPackPreferences,
+  packDrafts,
+  initialPackDrafts,
 }: {
-  preferences: CapabilityPackPreferences
-  initialPreferences: CapabilityPackPreferences
-  saveMessage: string | null
-  error: string | null
-  onChange: (id: CapabilityPackId, enabled: boolean) => void
-  onReset: () => void
-  onSave: () => void
+  crossPackPreferences: CrossPackPreferences
+  initialCrossPackPreferences: CrossPackPreferences
+  packDrafts: CapabilityPackDrafts
+  initialPackDrafts: CapabilityPackDrafts
 }) {
-  const dirty = capabilityPackPreferencesDirty(preferences, initialPreferences)
+  const changedCrossPackControls: string[] = []
+  if (
+    crossPackPreferences.daemonStartOnStartup !==
+    initialCrossPackPreferences.daemonStartOnStartup
+  ) {
+    changedCrossPackControls.push('Start daemon on app startup')
+  }
+  if (
+    crossPackPreferences.syncEnabled !== initialCrossPackPreferences.syncEnabled
+  ) {
+    changedCrossPackControls.push('Sync enabled')
+  }
+  if (
+    crossPackPreferences.ingestEnabled !==
+    initialCrossPackPreferences.ingestEnabled
+  ) {
+    changedCrossPackControls.push('Ingest enabled')
+  }
+  if (
+    crossPackPreferences.observabilityEnabled !==
+    initialCrossPackPreferences.observabilityEnabled
+  ) {
+    changedCrossPackControls.push('Observability enabled')
+  }
+
+  const changedPacks = changedPackIds(packDrafts, initialPackDrafts)
 
   return (
-    <section className='rounded-md border bg-background px-4 py-3'>
+    <section
+      data-testid='capability-pack-review-panel'
+      className='rounded-md border border-amber-500/30 bg-amber-500/5 px-4 py-4'
+    >
       <div className='flex flex-wrap items-start justify-between gap-3'>
         <div>
-          <h3 className='text-base font-semibold'>Capability packs</h3>
+          <h4 className='text-base font-semibold'>Review changes</h4>
           <p className='mt-1 text-sm text-muted-foreground'>
-            Enable the complete Bitloops analysis pack catalog, including
-            Architecture graph and the related knowledge packs.
+            This review groups cross-pack settings, pack enablement, and
+            pack-specific draft values before `Save & Run`.
           </p>
         </div>
-        <div className='flex flex-wrap gap-2'>
-          <Button
-            type='button'
-            variant='outline'
-            onClick={onReset}
-            disabled={!dirty}
-          >
-            <RotateCcw className='me-2 size-4' />
-            Reset capability packs
-          </Button>
-          <Button type='button' onClick={onSave} disabled={!dirty}>
-            <Save className='me-2 size-4' />
-            Save capability packs
-          </Button>
+        <Button type='button' disabled>
+          <Save className='me-2 size-4' />
+          Save & Run
+        </Button>
+      </div>
+
+      <div className='mt-4 grid gap-4 lg:grid-cols-2'>
+        <div className='rounded-md border bg-background px-4 py-3'>
+          <h5 className='text-sm font-semibold'>Cross-pack changes</h5>
+          <ul className='mt-2 space-y-1 text-sm text-muted-foreground'>
+            {changedCrossPackControls.length > 0 ? (
+              changedCrossPackControls.map((control) => (
+                <li key={control}>{control}</li>
+              ))
+            ) : (
+              <li>No cross-pack changes in draft.</li>
+            )}
+          </ul>
+        </div>
+        <div className='rounded-md border bg-background px-4 py-3'>
+          <h5 className='text-sm font-semibold'>Pack changes</h5>
+          <ul className='mt-2 space-y-1 text-sm text-muted-foreground'>
+            {changedPacks.length > 0 ? (
+              changedPacks.map((packId) => {
+                const pack = capabilityPackCatalog.find(
+                  (item) => item.id === packId,
+                )
+                return <li key={packId}>{pack?.label ?? packId}</li>
+              })
+            ) : (
+              <li>No pack changes in draft.</li>
+            )}
+          </ul>
         </div>
       </div>
 
-      {error ? (
-        <div
-          role='alert'
-          className='mt-4 rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive'
-        >
-          {error}
+      <div className='mt-4 rounded-md border border-destructive/40 bg-destructive/10 px-4 py-3'>
+        <h5 className='text-sm font-semibold text-destructive'>
+          Backend handoff needed
+        </h5>
+        <p className='mt-2 text-sm text-destructive'>
+          The frontend UI is ready to review capability-pack changes, but the
+          backend capability-pack contract is not available from this repo yet.
+        </p>
+        <div className='mt-3 space-y-1 text-xs text-destructive'>
+          <p>
+            <span className='font-medium'>Route:</span>{' '}
+            <code>/settings/configuration</code>
+          </p>
+          <p>
+            <span className='font-medium'>Blocking operation:</span>{' '}
+            <code>planCapabilityPackConfig</code>
+          </p>
+          <p>
+            <span className='font-medium'>Follow-up operation:</span>{' '}
+            <code>applyCapabilityPackConfig</code>
+          </p>
         </div>
-      ) : null}
-      {saveMessage ? (
-        <div className='mt-4 rounded-md border border-emerald-500/40 bg-emerald-500/10 px-3 py-2 text-sm text-emerald-700 dark:text-emerald-300'>
-          {saveMessage}
-        </div>
-      ) : null}
-
-      <Separator className='mt-4' />
-      <div className='mt-4 grid gap-4 xl:grid-cols-2'>
-        {capabilityPackCatalog.map((pack) => {
-          const enabled = preferences[pack.id]
-
-          return (
-            <section
-              key={pack.id}
-              className='rounded-md border bg-muted/20 px-4 py-4'
-            >
-              <div className='flex flex-wrap items-start justify-between gap-3'>
-                <div className='space-y-1.5'>
-                  <div className='flex flex-wrap items-center gap-2'>
-                    <h4 className='text-sm font-semibold'>{pack.label}</h4>
-                    <Badge variant={enabled ? 'default' : 'secondary'}>
-                      {enabled ? 'Enabled' : 'Disabled'}
-                    </Badge>
-                  </div>
-                  <p className='text-sm text-muted-foreground'>
-                    {pack.summary}
-                  </p>
-                  <p className='break-all text-xs text-muted-foreground'>
-                    {pack.evidence}
-                  </p>
-                </div>
-                <label className='flex h-9 w-fit items-center gap-2 rounded-md border border-input px-3 text-sm shadow-xs'>
-                  <input
-                    type='checkbox'
-                    checked={enabled}
-                    onChange={(event) =>
-                      onChange(pack.id, event.currentTarget.checked)
-                    }
-                    aria-label={`Enable ${pack.label}`}
-                  />
-                  Enabled
-                </label>
-              </div>
-            </section>
-          )
-        })}
       </div>
     </section>
   )
@@ -732,26 +871,20 @@ export function SettingsConfiguration() {
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [saveMessage, setSaveMessage] = useState<string | null>(null)
-  const [startupPreferences, setStartupPreferences] =
-    useState<StartupBehaviorPreferences>(() => loadStartupBehaviorPreferences())
-  const [initialStartupPreferences, setInitialStartupPreferences] =
-    useState<StartupBehaviorPreferences>(() => loadStartupBehaviorPreferences())
-  const [startupError, setStartupError] = useState<string | null>(null)
-  const [startupSaveMessage, setStartupSaveMessage] = useState<string | null>(
-    null,
+  const [crossPackPreferences, setCrossPackPreferences] =
+    useState<CrossPackPreferences>(() => defaultCrossPackPreferences())
+  const [initialCrossPackPreferences] = useState<CrossPackPreferences>(() =>
+    defaultCrossPackPreferences(),
   )
-  const [capabilityPackPreferences, setCapabilityPackPreferences] =
-    useState<CapabilityPackPreferences>(() => loadCapabilityPackPreferences())
-  const [
-    initialCapabilityPackPreferences,
-    setInitialCapabilityPackPreferences,
-  ] = useState<CapabilityPackPreferences>(() => loadCapabilityPackPreferences())
-  const [capabilityPackError, setCapabilityPackError] = useState<string | null>(
-    null,
+  const [capabilityPackDrafts, setCapabilityPackDrafts] =
+    useState<CapabilityPackDrafts>(() => defaultCapabilityPackDrafts())
+  const [initialCapabilityPackDrafts] = useState<CapabilityPackDrafts>(() =>
+    defaultCapabilityPackDrafts(),
   )
-  const [capabilityPackSaveMessage, setCapabilityPackSaveMessage] = useState<
-    string | null
-  >(null)
+  const [expandedPackIds, setExpandedPackIds] = useState<string[]>(
+    defaultExpandedPackIds,
+  )
+  const [reviewOpen, setReviewOpen] = useState(false)
 
   useEffect(() => {
     const controller = new AbortController()
@@ -807,6 +940,20 @@ export function SettingsConfiguration() {
   const dirty = useMemo(() => {
     return Object.keys(drafts).some((key) => drafts[key] !== initialDrafts[key])
   }, [drafts, initialDrafts])
+  const capabilityPackDirty = useMemo(
+    () =>
+      crossPackDirty(crossPackPreferences, initialCrossPackPreferences) ||
+      capabilityPackDraftsDirty(
+        capabilityPackDrafts,
+        initialCapabilityPackDrafts,
+      ),
+    [
+      capabilityPackDrafts,
+      crossPackPreferences,
+      initialCapabilityPackDrafts,
+      initialCrossPackPreferences,
+    ],
+  )
 
   const selectedTarget = targets.find(
     (target) => target.id === selectedTargetId,
@@ -819,66 +966,71 @@ export function SettingsConfiguration() {
     }))
   }
 
-  function handleStartupPreferenceChange<
-    K extends keyof StartupBehaviorPreferences,
-  >(key: K, value: StartupBehaviorPreferences[K]) {
-    setStartupPreferences((current) => ({
+  function handleCrossPackChange<K extends keyof CrossPackPreferences>(
+    key: K,
+    value: CrossPackPreferences[K],
+  ) {
+    setCrossPackPreferences((current) => ({
       ...current,
       [key]: value,
     }))
-    setStartupError(null)
-    setStartupSaveMessage(null)
   }
 
-  function handleResetStartupPreferences() {
-    setStartupPreferences(initialStartupPreferences)
-    setStartupError(null)
-    setStartupSaveMessage(null)
-  }
-
-  function handleSaveStartupPreferences() {
-    try {
-      saveStartupBehaviorPreferences(startupPreferences)
-      setInitialStartupPreferences(startupPreferences)
-      setStartupError(null)
-      setStartupSaveMessage('Startup behavior saved.')
-    } catch (err: unknown) {
-      setStartupSaveMessage(null)
-      setStartupError(errorMessage(err))
-    }
-  }
-
-  function handleCapabilityPackPreferenceChange(
-    id: CapabilityPackId,
-    enabled: boolean,
-  ) {
-    setCapabilityPackPreferences((current) => ({
+  function handleCapabilityPackToggle(id: CapabilityPackId, enabled: boolean) {
+    setCapabilityPackDrafts((current) => ({
       ...current,
-      [id]: enabled,
+      [id]: {
+        ...current[id],
+        enabled,
+      },
     }))
-    setCapabilityPackError(null)
-    setCapabilityPackSaveMessage(null)
+    setExpandedPackIds((current) => {
+      if (enabled) {
+        return current.includes(id) ? current : [...current, id]
+      }
+
+      return current.filter((packId) => packId !== id)
+    })
   }
 
-  function handleResetCapabilityPackPreferences() {
-    setCapabilityPackPreferences(initialCapabilityPackPreferences)
-    setCapabilityPackError(null)
-    setCapabilityPackSaveMessage(null)
+  function handleCapabilityPackExpandToggle(id: CapabilityPackId) {
+    setExpandedPackIds((current) =>
+      current.includes(id)
+        ? current.filter((packId) => packId !== id)
+        : [...current, id],
+    )
   }
 
-  function handleSaveCapabilityPackPreferences() {
-    try {
-      saveCapabilityPackPreferences(capabilityPackPreferences)
-      setInitialCapabilityPackPreferences(capabilityPackPreferences)
-      setCapabilityPackError(null)
-      setCapabilityPackSaveMessage('Capability packs saved.')
-    } catch (err: unknown) {
-      setCapabilityPackSaveMessage(null)
-      setCapabilityPackError(errorMessage(err))
-    }
+  function handleGuidedSettingChange(
+    id: CapabilityPackId,
+    key: string,
+    value: string,
+  ) {
+    setCapabilityPackDrafts((current) => ({
+      ...current,
+      [id]: {
+        ...current[id],
+        guidedSettings: {
+          ...current[id].guidedSettings,
+          [key]: value,
+        },
+      },
+    }))
   }
 
-  async function handleSave() {
+  function handleResetCapabilityPackDraft() {
+    setCrossPackPreferences(initialCrossPackPreferences)
+    setCapabilityPackDrafts(initialCapabilityPackDrafts)
+    setExpandedPackIds(defaultExpandedPackIds())
+    setReviewOpen(false)
+  }
+
+  function handleOpenReview() {
+    if (!capabilityPackDirty) return
+    setReviewOpen(true)
+  }
+
+  async function handleRuntimeConfigSave() {
     if (!snapshot || !dirty) return
 
     const patches: RuntimeConfigFieldPatch[] = []
@@ -911,7 +1063,7 @@ export function SettingsConfiguration() {
       setSnapshot(updated)
       setDrafts(nextDrafts)
       setInitialDrafts(nextDrafts)
-      setSaveMessage('Configuration saved.')
+      setSaveMessage('Runtime config saved.')
     } catch (err: unknown) {
       setError(errorMessage(err))
     } finally {
@@ -919,7 +1071,7 @@ export function SettingsConfiguration() {
     }
   }
 
-  function handleReset() {
+  function handleRuntimeConfigReset() {
     setDrafts(initialDrafts)
     setError(null)
     setSaveMessage(null)
@@ -937,25 +1089,104 @@ export function SettingsConfiguration() {
             dashboard.
           </p>
         </div>
-        <StartupBehaviorSection
-          preferences={startupPreferences}
-          initialPreferences={initialStartupPreferences}
-          saveMessage={startupSaveMessage}
-          error={startupError}
-          onChange={handleStartupPreferenceChange}
-          onReset={handleResetStartupPreferences}
-          onSave={handleSaveStartupPreferences}
-        />
-        <CapabilityPacksSection
-          preferences={capabilityPackPreferences}
-          initialPreferences={initialCapabilityPackPreferences}
-          saveMessage={capabilityPackSaveMessage}
-          error={capabilityPackError}
-          onChange={handleCapabilityPackPreferenceChange}
-          onReset={handleResetCapabilityPackPreferences}
-          onSave={handleSaveCapabilityPackPreferences}
-        />
+        <section className='rounded-md border bg-background px-4 py-4'>
+          <div className='flex flex-wrap items-start justify-between gap-3'>
+            <div>
+              <h3 className='text-base font-semibold'>Capability Packs</h3>
+              <p className='mt-1 text-sm text-muted-foreground'>
+                Configure cross-pack behavior first, then expand each capability
+                pack for guided or advanced settings.
+              </p>
+            </div>
+            <div className='flex flex-wrap gap-2'>
+              {capabilityPackDirty ? (
+                <Badge variant='outline'>Draft changes</Badge>
+              ) : (
+                <Badge variant='secondary'>No draft changes</Badge>
+              )}
+              <Badge variant='outline'>Backend handoff aware</Badge>
+            </div>
+          </div>
+
+          <Separator className='my-4' />
+          <CrossPackControls
+            preferences={crossPackPreferences}
+            onToggle={handleCrossPackChange}
+          />
+
+          <div className='mt-4 grid gap-4'>
+            {capabilityPackCatalog.map((pack) => (
+              <CapabilityPackCard
+                key={pack.id}
+                pack={pack}
+                draft={capabilityPackDrafts[pack.id]}
+                expanded={expandedPackIds.includes(pack.id)}
+                sections={advancedSectionsForPack(sections, pack)}
+                drafts={drafts}
+                initialDrafts={initialDrafts}
+                onToggleEnabled={(enabled) =>
+                  handleCapabilityPackToggle(pack.id, enabled)
+                }
+                onToggleExpanded={() =>
+                  handleCapabilityPackExpandToggle(pack.id)
+                }
+                onGuidedSettingChange={(key, value) =>
+                  handleGuidedSettingChange(pack.id, key, value)
+                }
+                onDraftChange={handleDraftChange}
+              />
+            ))}
+          </div>
+
+          <div className='mt-4 flex flex-wrap gap-2'>
+            <Button
+              type='button'
+              variant='outline'
+              onClick={handleResetCapabilityPackDraft}
+              disabled={!capabilityPackDirty}
+            >
+              <RotateCcw className='me-2 size-4' />
+              Reset draft
+            </Button>
+            <Button
+              type='button'
+              variant='outline'
+              onClick={handleOpenReview}
+              disabled={!capabilityPackDirty}
+            >
+              Review changes
+            </Button>
+            {!reviewOpen ? (
+              <Button
+                type='button'
+                onClick={handleOpenReview}
+                disabled={!capabilityPackDirty}
+              >
+                <Save className='me-2 size-4' />
+                Save & Run
+              </Button>
+            ) : null}
+          </div>
+
+          {reviewOpen ? (
+            <div className='mt-4'>
+              <CapabilityPackReviewPanel
+                crossPackPreferences={crossPackPreferences}
+                initialCrossPackPreferences={initialCrossPackPreferences}
+                packDrafts={capabilityPackDrafts}
+                initialPackDrafts={initialCapabilityPackDrafts}
+              />
+            </div>
+          ) : null}
+        </section>
         <div className='flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between'>
+          <div>
+            <h3 className='text-base font-semibold'>Advanced runtime config</h3>
+            <p className='mt-1 text-sm text-muted-foreground'>
+              The existing runtime-config editor stays available for raw config
+              targets while capability-pack backend contracts are still missing.
+            </p>
+          </div>
           <div className='space-y-2'>
             <Label>Config target</Label>
             <Select
@@ -984,15 +1215,15 @@ export function SettingsConfiguration() {
             <Button
               type='button'
               variant='outline'
-              onClick={handleReset}
+              onClick={handleRuntimeConfigReset}
               disabled={!dirty || saving}
             >
               <RotateCcw className='me-2 size-4' />
-              Reset
+              Reset runtime config
             </Button>
             <Button
               type='button'
-              onClick={handleSave}
+              onClick={handleRuntimeConfigSave}
               disabled={!dirty || saving || loadingSnapshot}
             >
               {saving ? (
@@ -1000,7 +1231,7 @@ export function SettingsConfiguration() {
               ) : (
                 <Save className='me-2 size-4' />
               )}
-              Save
+              Save runtime config
             </Button>
           </div>
         </div>

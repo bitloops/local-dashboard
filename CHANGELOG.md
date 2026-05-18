@@ -2,13 +2,13 @@
 
 ### Added
 
-- Startup behavior preferences in the Configuration page for daemon auto-start plus per-dashboard sync and ingest startup behavior.
-- Coverage for local startup-preference persistence in Settings Configuration.
-- A complete Capability packs section in Configuration covering CodeCity, Architecture graph, Navigation context, Test harness, Knowledge pack, and Semantic clones.
+- A richer `Capability Packs` section inside `Settings > Configuration`, with cross-pack enablement toggles, always-visible pack cards, guided runtime settings for `Architecture graph` and `Context Guidance`, grouped advanced config, and a review sheet with explicit backend handoff blockers.
+- Unit and integration coverage for the new Configuration-based capability-pack surface, including collapsed disabled packs, guided-versus-advanced rendering, and the review flow.
 
 ### Changed
 
-- Removed the standalone Capability Packs settings route and folded its startup behavior controls and pack catalog into the existing Configuration page.
+- Kept `/settings/configuration` as the canonical settings route while treating `/settings/capability-packs` as a legacy alias that resolves to the same configuration UI.
+- Demoted the generic runtime-config editor into an advanced companion area beneath the capability-pack workflow instead of using it as the only configuration narrative.
 
 ## [0.0.14] - 2026-05-12
 
