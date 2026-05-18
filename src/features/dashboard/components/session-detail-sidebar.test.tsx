@@ -1,10 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { act, render, screen, waitFor } from '@testing-library/react'
+import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { SessionDetailSidebar } from './session-detail-sidebar'
 import type {
   DashboardInteractionSessionDetailResponse,
   DashboardInteractionSessionDto,
+  DashboardInteractionToolUseDto,
+  DashboardTranscriptEntryDto,
 } from '../api-types'
 import { fetchDashboardInteractionSessionDetail } from '../graphql/fetch-dashboard-data'
 
@@ -16,7 +18,7 @@ const mockFetchDashboardInteractionSessionDetail = vi.mocked(
   fetchDashboardInteractionSessionDetail,
 )
 
-const sessionSummary: DashboardInteractionSessionDto = {
+const baseSummary: DashboardInteractionSessionDto = {
   session_id: 'sess-1',
   branch: 'main',
   actor: null,
@@ -39,10 +41,53 @@ function makeInteractionDetail(
   overrides: Partial<DashboardInteractionSessionDetailResponse> = {},
 ): DashboardInteractionSessionDetailResponse {
   return {
-    summary: sessionSummary,
+    summary: baseSummary,
     turns: [],
     raw_events: [],
     session_transcript_entries: [],
+    ...overrides,
+  }
+}
+
+function toolUse(
+  overrides: Partial<DashboardInteractionToolUseDto> = {},
+): DashboardInteractionToolUseDto {
+  return {
+    tool_invocation_id: 'inv-1',
+    tool_use_id: 'tu-1',
+    session_id: 'sess-1',
+    turn_id: null,
+    tool_kind: 'Read',
+    task_description: null,
+    input_summary: null,
+    output_summary: null,
+    source: null,
+    command: null,
+    command_binary: null,
+    command_argv: [],
+    transcript_path: null,
+    started_at: null,
+    ended_at: null,
+    ...overrides,
+  }
+}
+
+function transcriptEntry(
+  overrides: Partial<DashboardTranscriptEntryDto> = {},
+): DashboardTranscriptEntryDto {
+  return {
+    entry_id: 'entry-1',
+    session_id: 'sess-1',
+    turn_id: null,
+    order: 0,
+    timestamp: null,
+    actor: 'ASSISTANT',
+    variant: 'TOOL_USE',
+    source: 'TRANSCRIPT',
+    text: 'Tool: Read\n/foo/bar.ts',
+    tool_use_id: 'tu-x',
+    tool_kind: 'Read',
+    is_error: false,
     ...overrides,
   }
 }
@@ -65,38 +110,68 @@ describe('SessionDetailSidebar', () => {
     )
   })
 
-  it('shows the provider model slug instead of the full account path', () => {
-    render(
-      <SessionDetailSidebar
-        sessionId={null}
-        sessionSummary={sessionSummary}
-        repoId={null}
-        userName='Test User'
-      />,
+  it('shows a spinner while the detail request is in flight', async () => {
+    const request = deferred<DashboardInteractionSessionDetailResponse>()
+    mockFetchDashboardInteractionSessionDetail.mockReturnValueOnce(
+      request.promise,
     )
-
-    expect(screen.getByText('kimi-k2p6')).toBeInTheDocument()
-    expect(
-      screen.queryByText('accounts/fireworks/models/kimi-k2p6'),
-    ).not.toBeInTheDocument()
-  })
-
-  it('defers heavy session detail loading until a heavy tab is opened', async () => {
-    const user = userEvent.setup()
 
     render(
       <SessionDetailSidebar
         sessionId='sess-1'
-        sessionSummary={sessionSummary}
         repoId='repo-1'
         userName='Test User'
       />,
     )
 
-    expect(mockFetchDashboardInteractionSessionDetail).not.toHaveBeenCalled()
+    // Spinner visible, no tabs rendered yet — the sidebar shows nothing
+    // resembling content until the detail response arrives.
+    expect(
+      screen.getByRole('status', { name: 'Loading session' }),
+    ).toBeInTheDocument()
+    expect(screen.queryByRole('tab', { name: 'Details' })).toBeNull()
 
-    await user.click(screen.getByRole('tab', { name: 'Turns' }))
+    request.resolve(makeInteractionDetail())
 
+    await waitFor(() => {
+      expect(
+        screen.queryByRole('status', { name: 'Loading session' }),
+      ).toBeNull()
+    })
+    expect(screen.getByRole('tab', { name: 'Details' })).toBeInTheDocument()
+  })
+
+  it('shows the provider model slug instead of the full account path once the detail loads', async () => {
+    mockFetchDashboardInteractionSessionDetail.mockResolvedValue(
+      makeInteractionDetail(),
+    )
+
+    render(
+      <SessionDetailSidebar
+        sessionId='sess-1'
+        repoId='repo-1'
+        userName='Test User'
+      />,
+    )
+
+    expect(await screen.findByText('kimi-k2p6')).toBeInTheDocument()
+    expect(
+      screen.queryByText('accounts/fireworks/models/kimi-k2p6'),
+    ).not.toBeInTheDocument()
+  })
+
+  it('fetches the session detail eagerly when a session is selected and does not refetch on tab switch', async () => {
+    const user = userEvent.setup()
+
+    render(
+      <SessionDetailSidebar
+        sessionId='sess-1'
+        repoId='repo-1'
+        userName='Test User'
+      />,
+    )
+
+    // Detail fetch fires on mount.
     await waitFor(() => {
       expect(mockFetchDashboardInteractionSessionDetail).toHaveBeenCalledTimes(
         1,
@@ -109,13 +184,15 @@ describe('SessionDetailSidebar', () => {
       }),
     )
 
+    // Switching tabs after the detail resolves must not trigger another
+    // fetch — the loaded detail is shared across all three tabs.
+    await user.click(await screen.findByRole('tab', { name: 'Turns' }))
     await user.click(screen.getByRole('tab', { name: 'Tool use' }))
-
+    await user.click(screen.getByRole('tab', { name: 'Details' }))
     expect(mockFetchDashboardInteractionSessionDetail).toHaveBeenCalledTimes(1)
   })
 
-  it('aborts the previous heavy-detail request when the selected session changes', async () => {
-    const user = userEvent.setup()
+  it('aborts the previous detail request when the selected session changes', async () => {
     const neverSettles = new Promise<DashboardInteractionSessionDetailResponse>(
       () => {},
     )
@@ -123,20 +200,17 @@ describe('SessionDetailSidebar', () => {
       .mockImplementationOnce(() => neverSettles)
       .mockResolvedValueOnce(
         makeInteractionDetail({
-          summary: { ...sessionSummary, session_id: 'sess-2' },
+          summary: { ...baseSummary, session_id: 'sess-2' },
         }),
       )
 
     const { rerender } = render(
       <SessionDetailSidebar
         sessionId='sess-1'
-        sessionSummary={sessionSummary}
         repoId='repo-1'
         userName='Test User'
       />,
     )
-
-    await user.click(screen.getByRole('tab', { name: 'Turns' }))
 
     await waitFor(() => {
       expect(mockFetchDashboardInteractionSessionDetail).toHaveBeenCalledTimes(
@@ -150,7 +224,6 @@ describe('SessionDetailSidebar', () => {
     rerender(
       <SessionDetailSidebar
         sessionId='sess-2'
-        sessionSummary={{ ...sessionSummary, session_id: 'sess-2' }}
         repoId='repo-1'
         userName='Test User'
       />,
@@ -171,34 +244,37 @@ describe('SessionDetailSidebar', () => {
     )
   })
 
-  it('masks token usage for Cursor sessions even when token_usage is populated', () => {
+  it('masks token usage for Cursor sessions even when token_usage is populated', async () => {
     // Cursor does not expose reliable token counts; the dashboard should
     // suppress whatever the backend recorded and surface a clear "no info"
     // message instead of rendering the chart or count.
-    const cursorSummary: DashboardInteractionSessionDto = {
-      ...sessionSummary,
-      session_id: 'cursor-sess',
-      agent_type: 'cursor',
-      model: null,
-      token_usage: {
-        input_tokens: 1234,
-        output_tokens: 5678,
-        cache_read_tokens: 0,
-        cache_creation_tokens: 0,
-        api_call_count: 1,
-      },
-    }
+    mockFetchDashboardInteractionSessionDetail.mockResolvedValue(
+      makeInteractionDetail({
+        summary: {
+          ...baseSummary,
+          session_id: 'cursor-sess',
+          agent_type: 'cursor',
+          model: null,
+          token_usage: {
+            input_tokens: 1234,
+            output_tokens: 5678,
+            cache_read_tokens: 0,
+            cache_creation_tokens: 0,
+            api_call_count: 1,
+          },
+        },
+      }),
+    )
 
     render(
       <SessionDetailSidebar
-        sessionId={null}
-        sessionSummary={cursorSummary}
-        repoId={null}
+        sessionId='cursor-sess'
+        repoId='repo-1'
         userName='Test User'
       />,
     )
 
-    expect(screen.getByText('Token Usage')).toBeInTheDocument()
+    expect(await screen.findByText('Token Usage')).toBeInTheDocument()
     expect(
       screen.getByText('No token information available.'),
     ).toBeInTheDocument()
@@ -207,23 +283,210 @@ describe('SessionDetailSidebar', () => {
     expect(screen.queryByText(/5678/)).not.toBeInTheDocument()
   })
 
-  it('keeps the heavy-detail request alive long enough to render the loaded turns view', async () => {
-    const user = userEvent.setup()
-    const request = deferred<DashboardInteractionSessionDetailResponse>()
-    mockFetchDashboardInteractionSessionDetail.mockReturnValueOnce(
-      request.promise,
+  it('renders the Tool calls header tile from the detail summary tool_uses array', async () => {
+    // The header reads from the same derivation as the Tool use tab
+    // (`buildSessionToolUseDisplayItems`). With a populated tool_uses array
+    // on the detail summary, the count is just the array length.
+    mockFetchDashboardInteractionSessionDetail.mockResolvedValue(
+      makeInteractionDetail({
+        summary: {
+          ...baseSummary,
+          tool_uses: [
+            toolUse({ tool_invocation_id: 'inv-1', tool_use_id: 'tu-1' }),
+            toolUse({
+              tool_invocation_id: 'inv-2',
+              tool_use_id: 'tu-2',
+              tool_kind: 'Edit',
+            }),
+            toolUse({
+              tool_invocation_id: 'inv-3',
+              tool_use_id: 'tu-3',
+              tool_kind: 'Bash',
+            }),
+          ],
+        },
+      }),
     )
 
     render(
       <SessionDetailSidebar
         sessionId='sess-1'
-        sessionSummary={sessionSummary}
         repoId='repo-1'
         userName='Test User'
       />,
     )
 
-    await user.click(screen.getByRole('tab', { name: 'Turns' }))
+    await waitFor(() => {
+      const tile = screen.getByText('Tool calls').parentElement
+      expect(tile!.textContent).toContain('3')
+    })
+  })
+
+  it('renders Tool calls count from the transcript fallback when summary.tool_uses is empty', async () => {
+    // Regression: some sessions arrive with an empty `summary.tool_uses`
+    // array but a populated `session_transcript_entries` stream containing
+    // TOOL_USE entries. The Tool use tab renders the list via
+    // `buildSessionToolUseDisplayItems`, which falls back to the transcript
+    // traces when `tools.length === 0`. The header tile reads from the same
+    // logic so the two cannot disagree.
+    mockFetchDashboardInteractionSessionDetail.mockResolvedValue(
+      makeInteractionDetail({
+        summary: { ...baseSummary, tool_uses: [] },
+        session_transcript_entries: [
+          transcriptEntry({
+            entry_id: 'entry-1',
+            order: 0,
+            variant: 'TOOL_USE',
+            tool_use_id: 'tu-x',
+          }),
+          transcriptEntry({
+            entry_id: 'entry-2',
+            order: 1,
+            actor: 'USER',
+            variant: 'TOOL_RESULT',
+            text: 'ok',
+            tool_use_id: 'tu-x',
+          }),
+          transcriptEntry({
+            entry_id: 'entry-3',
+            order: 2,
+            variant: 'TOOL_USE',
+            tool_use_id: 'tu-y',
+            tool_kind: 'Bash',
+            text: 'Tool: Bash\nls',
+          }),
+        ],
+      }),
+    )
+
+    render(
+      <SessionDetailSidebar
+        sessionId='sess-1'
+        repoId='repo-1'
+        userName='Test User'
+      />,
+    )
+
+    // Two TOOL_USE entries in the transcript → header count of 2 even though
+    // summary.tool_uses is empty.
+    await waitFor(() => {
+      const tile = screen.getByText('Tool calls').parentElement
+      expect(tile!.textContent).toContain('2')
+    })
+  })
+
+  it('shows the Tool calls count for Cursor sessions (only token counts are suppressed)', async () => {
+    // Cursor's tool-use list is real data — it's what populates the Tool use
+    // tab. Only the *token counts* are unreliable for Cursor, so the
+    // suppression in the token-usage block must not bleed into the header
+    // Tool calls tile.
+    mockFetchDashboardInteractionSessionDetail.mockResolvedValue(
+      makeInteractionDetail({
+        summary: {
+          ...baseSummary,
+          agent_type: 'cursor',
+          tool_uses: [
+            toolUse({ tool_invocation_id: 'inv-1', tool_use_id: 'tu-1' }),
+            toolUse({
+              tool_invocation_id: 'inv-2',
+              tool_use_id: 'tu-2',
+              tool_kind: 'Edit',
+            }),
+          ],
+        },
+      }),
+    )
+
+    render(
+      <SessionDetailSidebar
+        sessionId='sess-1'
+        repoId='repo-1'
+        userName='Test User'
+      />,
+    )
+
+    await waitFor(() => {
+      const tile = screen.getByText('Tool calls').parentElement
+      expect(tile!.textContent).toContain('2')
+    })
+  })
+
+  it('does not show the previous session content while the next session is loading', async () => {
+    // Regression: when the user picks sess-2 after sess-1 finished loading,
+    // the sidebar must clear sess-1's tabs immediately and show the
+    // spinner — never paint a frame where sess-1's content is visible
+    // under the new sessionId. The reset effect clears interactionDetail
+    // synchronously (no startTransition) for exactly this reason.
+    mockFetchDashboardInteractionSessionDetail.mockResolvedValueOnce(
+      makeInteractionDetail({
+        summary: {
+          ...baseSummary,
+          session_id: 'sess-1',
+          first_prompt: 'first session unique prompt',
+        },
+      }),
+    )
+    const sess2Request = deferred<DashboardInteractionSessionDetailResponse>()
+    mockFetchDashboardInteractionSessionDetail.mockReturnValueOnce(
+      sess2Request.promise,
+    )
+
+    const { rerender } = render(
+      <SessionDetailSidebar
+        sessionId='sess-1'
+        repoId='repo-1'
+        userName='Test User'
+      />,
+    )
+
+    // Wait for the sess-1 detail to land and its content to render.
+    expect(
+      await screen.findByText('first session unique prompt'),
+    ).toBeInTheDocument()
+
+    // Switch to sess-2 while its detail is still in flight.
+    rerender(
+      <SessionDetailSidebar
+        sessionId='sess-2'
+        repoId='repo-1'
+        userName='Test User'
+      />,
+    )
+
+    // sess-1 content must not be visible anymore; the spinner is showing.
+    expect(screen.queryByText('first session unique prompt')).toBeNull()
+    expect(
+      screen.getByRole('status', { name: 'Loading session' }),
+    ).toBeInTheDocument()
+
+    // Resolve sess-2 and confirm we see its content.
+    sess2Request.resolve(
+      makeInteractionDetail({
+        summary: {
+          ...baseSummary,
+          session_id: 'sess-2',
+          first_prompt: 'second session unique prompt',
+        },
+      }),
+    )
+    expect(
+      await screen.findByText('second session unique prompt'),
+    ).toBeInTheDocument()
+  })
+
+  it('refetches when refreshToken changes for the same session', async () => {
+    mockFetchDashboardInteractionSessionDetail.mockResolvedValue(
+      makeInteractionDetail(),
+    )
+
+    const { rerender } = render(
+      <SessionDetailSidebar
+        sessionId='sess-1'
+        repoId='repo-1'
+        userName='Test User'
+        refreshToken={0}
+      />,
+    )
 
     await waitFor(() => {
       expect(mockFetchDashboardInteractionSessionDetail).toHaveBeenCalledTimes(
@@ -231,18 +494,37 @@ describe('SessionDetailSidebar', () => {
       )
     })
 
-    const signal = mockFetchDashboardInteractionSessionDetail.mock.calls[0]?.[1]
-      ?.signal as AbortSignal | undefined
-
-    expect(signal?.aborted).toBe(false)
-
-    await act(async () => {
-      request.resolve(makeInteractionDetail())
-      await request.promise
-    })
+    rerender(
+      <SessionDetailSidebar
+        sessionId='sess-1'
+        repoId='repo-1'
+        userName='Test User'
+        refreshToken={1}
+      />,
+    )
 
     await waitFor(() => {
-      expect(screen.getByText('No turns.')).toBeInTheDocument()
+      expect(mockFetchDashboardInteractionSessionDetail).toHaveBeenCalledTimes(
+        2,
+      )
     })
+  })
+
+  it('surfaces a load error when the detail request fails', async () => {
+    mockFetchDashboardInteractionSessionDetail.mockRejectedValueOnce(
+      new Error('boom'),
+    )
+
+    render(
+      <SessionDetailSidebar
+        sessionId='sess-1'
+        repoId='repo-1'
+        userName='Test User'
+      />,
+    )
+
+    expect(await screen.findByText('boom')).toBeInTheDocument()
+    // No tabs rendered on error.
+    expect(screen.queryByRole('tab', { name: 'Details' })).toBeNull()
   })
 })

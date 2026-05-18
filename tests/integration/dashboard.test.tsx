@@ -104,7 +104,6 @@ function defaultProps(
     onSessionsNext: () => {},
     onSessionsBack: () => {},
     selectedSessionId: null,
-    selectedSessionSummary: null,
     sessionDetailRefreshToken: 0,
     onRepoChange: () => {},
     onBranchChange: () => {},
@@ -181,7 +180,6 @@ describe('Dashboard integration', () => {
       <DashboardView
         {...defaultProps({
           selectedSessionId: 'sess-1',
-          selectedSessionSummary: sessionSample,
         })}
       />,
     )

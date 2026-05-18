@@ -81,7 +81,6 @@ export function SessionsView() {
     sessionRows,
     sessionsPageInfo,
     selectedSessionId,
-    selectedSessionSummary,
     setSelectedSessionId,
     setSelectedSessionSummary,
     setSessionRows,
@@ -100,7 +99,6 @@ export function SessionsView() {
       sessionRows: s.sessionRows,
       sessionsPageInfo: s.sessionsPageInfo,
       selectedSessionId: s.selectedSessionId,
-      selectedSessionSummary: s.selectedSessionSummary,
       setSelectedSessionId: s.setSelectedSessionId,
       setSelectedSessionSummary: s.setSelectedSessionSummary,
       setSessionRows: s.setSessionRows,
@@ -382,7 +380,6 @@ export function SessionsView() {
         <SidebarRail side='right' />
         <SessionDetailSidebar
           sessionId={selectedSessionId}
-          sessionSummary={selectedSessionSummary}
           repoId={resolvedRepoId}
           userName={userName}
           onClose={() => {
