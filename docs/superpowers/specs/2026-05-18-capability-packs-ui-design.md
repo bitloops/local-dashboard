@@ -2,11 +2,11 @@
 
 ## Summary
 
-This design restores a dedicated capability-pack configuration surface at
-`/settings/capability-packs` inside the existing Settings shell. The page
-focuses on UI behavior in the dashboard repo only: cross-pack controls first,
-then one visible card per capability pack, one shared draft, one review sheet,
-and one `Save & Run` action.
+This design restores a dedicated capability-pack configuration surface inside
+the existing `Configuration` settings route at `/settings/configuration`. The
+page focuses on UI behavior in the dashboard repo only: cross-pack controls
+first, then one visible card per capability pack, one shared draft, one review
+sheet, and one `Save & Run` action.
 
 The page must never silently replace backend-backed behavior with local-only
 state. If the runtime contract is unavailable or incomplete, the UI surfaces
@@ -35,12 +35,14 @@ that explicitly and prepares a clean handoff for a backend-focused agent.
 
 ## Route And Shell
 
-- Primary route: `/settings/capability-packs`
-- The view lives inside the existing Settings shell.
-- The page uses a dedicated `Capability Packs` title rather than borrowing the
-  generic `Configuration` heading.
-- The route should remain reachable even if the rest of Settings continues to
-  host separate subpages such as `Appearance` or generic configuration editing.
+- Primary route: `/settings/configuration`
+- The capability-pack surface lives inside the existing Settings shell as part
+  of the `Configuration` page rather than as a separate route.
+- The capability-pack section can still use a dedicated `Capability Packs`
+  heading within the `Configuration` page.
+- If a legacy `/settings/capability-packs` route is still present during
+  transition, it should redirect or alias into `/settings/configuration`
+  instead of remaining a separate long-term surface.
 
 ## Page Structure
 
@@ -54,9 +56,9 @@ The page is arranged from global controls to specific pack details:
 
 ### Header
 
-The header includes:
+The capability-pack section header includes:
 
-- `Capability Packs` title
+- `Capability Packs` title inside the broader `Configuration` page
 - one-paragraph summary describing that the page configures Bitloops capability
   packs and their related setup
 - page-level status badges such as:
@@ -282,7 +284,7 @@ Every blocker should include:
 When a failure is clearly backend-owned, the page shows a `Backend handoff
 needed` panel with copyable details:
 
-- route
+- route: `/settings/configuration`
 - repo context if available
 - pack id if applicable
 - failing query/mutation/subscription or missing field
@@ -309,7 +311,8 @@ The UI design should drive test coverage in this dashboard repo for:
 - page-level, pack-level, and action-level blocker rendering
 - one shared draft across cross-pack and pack-specific settings
 - review-sheet grouping and blocker behavior
-- stale route handling for `/settings/capability-packs`
+- canonical rendering inside `/settings/configuration`
+- optional legacy redirect handling from `/settings/capability-packs`
 
 ## Backend Dependency Assumptions
 
@@ -333,7 +336,8 @@ must surface that rather than inventing fake success states.
 
 ## Design Summary
 
-The final UI is a dedicated `Capability Packs` page with:
+The final UI is a dedicated `Capability Packs` section within
+`/settings/configuration`, with:
 
 - cross-pack toggles at the top
 - one always-visible card per pack
