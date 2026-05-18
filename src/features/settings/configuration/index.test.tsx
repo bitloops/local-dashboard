@@ -16,6 +16,9 @@ vi.mock('@/api/runtime/config', () => ({
   updateRuntimeConfig: vi.fn(),
 }))
 
+const startupPreferencesKey = 'settings-startup-preferences'
+const capabilityPackPreferencesKey = 'settings-capability-pack-preferences'
+
 const target: RuntimeConfigTarget = {
   id: 'target-daemon',
   kind: 'daemon',
@@ -119,8 +122,20 @@ function snapshot(overrides: Partial<RuntimeConfigSnapshot> = {}) {
 }
 
 describe('SettingsConfiguration', () => {
+  let localStorageData: Record<string, string>
+
   beforeEach(() => {
     vi.clearAllMocks()
+    localStorageData = {}
+    vi.stubGlobal('localStorage', {
+      getItem: vi.fn((key: string) => localStorageData[key] ?? null),
+      setItem: vi.fn((key: string, value: string) => {
+        localStorageData[key] = value
+      }),
+      removeItem: vi.fn((key: string) => {
+        delete localStorageData[key]
+      }),
+    })
     vi.mocked(fetchRuntimeConfigTargets).mockResolvedValue([target])
     vi.mocked(fetchRuntimeConfigSnapshot).mockResolvedValue(snapshot())
     vi.mocked(updateRuntimeConfig).mockResolvedValue(
@@ -153,6 +168,90 @@ describe('SettingsConfiguration', () => {
     ).toBeInTheDocument()
     expect(screen.getByText('Secret')).toBeInTheDocument()
     expect(container.querySelector('input[type="password"]')).not.toBeNull()
+  })
+
+  it('renders startup behavior preferences and saves them locally', async () => {
+    const user = userEvent.setup()
+    render(<SettingsConfiguration />)
+
+    expect(
+      await screen.findByRole('heading', { name: 'Startup behavior' }),
+    ).toBeInTheDocument()
+    expect(
+      screen.getByRole('checkbox', { name: 'Start daemon on app startup' }),
+    ).toBeChecked()
+    expect(screen.getByLabelText('Run sync on startup')).toHaveValue('auto')
+    expect(screen.getByLabelText('Run ingest on startup')).toHaveValue('auto')
+
+    await user.click(
+      screen.getByRole('checkbox', { name: 'Start daemon on app startup' }),
+    )
+    await user.selectOptions(
+      screen.getByLabelText('Run sync on startup'),
+      'always',
+    )
+    await user.selectOptions(
+      screen.getByLabelText('Run ingest on startup'),
+      'off',
+    )
+    await user.click(
+      screen.getByRole('button', { name: 'Save startup behavior' }),
+    )
+
+    expect(localStorage.setItem).toHaveBeenCalledWith(
+      startupPreferencesKey,
+      JSON.stringify({
+        daemonStartOnStartup: false,
+        syncOnStartup: 'always',
+        ingestOnStartup: 'off',
+      }),
+    )
+    expect(
+      await screen.findByText('Startup behavior saved.'),
+    ).toBeInTheDocument()
+  })
+
+  it('renders the complete capability-pack catalog and saves it locally', async () => {
+    const user = userEvent.setup()
+    render(<SettingsConfiguration />)
+
+    expect(
+      await screen.findByRole('heading', { name: 'Capability packs' }),
+    ).toBeInTheDocument()
+    expect(screen.getByText('CodeCity')).toBeInTheDocument()
+    expect(screen.getByText('Architecture graph')).toBeInTheDocument()
+    expect(screen.getByText('Navigation context')).toBeInTheDocument()
+    expect(screen.getByText('Test harness')).toBeInTheDocument()
+    expect(screen.getByText('Knowledge pack')).toBeInTheDocument()
+    expect(screen.getByText('Semantic clones')).toBeInTheDocument()
+    expect(
+      screen.getByRole('checkbox', { name: 'Enable Architecture graph' }),
+    ).toBeChecked()
+
+    await user.click(
+      screen.getByRole('checkbox', { name: 'Enable Architecture graph' }),
+    )
+    await user.click(
+      screen.getByRole('checkbox', { name: 'Enable Semantic clones' }),
+    )
+    await user.click(
+      screen.getByRole('button', { name: 'Save capability packs' }),
+    )
+
+    expect(localStorage.setItem).toHaveBeenCalledWith(
+      capabilityPackPreferencesKey,
+      JSON.stringify({
+        codecity: true,
+        'architecture-graph': false,
+        'navigation-context': true,
+        'test-harness': true,
+        'knowledge-pack': true,
+        'semantic-clones': false,
+      }),
+    )
+    expect(
+      await screen.findByText('Capability packs saved.'),
+    ).toBeInTheDocument()
   })
 
   it('sends changed field patches with the expected revision', async () => {

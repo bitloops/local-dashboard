@@ -24,12 +24,14 @@ const sidebarNavItems = [
 
 export function SettingsPage() {
   const { pathname } = useLocation()
-  const content =
-    pathname === '/settings/configuration' ? (
-      <SettingsConfiguration />
-    ) : (
-      <SettingsAppearance />
-    )
+  const isConfigurationRoute =
+    pathname === '/settings/configuration' ||
+    pathname === '/settings/capability-packs'
+  const content = isConfigurationRoute ? (
+    <SettingsConfiguration />
+  ) : (
+    <SettingsAppearance />
+  )
 
   return (
     <>

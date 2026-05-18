@@ -23,7 +23,11 @@ type SidebarNavProps = React.HTMLAttributes<HTMLElement> & {
 export function SidebarNav({ className, items, ...props }: SidebarNavProps) {
   const { pathname } = useLocation()
   const navigate = useNavigate()
-  const [val, setVal] = useState(pathname ?? '/settings')
+  const activePath =
+    pathname === '/settings/capability-packs'
+      ? '/settings/configuration'
+      : pathname
+  const [val, setVal] = useState(activePath ?? '/settings')
 
   const handleSelect = (e: string) => {
     setVal(e)
@@ -33,7 +37,7 @@ export function SidebarNav({ className, items, ...props }: SidebarNavProps) {
   return (
     <>
       <div className='p-1 md:hidden'>
-        <Select value={val} onValueChange={handleSelect}>
+        <Select value={activePath ?? val} onValueChange={handleSelect}>
           <SelectTrigger className='h-12 sm:w-48'>
             <SelectValue placeholder='Theme' />
           </SelectTrigger>
@@ -68,7 +72,7 @@ export function SidebarNav({ className, items, ...props }: SidebarNavProps) {
               to={item.href}
               className={cn(
                 buttonVariants({ variant: 'ghost' }),
-                pathname === item.href
+                activePath === item.href
                   ? 'bg-muted hover:bg-accent'
                   : 'hover:bg-accent hover:underline',
                 'justify-start',

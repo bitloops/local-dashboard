@@ -35,6 +35,184 @@ import { Textarea } from '@/components/ui/textarea'
 import { cn } from '@/lib/utils'
 
 type Drafts = Record<string, string>
+type StartupBehaviorMode = 'off' | 'auto' | 'always'
+type StartupBehaviorPreferences = {
+  daemonStartOnStartup: boolean
+  syncOnStartup: StartupBehaviorMode
+  ingestOnStartup: StartupBehaviorMode
+}
+const capabilityPackCatalog = [
+  {
+    id: 'codecity',
+    label: 'CodeCity',
+    summary: 'Builds the file/world visualisation and health overlays.',
+    evidence: 'bitloops/src/capability_packs/codecity',
+  },
+  {
+    id: 'architecture-graph',
+    label: 'Architecture graph',
+    summary: 'Builds components, contracts, entry points, and system facts.',
+    evidence: 'bitloops/src/capability_packs/architecture_graph',
+  },
+  {
+    id: 'navigation-context',
+    label: 'Navigation context',
+    summary:
+      'Tracks primitives, signatures, stale reasons, and materialised architecture context.',
+    evidence: 'bitloops/src/capability_packs/navigation_context',
+  },
+  {
+    id: 'test-harness',
+    label: 'Test harness',
+    summary:
+      'Discovers tests, coverage, classifications, and verification records.',
+    evidence: 'bitloops/src/capability_packs/test_harness',
+  },
+  {
+    id: 'knowledge-pack',
+    label: 'Knowledge pack',
+    summary: 'Stores and refreshes durable knowledge records.',
+    evidence: 'bitloops/src/capability_packs/knowledge.rs',
+  },
+  {
+    id: 'semantic-clones',
+    label: 'Semantic clones',
+    summary: 'Identifies similar symbols and clone edges.',
+    evidence: 'bitloops/src/capability_packs/semantic_clones',
+  },
+] as const
+
+type CapabilityPackId = (typeof capabilityPackCatalog)[number]['id']
+type CapabilityPackPreferences = Record<CapabilityPackId, boolean>
+
+const startupPreferencesStorageKey = 'settings-startup-preferences'
+const capabilityPackPreferencesStorageKey =
+  'settings-capability-pack-preferences'
+const startupModeOptions: Array<{
+  value: StartupBehaviorMode
+  label: string
+}> = [
+  { value: 'off', label: 'Off' },
+  { value: 'auto', label: 'Auto' },
+  { value: 'always', label: 'Always' },
+]
+
+function defaultStartupBehaviorPreferences(): StartupBehaviorPreferences {
+  return {
+    daemonStartOnStartup: true,
+    syncOnStartup: 'auto',
+    ingestOnStartup: 'auto',
+  }
+}
+
+function isStartupBehaviorMode(value: unknown): value is StartupBehaviorMode {
+  return value === 'off' || value === 'auto' || value === 'always'
+}
+
+function loadStartupBehaviorPreferences(): StartupBehaviorPreferences {
+  if (typeof window === 'undefined') {
+    return defaultStartupBehaviorPreferences()
+  }
+
+  try {
+    const raw = window.localStorage.getItem(startupPreferencesStorageKey)
+    if (!raw) {
+      return defaultStartupBehaviorPreferences()
+    }
+
+    const parsed = JSON.parse(raw) as Partial<StartupBehaviorPreferences>
+    return {
+      daemonStartOnStartup:
+        typeof parsed.daemonStartOnStartup === 'boolean'
+          ? parsed.daemonStartOnStartup
+          : true,
+      syncOnStartup: isStartupBehaviorMode(parsed.syncOnStartup)
+        ? parsed.syncOnStartup
+        : 'auto',
+      ingestOnStartup: isStartupBehaviorMode(parsed.ingestOnStartup)
+        ? parsed.ingestOnStartup
+        : 'auto',
+    }
+  } catch {
+    return defaultStartupBehaviorPreferences()
+  }
+}
+
+function saveStartupBehaviorPreferences(
+  preferences: StartupBehaviorPreferences,
+): void {
+  if (typeof window === 'undefined') {
+    return
+  }
+
+  window.localStorage.setItem(
+    startupPreferencesStorageKey,
+    JSON.stringify(preferences),
+  )
+}
+
+function startupBehaviorDirty(
+  current: StartupBehaviorPreferences,
+  initial: StartupBehaviorPreferences,
+): boolean {
+  return (
+    current.daemonStartOnStartup !== initial.daemonStartOnStartup ||
+    current.syncOnStartup !== initial.syncOnStartup ||
+    current.ingestOnStartup !== initial.ingestOnStartup
+  )
+}
+
+function defaultCapabilityPackPreferences(): CapabilityPackPreferences {
+  return capabilityPackCatalog.reduce((preferences, pack) => {
+    preferences[pack.id] = true
+    return preferences
+  }, {} as CapabilityPackPreferences)
+}
+
+function loadCapabilityPackPreferences(): CapabilityPackPreferences {
+  if (typeof window === 'undefined') {
+    return defaultCapabilityPackPreferences()
+  }
+
+  try {
+    const raw = window.localStorage.getItem(capabilityPackPreferencesStorageKey)
+    if (!raw) {
+      return defaultCapabilityPackPreferences()
+    }
+
+    const parsed = JSON.parse(raw) as Partial<Record<CapabilityPackId, unknown>>
+    return capabilityPackCatalog.reduce((preferences, pack) => {
+      const storedValue = parsed[pack.id]
+      preferences[pack.id] =
+        typeof storedValue === 'boolean' ? storedValue : true
+      return preferences
+    }, {} as CapabilityPackPreferences)
+  } catch {
+    return defaultCapabilityPackPreferences()
+  }
+}
+
+function saveCapabilityPackPreferences(
+  preferences: CapabilityPackPreferences,
+): void {
+  if (typeof window === 'undefined') {
+    return
+  }
+
+  window.localStorage.setItem(
+    capabilityPackPreferencesStorageKey,
+    JSON.stringify(preferences),
+  )
+}
+
+function capabilityPackPreferencesDirty(
+  current: CapabilityPackPreferences,
+  initial: CapabilityPackPreferences,
+): boolean {
+  return capabilityPackCatalog.some(
+    (pack) => current[pack.id] !== initial[pack.id],
+  )
+}
 
 function fieldDraftKey(field: RuntimeConfigField): string {
   return field.path.join('\u001f')
@@ -242,6 +420,264 @@ function ConfigFieldRow({
   )
 }
 
+function StartupBehaviorSection({
+  preferences,
+  initialPreferences,
+  saveMessage,
+  error,
+  onChange,
+  onReset,
+  onSave,
+}: {
+  preferences: StartupBehaviorPreferences
+  initialPreferences: StartupBehaviorPreferences
+  saveMessage: string | null
+  error: string | null
+  onChange: <K extends keyof StartupBehaviorPreferences>(
+    key: K,
+    value: StartupBehaviorPreferences[K],
+  ) => void
+  onReset: () => void
+  onSave: () => void
+}) {
+  const dirty = startupBehaviorDirty(preferences, initialPreferences)
+
+  return (
+    <section className='rounded-md border bg-background px-4 py-3'>
+      <div className='flex flex-wrap items-start justify-between gap-3'>
+        <div>
+          <h3 className='text-base font-semibold'>Startup behavior</h3>
+          <p className='mt-1 text-sm text-muted-foreground'>
+            Control which dashboard-managed Bitloops tasks should start
+            automatically.
+          </p>
+        </div>
+        <div className='flex flex-wrap gap-2'>
+          <Button
+            type='button'
+            variant='outline'
+            onClick={onReset}
+            disabled={!dirty}
+          >
+            <RotateCcw className='me-2 size-4' />
+            Reset startup behavior
+          </Button>
+          <Button type='button' onClick={onSave} disabled={!dirty}>
+            <Save className='me-2 size-4' />
+            Save startup behavior
+          </Button>
+        </div>
+      </div>
+
+      {error ? (
+        <div
+          role='alert'
+          className='mt-4 rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive'
+        >
+          {error}
+        </div>
+      ) : null}
+      {saveMessage ? (
+        <div className='mt-4 rounded-md border border-emerald-500/40 bg-emerald-500/10 px-3 py-2 text-sm text-emerald-700 dark:text-emerald-300'>
+          {saveMessage}
+        </div>
+      ) : null}
+
+      <Separator className='mt-4' />
+      <div className='divide-y'>
+        <div className='grid gap-2 py-4 md:grid-cols-[minmax(180px,260px)_minmax(0,1fr)] md:gap-6'>
+          <div className='space-y-1.5'>
+            <Label htmlFor='startup-daemon-toggle'>
+              Start daemon on app startup
+            </Label>
+            <p className='text-xs leading-5 text-muted-foreground'>
+              Automatically launch the Bitloops daemon when the dashboard opens.
+            </p>
+          </div>
+          <div id='startup-daemon-toggle'>
+            <label className='flex h-9 w-fit items-center gap-2 rounded-md border border-input px-3 text-sm shadow-xs'>
+              <input
+                type='checkbox'
+                checked={preferences.daemonStartOnStartup}
+                onChange={(event) =>
+                  onChange('daemonStartOnStartup', event.currentTarget.checked)
+                }
+                aria-label='Start daemon on app startup'
+              />
+              Enabled
+            </label>
+          </div>
+        </div>
+
+        <div className='grid gap-2 py-4 md:grid-cols-[minmax(180px,260px)_minmax(0,1fr)] md:gap-6'>
+          <div className='space-y-1.5'>
+            <Label htmlFor='startup-sync-mode'>Run sync on startup</Label>
+            <p className='text-xs leading-5 text-muted-foreground'>
+              Choose whether repository sync runs automatically when the
+              dashboard starts.
+            </p>
+          </div>
+          <div id='startup-sync-mode'>
+            <select
+              id='startup-sync-mode'
+              aria-label='Run sync on startup'
+              value={preferences.syncOnStartup}
+              onChange={(event) =>
+                onChange(
+                  'syncOnStartup',
+                  event.currentTarget.value as StartupBehaviorMode,
+                )
+              }
+              className='h-9 w-full rounded-md border border-input bg-background px-3 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 sm:max-w-md'
+            >
+              {startupModeOptions.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+
+        <div className='grid gap-2 py-4 md:grid-cols-[minmax(180px,260px)_minmax(0,1fr)] md:gap-6'>
+          <div className='space-y-1.5'>
+            <Label htmlFor='startup-ingest-mode'>Run ingest on startup</Label>
+            <p className='text-xs leading-5 text-muted-foreground'>
+              Choose whether ingest runs automatically when the dashboard
+              starts.
+            </p>
+          </div>
+          <div id='startup-ingest-mode'>
+            <select
+              id='startup-ingest-mode'
+              aria-label='Run ingest on startup'
+              value={preferences.ingestOnStartup}
+              onChange={(event) =>
+                onChange(
+                  'ingestOnStartup',
+                  event.currentTarget.value as StartupBehaviorMode,
+                )
+              }
+              className='h-9 w-full rounded-md border border-input bg-background px-3 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 sm:max-w-md'
+            >
+              {startupModeOptions.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+      </div>
+    </section>
+  )
+}
+
+function CapabilityPacksSection({
+  preferences,
+  initialPreferences,
+  saveMessage,
+  error,
+  onChange,
+  onReset,
+  onSave,
+}: {
+  preferences: CapabilityPackPreferences
+  initialPreferences: CapabilityPackPreferences
+  saveMessage: string | null
+  error: string | null
+  onChange: (id: CapabilityPackId, enabled: boolean) => void
+  onReset: () => void
+  onSave: () => void
+}) {
+  const dirty = capabilityPackPreferencesDirty(preferences, initialPreferences)
+
+  return (
+    <section className='rounded-md border bg-background px-4 py-3'>
+      <div className='flex flex-wrap items-start justify-between gap-3'>
+        <div>
+          <h3 className='text-base font-semibold'>Capability packs</h3>
+          <p className='mt-1 text-sm text-muted-foreground'>
+            Enable the complete Bitloops analysis pack catalog, including
+            Architecture graph and the related knowledge packs.
+          </p>
+        </div>
+        <div className='flex flex-wrap gap-2'>
+          <Button
+            type='button'
+            variant='outline'
+            onClick={onReset}
+            disabled={!dirty}
+          >
+            <RotateCcw className='me-2 size-4' />
+            Reset capability packs
+          </Button>
+          <Button type='button' onClick={onSave} disabled={!dirty}>
+            <Save className='me-2 size-4' />
+            Save capability packs
+          </Button>
+        </div>
+      </div>
+
+      {error ? (
+        <div
+          role='alert'
+          className='mt-4 rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive'
+        >
+          {error}
+        </div>
+      ) : null}
+      {saveMessage ? (
+        <div className='mt-4 rounded-md border border-emerald-500/40 bg-emerald-500/10 px-3 py-2 text-sm text-emerald-700 dark:text-emerald-300'>
+          {saveMessage}
+        </div>
+      ) : null}
+
+      <Separator className='mt-4' />
+      <div className='mt-4 grid gap-4 xl:grid-cols-2'>
+        {capabilityPackCatalog.map((pack) => {
+          const enabled = preferences[pack.id]
+
+          return (
+            <section
+              key={pack.id}
+              className='rounded-md border bg-muted/20 px-4 py-4'
+            >
+              <div className='flex flex-wrap items-start justify-between gap-3'>
+                <div className='space-y-1.5'>
+                  <div className='flex flex-wrap items-center gap-2'>
+                    <h4 className='text-sm font-semibold'>{pack.label}</h4>
+                    <Badge variant={enabled ? 'default' : 'secondary'}>
+                      {enabled ? 'Enabled' : 'Disabled'}
+                    </Badge>
+                  </div>
+                  <p className='text-sm text-muted-foreground'>
+                    {pack.summary}
+                  </p>
+                  <p className='break-all text-xs text-muted-foreground'>
+                    {pack.evidence}
+                  </p>
+                </div>
+                <label className='flex h-9 w-fit items-center gap-2 rounded-md border border-input px-3 text-sm shadow-xs'>
+                  <input
+                    type='checkbox'
+                    checked={enabled}
+                    onChange={(event) =>
+                      onChange(pack.id, event.currentTarget.checked)
+                    }
+                    aria-label={`Enable ${pack.label}`}
+                  />
+                  Enabled
+                </label>
+              </div>
+            </section>
+          )
+        })}
+      </div>
+    </section>
+  )
+}
+
 function ConfigSectionPanel({
   section,
   drafts,
@@ -296,6 +732,26 @@ export function SettingsConfiguration() {
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [saveMessage, setSaveMessage] = useState<string | null>(null)
+  const [startupPreferences, setStartupPreferences] =
+    useState<StartupBehaviorPreferences>(() => loadStartupBehaviorPreferences())
+  const [initialStartupPreferences, setInitialStartupPreferences] =
+    useState<StartupBehaviorPreferences>(() => loadStartupBehaviorPreferences())
+  const [startupError, setStartupError] = useState<string | null>(null)
+  const [startupSaveMessage, setStartupSaveMessage] = useState<string | null>(
+    null,
+  )
+  const [capabilityPackPreferences, setCapabilityPackPreferences] =
+    useState<CapabilityPackPreferences>(() => loadCapabilityPackPreferences())
+  const [
+    initialCapabilityPackPreferences,
+    setInitialCapabilityPackPreferences,
+  ] = useState<CapabilityPackPreferences>(() => loadCapabilityPackPreferences())
+  const [capabilityPackError, setCapabilityPackError] = useState<string | null>(
+    null,
+  )
+  const [capabilityPackSaveMessage, setCapabilityPackSaveMessage] = useState<
+    string | null
+  >(null)
 
   useEffect(() => {
     const controller = new AbortController()
@@ -363,6 +819,65 @@ export function SettingsConfiguration() {
     }))
   }
 
+  function handleStartupPreferenceChange<
+    K extends keyof StartupBehaviorPreferences,
+  >(key: K, value: StartupBehaviorPreferences[K]) {
+    setStartupPreferences((current) => ({
+      ...current,
+      [key]: value,
+    }))
+    setStartupError(null)
+    setStartupSaveMessage(null)
+  }
+
+  function handleResetStartupPreferences() {
+    setStartupPreferences(initialStartupPreferences)
+    setStartupError(null)
+    setStartupSaveMessage(null)
+  }
+
+  function handleSaveStartupPreferences() {
+    try {
+      saveStartupBehaviorPreferences(startupPreferences)
+      setInitialStartupPreferences(startupPreferences)
+      setStartupError(null)
+      setStartupSaveMessage('Startup behavior saved.')
+    } catch (err: unknown) {
+      setStartupSaveMessage(null)
+      setStartupError(errorMessage(err))
+    }
+  }
+
+  function handleCapabilityPackPreferenceChange(
+    id: CapabilityPackId,
+    enabled: boolean,
+  ) {
+    setCapabilityPackPreferences((current) => ({
+      ...current,
+      [id]: enabled,
+    }))
+    setCapabilityPackError(null)
+    setCapabilityPackSaveMessage(null)
+  }
+
+  function handleResetCapabilityPackPreferences() {
+    setCapabilityPackPreferences(initialCapabilityPackPreferences)
+    setCapabilityPackError(null)
+    setCapabilityPackSaveMessage(null)
+  }
+
+  function handleSaveCapabilityPackPreferences() {
+    try {
+      saveCapabilityPackPreferences(capabilityPackPreferences)
+      setInitialCapabilityPackPreferences(capabilityPackPreferences)
+      setCapabilityPackError(null)
+      setCapabilityPackSaveMessage('Capability packs saved.')
+    } catch (err: unknown) {
+      setCapabilityPackSaveMessage(null)
+      setCapabilityPackError(errorMessage(err))
+    }
+  }
+
   async function handleSave() {
     if (!snapshot || !dirty) return
 
@@ -422,6 +937,24 @@ export function SettingsConfiguration() {
             dashboard.
           </p>
         </div>
+        <StartupBehaviorSection
+          preferences={startupPreferences}
+          initialPreferences={initialStartupPreferences}
+          saveMessage={startupSaveMessage}
+          error={startupError}
+          onChange={handleStartupPreferenceChange}
+          onReset={handleResetStartupPreferences}
+          onSave={handleSaveStartupPreferences}
+        />
+        <CapabilityPacksSection
+          preferences={capabilityPackPreferences}
+          initialPreferences={initialCapabilityPackPreferences}
+          saveMessage={capabilityPackSaveMessage}
+          error={capabilityPackError}
+          onChange={handleCapabilityPackPreferenceChange}
+          onReset={handleResetCapabilityPackPreferences}
+          onSave={handleSaveCapabilityPackPreferences}
+        />
         <div className='flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between'>
           <div className='space-y-2'>
             <Label>Config target</Label>

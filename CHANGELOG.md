@@ -1,3 +1,15 @@
+## [Unreleased]
+
+### Added
+
+- Startup behavior preferences in the Configuration page for daemon auto-start plus per-dashboard sync and ingest startup behavior.
+- Coverage for local startup-preference persistence in Settings Configuration.
+- A complete Capability packs section in Configuration covering CodeCity, Architecture graph, Navigation context, Test harness, Knowledge pack, and Semantic clones.
+
+### Changed
+
+- Removed the standalone Capability Packs settings route and folded its startup behavior controls and pack catalog into the existing Configuration page.
+
 ## [0.0.14] - 2026-05-12
 
 ### Fixed

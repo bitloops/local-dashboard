@@ -51,4 +51,37 @@ describe('Settings integration', () => {
       screen.getByRole('link', { name: /Appearance/i }),
     ).toBeInTheDocument()
   })
+
+  it('renders sidebar nav with Configuration link', () => {
+    renderSettings(<SettingsPage />)
+    expect(
+      screen.getByRole('link', { name: /Configuration/i }),
+    ).toBeInTheDocument()
+  })
+
+  it('renders the configuration page on its dedicated route', async () => {
+    window.history.pushState({}, '', '/settings/configuration')
+
+    renderSettings(<SettingsPage />)
+
+    expect(
+      await screen.findByRole('heading', { name: 'Configuration' }),
+    ).toBeInTheDocument()
+    expect(
+      screen.getByText(
+        /Edit runtime-discovered Bitloops config files without leaving the dashboard\./i,
+      ),
+    ).toBeInTheDocument()
+  })
+
+  it('renders the configuration page on the legacy capability-packs route', async () => {
+    window.history.pushState({}, '', '/settings/capability-packs')
+
+    renderSettings(<SettingsPage />)
+
+    expect(
+      await screen.findByRole('heading', { name: 'Configuration' }),
+    ).toBeInTheDocument()
+    expect(screen.getByText('Architecture graph')).toBeInTheDocument()
+  })
 })

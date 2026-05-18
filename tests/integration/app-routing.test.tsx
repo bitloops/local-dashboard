@@ -50,6 +50,21 @@ describe('App routing integration', () => {
     ).toBeInTheDocument()
   })
 
+  it('navigates to Configuration from the Settings shell', async () => {
+    renderApp()
+    await userEvent.click(screen.getByRole('link', { name: /Settings/i }))
+    await userEvent.click(screen.getByRole('link', { name: /Configuration/i }))
+
+    expect(
+      screen.getByRole('heading', { name: 'Configuration' }),
+    ).toBeInTheDocument()
+    expect(
+      screen.getByText(
+        'Edit runtime-discovered Bitloops config files without leaving the dashboard.',
+      ),
+    ).toBeInTheDocument()
+  })
+
   it('navigates to Help and shows Coming Soon', async () => {
     renderApp()
     const helpLink = screen.getByRole('link', { name: /Help/i })
