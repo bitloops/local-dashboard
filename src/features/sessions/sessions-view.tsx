@@ -4,6 +4,7 @@ import {
   useState,
   useMemo,
   useEffect,
+  useRef,
 } from 'react'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { useShallow } from 'zustand/react/shallow'
@@ -17,11 +18,15 @@ import { useSidebar } from '@/components/ui/use-sidebar'
 import type {
   DashboardCheckpointDetailResponse,
   DashboardInteractionSessionDto,
+  DashboardInteractionUpdateDto,
 } from '@/features/dashboard/api-types'
 import { CheckpointSheet } from '@/features/dashboard/components/checkpoint-sheet'
 import type { CheckpointDetailLoadState } from '@/features/dashboard/types'
 import type { Checkpoint } from '@/features/dashboard/types'
-import { fetchDashboardCheckpointDetail } from '@/features/dashboard/graphql/fetch-dashboard-data'
+import {
+  fetchDashboardCheckpointDetail,
+  subscribeDashboardInteractionUpdates,
+} from '@/features/dashboard/graphql/fetch-dashboard-data'
 import { QueryExplorerLayout } from '@/features/query-explorer/components/query-explorer'
 import { EditorHistoryContainer } from '@/features/query-explorer/components/editor-history-container'
 import { useResizeWidth } from '@/features/query-explorer/hooks/use-resize-width'
@@ -54,6 +59,32 @@ const EDITOR_PANEL_DEFAULT = 780
 /** Keeps tab panel height stable for at most `SESSIONS_LANDING_PAGE_SIZE` table rows (+ toolbar/chrome). */
 const SESSIONS_TAB_PANEL_MIN_HEIGHT = 'min-h-[19.5rem]'
 
+/**
+ * How often we poll for dashboard interaction updates when the WebSocket
+ * subscription fails. Mirrors the constant in `use-dashboard-data.ts` — kept
+ * locally to avoid coupling this page to the legacy dashboard hook.
+ */
+const INTERACTION_UPDATES_POLL_INTERVAL_MS = 30_000
+
+/**
+ * Deterministic identity for a `DashboardInteractionUpdateDto` payload. Two
+ * payloads with the same key represent the same observable state of the
+ * server — used to (a) drop the priming event we get right after subscribing
+ * and (b) ignore redundant re-broadcasts. Mirrors `interactionUpdateKey` in
+ * `use-dashboard-data.ts`.
+ */
+function interactionUpdateKey(update: DashboardInteractionUpdateDto): string {
+  return [
+    update.repo_id,
+    update.session_count,
+    update.turn_count,
+    update.latest_session_id ?? '',
+    update.latest_session_updated_at ?? '',
+    update.latest_turn_id ?? '',
+    update.latest_turn_updated_at ?? '',
+  ].join('|')
+}
+
 type SessionsMainTab = 'sessions' | 'checkpoints'
 
 export function SessionsView() {
@@ -70,6 +101,8 @@ export function SessionsView() {
     minWidth: EDITOR_PANEL_MIN,
     maxWidth: EDITOR_PANEL_MAX,
   })
+  // Bumped whenever a dashboard query result lands successfully.
+  const [sessionDetailRefreshToken, setSessionDetailRefreshToken] = useState(0)
 
   const {
     setQuery,
@@ -135,6 +168,18 @@ export function SessionsView() {
 
   useSessionsResultSync({ variables })
 
+  // Force-refresh the session detail sidebar whenever a new query result
+  // arrives successfully. The table-row data already re-syncs via
+  // `useSessionsResultSync`, but the sidebar fetches its own detail and is
+  // keyed by (repoId, sessionId, refreshToken) — bumping the token is what
+  // tells it to refetch turns/tool-use/token data for the still-selected
+  // session.
+  useEffect(() => {
+    if (result.status === 'success') {
+      setSessionDetailRefreshToken((value) => value + 1)
+    }
+  }, [result])
+
   const parsedVars = parseSessionsVariablesJson(variables)
   const [resolvedRepoId, setResolvedRepoId] = useState<string | null>(null)
 
@@ -152,6 +197,94 @@ export function SessionsView() {
       variables: state.variables,
     })
   }, [sessionsLandingDefaultsApplied, resolvedRepoId])
+
+  const lastInteractionUpdateKeyRef = useRef<string | null>(null)
+  const interactionRefreshInFlightRef = useRef(false)
+  const interactionRefreshQueuedRef = useRef(false)
+  const [
+    interactionUpdatesPollingFallback,
+    setInteractionUpdatesPollingFallback,
+  ] = useState(false)
+
+  useEffect(() => {
+    setInteractionUpdatesPollingFallback(false)
+  }, [resolvedRepoId])
+
+  const refreshInteractionSessions = useCallback(async () => {
+    if (!resolvedRepoId) return
+    if (interactionRefreshInFlightRef.current) {
+      interactionRefreshQueuedRef.current = true
+      return
+    }
+    interactionRefreshInFlightRef.current = true
+    try {
+      const state = rootStoreInstance.getState()
+      await runDashboardQueryExplorerQuery({
+        query: state.query,
+        variables: state.variables,
+      })
+    } catch (error: unknown) {
+      console.error(
+        'Failed to refresh sessions from interaction subscription',
+        error,
+      )
+    } finally {
+      interactionRefreshInFlightRef.current = false
+      if (interactionRefreshQueuedRef.current) {
+        interactionRefreshQueuedRef.current = false
+        void refreshInteractionSessions()
+      }
+    }
+  }, [resolvedRepoId])
+
+  const refreshInteractionSessionsRef = useRef(refreshInteractionSessions)
+  useEffect(() => {
+    refreshInteractionSessionsRef.current = refreshInteractionSessions
+  }, [refreshInteractionSessions])
+
+  useEffect(() => {
+    if (!resolvedRepoId) return
+    if (interactionUpdatesPollingFallback) return
+
+    lastInteractionUpdateKeyRef.current = null
+    interactionRefreshInFlightRef.current = false
+    interactionRefreshQueuedRef.current = false
+
+    return subscribeDashboardInteractionUpdates(
+      { repoId: resolvedRepoId },
+      {
+        onUpdate: (update) => {
+          const nextKey = interactionUpdateKey(update)
+          const previousKey = lastInteractionUpdateKeyRef.current
+          lastInteractionUpdateKeyRef.current = nextKey
+
+          // Priming event (first push) and idempotent re-broadcasts: ignore.
+          if (previousKey == null || previousKey === nextKey) {
+            return
+          }
+
+          void refreshInteractionSessionsRef.current()
+        },
+        onError: (error: unknown) => {
+          console.warn(
+            'Sessions interaction subscription unavailable; falling back to polling',
+            error,
+          )
+          setInteractionUpdatesPollingFallback(true)
+        },
+      },
+    )
+  }, [resolvedRepoId, interactionUpdatesPollingFallback])
+
+  useEffect(() => {
+    if (!interactionUpdatesPollingFallback || !resolvedRepoId) return
+    const timer = window.setInterval(() => {
+      void refreshInteractionSessionsRef.current()
+    }, INTERACTION_UPDATES_POLL_INTERVAL_MS)
+    return () => {
+      window.clearInterval(timer)
+    }
+  }, [interactionUpdatesPollingFallback, resolvedRepoId])
 
   const checkpointRows = useMemo(
     () => deriveDedupedCheckpointsFromSessions(sessionRows),
@@ -382,6 +515,7 @@ export function SessionsView() {
           sessionId={selectedSessionId}
           repoId={resolvedRepoId}
           userName={userName}
+          refreshToken={sessionDetailRefreshToken}
           onClose={() => {
             setRightOpen(false)
           }}
