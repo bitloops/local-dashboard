@@ -1112,7 +1112,7 @@ test.describe('Session detail', () => {
     await expect(page.getByText('No tool use entries.')).toBeVisible()
   })
 
-  test('session detail errors are shown inline in the sidebar heavy tabs', async ({
+  test('session detail errors are shown in the sidebar when the detail query fails', async ({
     page,
   }) => {
     await page.route('**/devql/dashboard', async (route) => {
@@ -1179,11 +1179,12 @@ test.describe('Session detail', () => {
 
     await page.goto('/')
     await selectFirstStubSession(page)
-    await page.getByRole('tab', { name: 'Turns' }).click()
 
-    await expect(
-      page.getByText('Could not load session detail; turns are unavailable.'),
-    ).toBeVisible({ timeout: 8000 })
+    // Detail fetch fails before tabs mount — error is shown at the panel body.
+    await expect(page.getByText('Failed to load session detail.')).toBeVisible({
+      timeout: 8000,
+    })
+    await expect(page.getByRole('tab', { name: 'Turns' })).toHaveCount(0)
   })
 
   test('close session panel hides the sidebar', async ({ page }) => {

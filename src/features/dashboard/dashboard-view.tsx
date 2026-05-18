@@ -79,7 +79,6 @@ type DashboardViewProps = {
   onSessionsNext: () => void
   onSessionsBack: () => void
   selectedSessionId: string | null
-  selectedSessionSummary: DashboardInteractionSessionDto | null
   sessionDetailRefreshToken: number
   onRepoChange: (value: string | null) => void
   onBranchChange: (value: string | null) => void
@@ -118,7 +117,6 @@ export function DashboardView({
   onSessionsNext,
   onSessionsBack,
   selectedSessionId,
-  selectedSessionSummary,
   sessionDetailRefreshToken,
   onRepoChange,
   onBranchChange,
@@ -476,7 +474,6 @@ export function DashboardView({
         <SidebarRail side='right' />
         <SessionDetailSidebar
           sessionId={selectedSessionId}
-          sessionSummary={selectedSessionSummary}
           repoId={effectiveRepoId}
           userName={userName}
           refreshToken={sessionDetailRefreshToken}

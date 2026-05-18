@@ -84,7 +84,7 @@ export function CheckpointSummaryPanel({
             </p>
           </div>
           <div className='sm:px-3 sm:first:ps-0 sm:last:pe-0'>
-            <p className='text-xs text-muted-foreground'>Tool calls</p>
+            <p className='text-xs text-muted-foreground'>API calls</p>
             <p className='text-lg font-bold text-primary'>
               {detailTokenUsage ? detailTokenUsage.api_call_count : '-'}
             </p>

@@ -17,7 +17,7 @@ import { Button } from '@/components/ui/button'
 import { CardDescription, CardTitle } from '@/components/ui/card'
 import { Separator } from '@/components/ui/separator'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { XIcon } from 'lucide-react'
+import { Loader2, XIcon } from 'lucide-react'
 import { fetchDashboardInteractionSessionDetail } from '../graphql/fetch-dashboard-data'
 import { formatAgentLabel, formatModelLabel } from '../utils'
 import {
@@ -26,6 +26,7 @@ import {
 } from './checkpoint-sheet-utils'
 import { SessionToolUseList } from '@/features/dashboard/components/session-tool-use-list'
 import { sortedSessionToolUses } from '@/features/dashboard/utils/session-tool-uses'
+import { buildSessionToolUseDisplayItems } from '@/features/dashboard/utils/session-tool-use-display'
 import { FileTree } from './file-tree'
 import { TurnsTimeline } from '@/features/dashboard/components/turns-timeline'
 import { buildSessionTranscriptAnalysis } from '@/features/dashboard/utils/turn-transcript'
@@ -36,10 +37,18 @@ const TokenUsageChart = lazy(() =>
 
 function SessionSummaryView({
   summary,
+  toolCallCount,
 }: {
   summary: DashboardInteractionSessionDto
+  /**
+   * Computed by the parent using the same logic as the Tool use tab
+   * (`buildSessionToolUseDisplayItems`) so the header tile never disagrees
+   * with the list rendered under the Tool use tab. The fallback path matters
+   * for sessions whose `tool_uses` summary array is empty but whose canonical
+   * session transcript still contains `tool_use` / `tool_result` entries.
+   */
+  toolCallCount: number
 }) {
-  const toolCallCount = summary.tool_uses.length
   const firstPromptDisplay = formatPromptForDisplay(summary.first_prompt)
 
   return (
@@ -168,7 +177,6 @@ function SessionSummaryView({
 
 type SessionDetailSidebarProps = {
   sessionId: string | null
-  sessionSummary: DashboardInteractionSessionDto | null
   repoId: string | null
   userName: string
   refreshToken?: number
@@ -186,12 +194,16 @@ function isAbortError(error: unknown): boolean {
 
 export function SessionDetailSidebar({
   sessionId,
-  sessionSummary,
   repoId,
   userName,
   refreshToken,
   onClose,
 }: SessionDetailSidebarProps) {
+  const interactionKey =
+    sessionId?.trim() != null && sessionId.trim() !== ''
+      ? `${repoId ?? ''}:${sessionId.trim()}:${refreshToken ?? 0}`
+      : null
+
   const [interactionDetail, setInteractionDetail] =
     useState<DashboardInteractionSessionDetailResponse | null>(null)
   const [interactionSource, setInteractionSource] = useState<
@@ -199,12 +211,33 @@ export function SessionDetailSidebar({
   >('idle')
   const [interactionError, setInteractionError] = useState<string | null>(null)
   const [activeTab, setActiveTab] = useState<SessionDetailTab>('details')
+  // Track the previous interactionKey so we can reset state during render
+  // when a new session is selected. Doing this in render (instead of an
+  // effect) lets React discard the stale-state output before commit — so no
+  // frame ever shows the old session's content under the new sessionId.
+  // See react.dev/learn/you-might-not-need-an-effect#adjusting-some-state-when-a-prop-changes.
+  const [previousInteractionKey, setPreviousInteractionKey] = useState<
+    string | null
+  >(interactionKey)
   const interactionAbortRef = useRef<AbortController | null>(null)
   const loadedInteractionKeyRef = useRef<string | null>(null)
-  const interactionKey =
-    sessionId?.trim() != null && sessionId.trim() !== ''
-      ? `${repoId ?? ''}:${sessionId.trim()}:${refreshToken ?? 0}`
-      : null
+
+  if (previousInteractionKey !== interactionKey) {
+    setPreviousInteractionKey(interactionKey)
+    setInteractionDetail(null)
+    setInteractionSource('idle')
+    setInteractionError(null)
+  }
+
+  // Ref mutations aren't allowed during render, so the "loaded key" cache is
+  // cleared in an effect that runs right before the fetch effect (effects
+  // flush in declaration order). This ensures the fetch effect sees a clean
+  // ref when interactionKey changes — including the K1 → K2 → K1 round-trip
+  // case, where the old loaded-key value would otherwise cause an
+  // erroneous early-return and leave the panel stuck on the spinner.
+  useEffect(() => {
+    loadedInteractionKeyRef.current = null
+  }, [interactionKey])
 
   useEffect(() => {
     return () => {
@@ -214,37 +247,23 @@ export function SessionDetailSidebar({
     }
   }, [])
 
+  // Fetch the full session detail as soon as a session is selected (or the
+  // selection / refresh token changes). The sidebar renders exclusively from
+  // this response — there is no fallback to the list-query summary — so a
+  // spinner takes the place of the panel content until it resolves.
+  //
+  // Note: `interactionDetail` deliberately does NOT appear in this effect's
+  // dependency array. Re-running on detail change would force the cleanup
+  // to abort the controller that just fired — turning a normal load into a
+  // self-aborting double fetch. The reset effect above clears
+  // `loadedInteractionKeyRef.current` synchronously when the key changes, so
+  // the ref-based guard below is enough to answer "already loaded?".
   useEffect(() => {
-    interactionAbortRef.current?.abort()
-    interactionAbortRef.current = null
-    loadedInteractionKeyRef.current = null
-
-    startTransition(() => {
-      setInteractionDetail(null)
-      setInteractionSource('idle')
-      setInteractionError(null)
-    })
-
-    if (!interactionKey) {
-      return
-    }
-  }, [interactionKey])
-
-  useEffect(() => {
-    if (activeTab === 'details') {
-      interactionAbortRef.current?.abort()
-      interactionAbortRef.current = null
-      return
-    }
-
     if (!sessionId?.trim() || !interactionKey) {
       return
     }
 
-    if (
-      loadedInteractionKeyRef.current === interactionKey &&
-      interactionDetail != null
-    ) {
+    if (loadedInteractionKeyRef.current === interactionKey) {
       return
     }
 
@@ -284,9 +303,9 @@ export function SessionDetailSidebar({
         interactionAbortRef.current = null
       }
     }
-  }, [activeTab, interactionDetail, interactionKey, repoId, sessionId])
+  }, [interactionKey, repoId, sessionId])
 
-  const summary = interactionDetail?.summary ?? sessionSummary
+  const summary = interactionDetail?.summary ?? null
   const turns = interactionDetail?.turns ?? []
   const transcriptAnalysis = useMemo(
     () =>
@@ -298,11 +317,28 @@ export function SessionDetailSidebar({
           ),
     [interactionDetail],
   )
-  /** List query does not fetch `toolUses`; only session detail does. Avoid showing empty until detail returns. */
-  const sessionToolsList =
-    interactionDetail?.summary != null
-      ? sortedSessionToolUses(interactionDetail.summary)
-      : null
+  const sessionToolsList = useMemo(
+    () => (summary != null ? sortedSessionToolUses(summary) : null),
+    [summary],
+  )
+
+  /**
+   * Count the header tile shows under "Tool calls". Use the exact same
+   * derivation as the Tool use tab (`buildSessionToolUseDisplayItems`), so
+   * the two never disagree: when `summary.tool_uses` is empty but the
+   * canonical session transcript still has `tool_use` / `tool_result`
+   * entries, the count falls back to the transcript-derived traces — same
+   * as what the tab renders.
+   */
+  const headerToolCallCount = useMemo(() => {
+    if (sessionToolsList == null) return 0
+    return buildSessionToolUseDisplayItems({
+      tools: sessionToolsList,
+      transcriptEntries: transcriptAnalysis?.sessionEntries ?? [],
+    }).length
+  }, [sessionToolsList, transcriptAnalysis])
+
+  const headerSessionId = summary?.session_id ?? sessionId?.trim() ?? ''
 
   return (
     <>
@@ -310,12 +346,12 @@ export function SessionDetailSidebar({
         <div className='flex min-w-0 items-center justify-between gap-2 border-b px-4 py-4 pr-14 text-start'>
           <h2 className='flex min-w-0 items-center gap-1 text-lg font-semibold'>
             <span className='truncate'>Session</span>
-            {summary && (
+            {headerSessionId && (
               <span className='font-mono text-sm text-muted-foreground'>
-                {summary.session_id.slice(0, 10)}…
+                {headerSessionId.slice(0, 10)}…
               </span>
             )}
-            {summary && <CopyButton value={summary.session_id} />}
+            {headerSessionId && <CopyButton value={headerSessionId} />}
           </h2>
           {onClose && (
             <Button
@@ -331,26 +367,39 @@ export function SessionDetailSidebar({
 
         <div className='min-h-0 flex-1 overflow-y-auto overflow-x-hidden'>
           <div className='w-full min-w-0 space-y-4 p-4'>
-            {interactionSource === 'loading' && (
-              <p className='text-sm text-muted-foreground'>Loading session…</p>
-            )}
-            {interactionSource === 'error' && (
+            {/*
+              The sidebar renders exclusively from `interactionDetail`. Show
+              the spinner whenever we have a session key but no loaded
+              summary yet and the request hasn't errored — this covers both
+              the initial 'idle' frame before the fetch effect runs and the
+              post-reset frame after `interactionKey` changes, not just the
+              'loading' state. On error the body shows the error message
+              and no tabs.
+            */}
+            {interactionKey != null &&
+              summary == null &&
+              interactionSource !== 'error' && (
+                <div
+                  className='flex min-h-40 items-center justify-center'
+                  role='status'
+                  aria-label='Loading session'
+                >
+                  <Loader2
+                    className='size-6 shrink-0 animate-spin text-muted-foreground'
+                    aria-hidden
+                  />
+                </div>
+              )}
+            {summary == null && interactionSource === 'error' && (
               <p className='text-sm text-muted-foreground'>
                 {interactionError ?? 'Could not load interaction session.'}
               </p>
             )}
-            {(interactionSource === 'api' || sessionSummary) && summary && (
+            {summary && (
               <Tabs
                 value={activeTab}
                 onValueChange={(value) => {
-                  const nextTab = value as SessionDetailTab
-                  setActiveTab(nextTab)
-                  if (nextTab === 'details') {
-                    interactionAbortRef.current?.abort()
-                    interactionAbortRef.current = null
-                    setInteractionSource(interactionDetail ? 'api' : 'idle')
-                    setInteractionError(null)
-                  }
+                  setActiveTab(value as SessionDetailTab)
                 }}
                 className='w-full'
               >
@@ -360,18 +409,19 @@ export function SessionDetailSidebar({
                   <TabsTrigger value='tools'>Tool use</TabsTrigger>
                 </TabsList>
                 <TabsContent value='details' className='mt-0'>
-                  <SessionSummaryView summary={summary} />
+                  <SessionSummaryView
+                    summary={summary}
+                    toolCallCount={headerToolCallCount}
+                  />
                 </TabsContent>
+                {/*
+                  Tabs only render when `summary != null` (set above), which
+                  means the detail request has resolved successfully. So the
+                  Turns and Tool use panels never need their own loading or
+                  error states — those live at the top-level body.
+                */}
                 <TabsContent value='turns' className='mt-0 space-y-2'>
-                  {interactionSource === 'loading' ? (
-                    <p className='text-sm text-muted-foreground'>
-                      Loading turns…
-                    </p>
-                  ) : interactionSource === 'error' ? (
-                    <p className='text-sm text-muted-foreground'>
-                      Could not load session detail; turns are unavailable.
-                    </p>
-                  ) : turns.length === 0 ? (
+                  {turns.length === 0 ? (
                     <p className='text-sm text-muted-foreground'>No turns.</p>
                   ) : (
                     <TurnsTimeline
@@ -382,24 +432,11 @@ export function SessionDetailSidebar({
                   )}
                 </TabsContent>
                 <TabsContent value='tools' className='mt-0 space-y-2'>
-                  {interactionSource === 'error' ? (
-                    <p className='text-sm text-muted-foreground'>
-                      Could not load session detail; tool uses are unavailable.
-                    </p>
-                  ) : interactionSource === 'loading' ||
-                    sessionToolsList === null ? (
-                    <p className='text-sm text-muted-foreground'>
-                      Loading tool uses…
-                    </p>
-                  ) : (
-                    <SessionToolUseList
-                      tools={sessionToolsList}
-                      transcriptEntries={
-                        transcriptAnalysis?.sessionEntries ?? []
-                      }
-                      emptyMessage='No tool use entries.'
-                    />
-                  )}
+                  <SessionToolUseList
+                    tools={sessionToolsList ?? []}
+                    transcriptEntries={transcriptAnalysis?.sessionEntries ?? []}
+                    emptyMessage='No tool use entries.'
+                  />
                 </TabsContent>
               </Tabs>
             )}
