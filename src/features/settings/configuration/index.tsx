@@ -26,277 +26,836 @@ import { Label } from '@/components/ui/label'
 import {
   Select,
   SelectContent,
-  SelectGroup,
   SelectItem,
-  SelectLabel,
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
 import { Separator } from '@/components/ui/separator'
 import { Textarea } from '@/components/ui/textarea'
-import { cn } from '@/lib/utils'
 
 type Drafts = Record<string, string>
-type CrossPackPreferences = {
-  daemonStartOnStartup: boolean
-  syncEnabled: boolean
-  ingestEnabled: boolean
-  observabilityEnabled: boolean
-}
-type CapabilityPackStatus = 'Needs setup' | 'Ready' | 'Applying' | 'Failed'
-type CapabilityPackSelectionKind = 'Explicit' | 'Dependency-selected'
 
-type GuidedSettingDefinition = {
-  key: string
-  label: string
-  options: string[]
-}
+type CapabilityPackId =
+  | 'architecture-graph'
+  | 'context-guidance'
+  | 'semantic-clones'
+  | 'knowledge-pack'
+  | 'test-harness'
 
 type CapabilityPackDefinition = {
-  id: string
+  id: CapabilityPackId
   label: string
   summary: string
-  includes: string[]
-  evidence: string
-  status: CapabilityPackStatus
-  selectionKind: CapabilityPackSelectionKind
-  experimental?: boolean
-  dependencies: string[]
-  initiallyEnabled: boolean
-  guidedSettings?: GuidedSettingDefinition[]
-  advancedSectionKeys: string[]
+  directPrefixes: string[][]
+  relatedFieldPaths?: string[][]
 }
 
-const capabilityPackCatalog: CapabilityPackDefinition[] = [
-  {
-    id: 'codecity',
-    label: 'CodeCity',
-    summary: 'Builds the file/world visualisation and health overlays.',
-    includes: [
-      '3D city world generation and renderer scenes',
-      'World-health overlays and hotspot markers',
-      'Dependency arc and architecture-overlay metadata',
-    ],
-    evidence: 'bitloops/src/capability_packs/codecity',
-    status: 'Ready',
-    selectionKind: 'Explicit',
-    dependencies: [],
-    initiallyEnabled: true,
-    advancedSectionKeys: ['codecity'],
-  },
+type DisplaySection = Omit<RuntimeConfigSection, 'fields'> & {
+  fields: RuntimeConfigField[]
+  note?: string
+}
+
+type InferenceBindingView = {
+  key: string
+  label: string
+  description: string
+  field: RuntimeConfigField
+  sections: DisplaySection[]
+}
+
+type ProviderChoiceView = {
+  key: string
+  label: string
+  sections: DisplaySection[]
+}
+
+type ProviderListView = {
+  key: string
+  title: string
+  description: string
+  providers: ProviderChoiceView[]
+}
+
+type PackContentItem =
+  | { kind: 'section'; key: string; section: DisplaySection }
+  | { kind: 'binding'; key: string; binding: InferenceBindingView }
+  | { kind: 'providers'; key: string; providers: ProviderListView }
+
+type CapabilityPackCardView = {
+  id: CapabilityPackId
+  label: string
+  summary: string
+  items: PackContentItem[]
+}
+
+type FieldOwnershipKind =
+  | 'pack-direct'
+  | 'shared-inference-runtime'
+  | 'supporting-dependency'
+
+type FieldOwnership = {
+  kind: FieldOwnershipKind
+  ownerPackId: CapabilityPackId
+  ownerPackLabel: string
+}
+
+type ReviewGroups = {
+  packDirect: string[]
+  sharedInferenceRuntime: string[]
+  supportingDependency: string[]
+}
+
+type SectionFieldEntry = {
+  section: RuntimeConfigSection
+  field: RuntimeConfigField
+}
+
+type SharedBlockOwner = {
+  locationKey: string
+  ownerPackId: CapabilityPackId
+  ownerPackLabel: string
+}
+
+type PackLayout = {
+  visiblePacks: CapabilityPackCardView[]
+  ownershipByFieldKey: Map<string, FieldOwnership>
+}
+
+type SeedFieldSpec = {
+  path: string[]
+  label: string
+  description: string
+  fieldType: string
+  value: unknown
+}
+
+type SeedSectionSpec = {
+  key: string
+  title: string
+  description: string
+  order: number
+  fields: SeedFieldSpec[]
+}
+
+const capabilityPackDefinitions: CapabilityPackDefinition[] = [
   {
     id: 'architecture-graph',
     label: 'Architecture graph',
-    summary: 'Builds components, contracts, entry points, and system facts.',
-    includes: [
-      'Fact synthesis for systems, containers, and components',
-      'Role adjudication for ambiguous architectural boundaries',
-      'Entry points, contracts, and flow-derived architecture facts',
-    ],
-    evidence: 'bitloops/src/capability_packs/architecture_graph',
-    status: 'Needs setup',
-    selectionKind: 'Explicit',
-    dependencies: ['Knowledge pack'],
-    initiallyEnabled: true,
-    guidedSettings: [
-      {
-        key: 'factSynthesisRuntime',
-        label: 'Fact synthesis runtime',
-        options: ['Codex', 'Claude', 'Bitloops-managed'],
-      },
-      {
-        key: 'roleAdjudicationRuntime',
-        label: 'Role adjudication runtime',
-        options: ['Codex', 'Claude', 'Bitloops-managed'],
-      },
-    ],
-    advancedSectionKeys: ['architecture'],
+    summary: 'Components, contracts, entry points, and system facts.',
+    directPrefixes: [['architecture']],
   },
   {
     id: 'context-guidance',
     label: 'Context Guidance',
-    summary:
-      'Guides repository-aware text generation with knowledge-backed prompts.',
-    includes: [
-      'Repository-aware guidance prompts',
-      'Knowledge-backed context assembly',
-      'Inference bindings for guided text generation',
-    ],
-    evidence: 'bitloops/src/capability_packs/context_guidance',
-    status: 'Ready',
-    selectionKind: 'Explicit',
-    dependencies: ['Knowledge pack'],
-    initiallyEnabled: true,
-    guidedSettings: [
-      {
-        key: 'guidanceGenerationRuntime',
-        label: 'Guidance generation runtime',
-        options: ['Bitloops-managed', 'Local LLM', 'Codex', 'Claude'],
-      },
-    ],
-    advancedSectionKeys: ['context_guidance'],
-  },
-  {
-    id: 'test-harness',
-    label: 'Test harness',
-    summary:
-      'Discovers tests, coverage, classifications, and verification records.',
-    includes: [
-      'Test discovery and classification metadata',
-      'Coverage and verification snapshots',
-      'Pack-facing test execution evidence',
-    ],
-    evidence: 'bitloops/src/capability_packs/test_harness',
-    status: 'Ready',
-    selectionKind: 'Dependency-selected',
-    dependencies: [],
-    initiallyEnabled: true,
-    advancedSectionKeys: ['test_harness'],
-  },
-  {
-    id: 'knowledge-pack',
-    label: 'Knowledge pack',
-    summary: 'Stores and refreshes durable knowledge records.',
-    includes: [
-      'Durable knowledge documents and refresh metadata',
-      'Refresh cadence and ingestion state',
-      'Shared repository facts used by dependent packs',
-    ],
-    evidence: 'bitloops/src/capability_packs/knowledge.rs',
-    status: 'Ready',
-    selectionKind: 'Dependency-selected',
-    dependencies: [],
-    initiallyEnabled: true,
-    advancedSectionKeys: ['knowledge'],
+    summary: 'Repository-aware guidance generation and prompt assembly.',
+    directPrefixes: [['context_guidance']],
   },
   {
     id: 'semantic-clones',
     label: 'Semantic clones',
-    summary: 'Identifies similar symbols and clone edges.',
-    includes: [
-      'Similarity scoring for related symbols',
-      'Clone-edge generation and thresholds',
-      'Review data for likely semantic duplicates',
-    ],
-    evidence: 'bitloops/src/capability_packs/semantic_clones',
-    status: 'Failed',
-    selectionKind: 'Explicit',
-    experimental: true,
-    dependencies: [],
-    initiallyEnabled: false,
-    advancedSectionKeys: ['semantic_clones'],
+    summary: 'Clone scoring, enrichment, and inference bindings.',
+    directPrefixes: [['semantic_clones']],
   },
-] as const
+  {
+    id: 'knowledge-pack',
+    label: 'Knowledge pack',
+    summary: 'Knowledge providers, refresh cadence, and durable records.',
+    directPrefixes: [['knowledge']],
+  },
+  {
+    id: 'test-harness',
+    label: 'Test harness',
+    summary: 'Adapters, dependency toggles, coverage, and test evidence.',
+    directPrefixes: [['test_harness']],
+    relatedFieldPaths: [['stores', 'relational', 'sqlite_path']],
+  },
+]
 
-type CapabilityPackId = (typeof capabilityPackCatalog)[number]['id']
-type CapabilityPackGuidedDraft = Record<string, string>
-type CapabilityPackDraft = {
-  enabled: boolean
-  guidedSettings: CapabilityPackGuidedDraft
+const inferenceProfileFieldOrder = [
+  'task',
+  'driver',
+  'runtime',
+  'model',
+  'api_key',
+  'base_url',
+  'temperature',
+  'max_output_tokens',
+  'thinking_level',
+]
+
+const inferenceRuntimeFieldOrder = [
+  'command',
+  'args',
+  'startup_timeout_secs',
+  'request_timeout_secs',
+]
+
+const knowledgeProviderFieldOrder = ['enabled', 'site_url', 'email', 'token']
+
+const providerLabels = new Map<string, string>([
+  ['github', 'GitHub'],
+  ['atlassian', 'Atlassian'],
+])
+
+const UNSET_SELECT_VALUE = '__unset__'
+
+const inferenceTaskOptions = [
+  'embeddings',
+  'text_generation',
+  'structured_generation',
+]
+
+const inferenceEmbeddingDriverOptions = ['bitloops_embeddings_ipc']
+
+const inferenceTextGenerationDriverOptions = [
+  'bitloops_platform_chat',
+  'openai_chat_completions',
+  'ollama_chat',
+]
+
+const inferenceStructuredGenerationDriverOptions = [
+  'codex_exec',
+  'claude_code_print',
+]
+
+const inferenceThinkingLevelOptions = ['low', 'medium', 'high']
+
+const missingPackSeedSections: SeedSectionSpec[] = [
+  {
+    key: 'architecture',
+    title: 'Architecture',
+    description: 'Architecture graph configuration',
+    order: 5,
+    fields: [
+      {
+        path: ['architecture', 'inference', 'fact_synthesis'],
+        label: 'Fact synthesis',
+        description: 'Profile binding for architecture fact synthesis.',
+        fieldType: 'string',
+        value: 'architecture_fact_synthesis',
+      },
+      {
+        path: ['architecture', 'inference', 'role_adjudication'],
+        label: 'Role adjudication',
+        description: 'Profile binding for architecture role adjudication.',
+        fieldType: 'string',
+        value: 'architecture_role_adjudication',
+      },
+    ],
+  },
+  {
+    key: 'context_guidance',
+    title: 'Context Guidance',
+    description: 'Repository-aware guidance settings',
+    order: 6,
+    fields: [
+      {
+        path: ['context_guidance', 'inference', 'guidance_generation'],
+        label: 'Guidance generation',
+        description: 'Profile binding for context guidance.',
+        fieldType: 'string',
+        value: 'guidance_llm',
+      },
+    ],
+  },
+  {
+    key: 'semantic_clones',
+    title: 'Semantic clones',
+    description: 'Semantic clone enrichment settings',
+    order: 7,
+    fields: [
+      {
+        path: ['semantic_clones', 'summary_mode'],
+        label: 'Summary mode',
+        description: 'Controls semantic summary generation.',
+        fieldType: 'string',
+        value: 'auto',
+      },
+      {
+        path: ['semantic_clones', 'embedding_mode'],
+        label: 'Embedding mode',
+        description: 'Controls semantic clone embedding refresh behaviour.',
+        fieldType: 'string',
+        value: 'semantic_aware_once',
+      },
+      {
+        path: ['semantic_clones', 'ann_neighbors'],
+        label: 'ANN neighbours',
+        description: 'Nearest-neighbour count for semantic clone lookup.',
+        fieldType: 'integer',
+        value: 5,
+      },
+      {
+        path: ['semantic_clones', 'enrichment_workers'],
+        label: 'Enrichment workers',
+        description: 'Concurrent enrichment worker count.',
+        fieldType: 'integer',
+        value: 1,
+      },
+      {
+        path: ['semantic_clones', 'inference', 'summary_generation'],
+        label: 'Summary generation',
+        description: 'Profile binding for semantic clone summary generation.',
+        fieldType: 'string',
+        value: 'summary_llm',
+      },
+    ],
+  },
+  {
+    key: 'knowledge',
+    title: 'Knowledge',
+    description: 'Knowledge providers and refresh settings',
+    order: 8,
+    fields: [
+      {
+        path: ['knowledge', 'providers', 'github', 'token'],
+        label: 'Token',
+        description: 'knowledge.providers.github.token',
+        fieldType: 'string',
+        value: '',
+      },
+      {
+        path: ['knowledge', 'providers', 'atlassian', 'site_url'],
+        label: 'Site URL',
+        description: 'knowledge.providers.atlassian.site_url',
+        fieldType: 'string',
+        value: '',
+      },
+      {
+        path: ['knowledge', 'providers', 'atlassian', 'email'],
+        label: 'Email',
+        description: 'knowledge.providers.atlassian.email',
+        fieldType: 'string',
+        value: '',
+      },
+      {
+        path: ['knowledge', 'providers', 'atlassian', 'token'],
+        label: 'Token',
+        description: 'knowledge.providers.atlassian.token',
+        fieldType: 'string',
+        value: '',
+      },
+    ],
+  },
+  {
+    key: 'test_harness',
+    title: 'Test harness',
+    description: 'Test harness adapters and coverage settings',
+    order: 9,
+    fields: [
+      {
+        path: ['test_harness', 'coverage_adapter'],
+        label: 'Coverage adapter',
+        description: 'test_harness.coverage_adapter',
+        fieldType: 'string',
+        value: '',
+      },
+      {
+        path: ['test_harness', 'test_discovery_adapter'],
+        label: 'Test discovery adapter',
+        description: 'test_harness.test_discovery_adapter',
+        fieldType: 'string',
+        value: '',
+      },
+      {
+        path: ['test_harness', 'language_support'],
+        label: 'Language support',
+        description: 'test_harness.language_support',
+        fieldType: 'string',
+        value: '',
+      },
+      {
+        path: ['test_harness', 'dependencies', 'coverage_adapter'],
+        label: 'Coverage adapter dependency',
+        description: 'test_harness.dependencies.coverage_adapter',
+        fieldType: 'boolean',
+        value: false,
+      },
+      {
+        path: ['test_harness', 'dependencies', 'test_discovery_adapter'],
+        label: 'Test discovery adapter dependency',
+        description: 'test_harness.dependencies.test_discovery_adapter',
+        fieldType: 'boolean',
+        value: false,
+      },
+      {
+        path: ['test_harness', 'dependencies', 'language_support'],
+        label: 'Language support dependency',
+        description: 'test_harness.dependencies.language_support',
+        fieldType: 'boolean',
+        value: false,
+      },
+      {
+        path: ['test_harness', 'coverage', 'format'],
+        label: 'Coverage format',
+        description: 'test_harness.coverage.format',
+        fieldType: 'string',
+        value: 'lcov',
+      },
+    ],
+  },
+]
+
+const supplementalSeedSections: SeedSectionSpec[] = [
+  {
+    key: 'inference_scaffolds',
+    title: 'Inference scaffolds',
+    description:
+      'Suggested inference profiles and runtimes for capability-pack setup.',
+    order: 10,
+    fields: [
+      {
+        path: ['inference', 'runtimes', 'bitloops_inference', 'command'],
+        label: 'Command',
+        description: 'inference.runtimes.bitloops_inference.command',
+        fieldType: 'string',
+        value: 'bitloops-inference',
+      },
+      {
+        path: ['inference', 'runtimes', 'bitloops_inference', 'args'],
+        label: 'Args',
+        description: 'inference.runtimes.bitloops_inference.args',
+        fieldType: 'json',
+        value: [],
+      },
+      {
+        path: [
+          'inference',
+          'runtimes',
+          'bitloops_inference',
+          'startup_timeout_secs',
+        ],
+        label: 'Startup timeout secs',
+        description:
+          'inference.runtimes.bitloops_inference.startup_timeout_secs',
+        fieldType: 'integer',
+        value: 60,
+      },
+      {
+        path: [
+          'inference',
+          'runtimes',
+          'bitloops_inference',
+          'request_timeout_secs',
+        ],
+        label: 'Request timeout secs',
+        description:
+          'inference.runtimes.bitloops_inference.request_timeout_secs',
+        fieldType: 'integer',
+        value: 300,
+      },
+      {
+        path: ['inference', 'runtimes', 'codex', 'command'],
+        label: 'Command',
+        description: 'inference.runtimes.codex.command',
+        fieldType: 'string',
+        value: 'codex',
+      },
+      {
+        path: ['inference', 'runtimes', 'codex', 'args'],
+        label: 'Args',
+        description: 'inference.runtimes.codex.args',
+        fieldType: 'json',
+        value: ['--ask-for-approval', 'never'],
+      },
+      {
+        path: ['inference', 'runtimes', 'codex', 'startup_timeout_secs'],
+        label: 'Startup timeout secs',
+        description: 'inference.runtimes.codex.startup_timeout_secs',
+        fieldType: 'integer',
+        value: 5,
+      },
+      {
+        path: ['inference', 'runtimes', 'codex', 'request_timeout_secs'],
+        label: 'Request timeout secs',
+        description: 'inference.runtimes.codex.request_timeout_secs',
+        fieldType: 'integer',
+        value: 900,
+      },
+      {
+        path: ['inference', 'runtimes', 'claude', 'command'],
+        label: 'Command',
+        description: 'inference.runtimes.claude.command',
+        fieldType: 'string',
+        value: '',
+      },
+      {
+        path: ['inference', 'runtimes', 'claude', 'args'],
+        label: 'Args',
+        description: 'inference.runtimes.claude.args',
+        fieldType: 'json',
+        value: [],
+      },
+      {
+        path: ['inference', 'runtimes', 'claude', 'startup_timeout_secs'],
+        label: 'Startup timeout secs',
+        description: 'inference.runtimes.claude.startup_timeout_secs',
+        fieldType: 'integer',
+        value: 5,
+      },
+      {
+        path: ['inference', 'runtimes', 'claude', 'request_timeout_secs'],
+        label: 'Request timeout secs',
+        description: 'inference.runtimes.claude.request_timeout_secs',
+        fieldType: 'integer',
+        value: 900,
+      },
+      {
+        path: ['inference', 'runtimes', 'bitloops_local_embeddings', 'command'],
+        label: 'Command',
+        description: 'inference.runtimes.bitloops_local_embeddings.command',
+        fieldType: 'string',
+        value: 'bitloops-local-embeddings',
+      },
+      {
+        path: ['inference', 'runtimes', 'bitloops_local_embeddings', 'args'],
+        label: 'Args',
+        description: 'inference.runtimes.bitloops_local_embeddings.args',
+        fieldType: 'json',
+        value: [],
+      },
+      {
+        path: [
+          'inference',
+          'runtimes',
+          'bitloops_local_embeddings',
+          'startup_timeout_secs',
+        ],
+        label: 'Startup timeout secs',
+        description:
+          'inference.runtimes.bitloops_local_embeddings.startup_timeout_secs',
+        fieldType: 'integer',
+        value: 60,
+      },
+      {
+        path: [
+          'inference',
+          'runtimes',
+          'bitloops_local_embeddings',
+          'request_timeout_secs',
+        ],
+        label: 'Request timeout secs',
+        description:
+          'inference.runtimes.bitloops_local_embeddings.request_timeout_secs',
+        fieldType: 'integer',
+        value: 300,
+      },
+      {
+        path: ['inference', 'profiles', 'summary_llm', 'task'],
+        label: 'Task',
+        description: 'inference.profiles.summary_llm.task',
+        fieldType: 'string',
+        value: 'text_generation',
+      },
+      {
+        path: ['inference', 'profiles', 'summary_llm', 'driver'],
+        label: 'Driver',
+        description: 'inference.profiles.summary_llm.driver',
+        fieldType: 'string',
+        value: 'openai_chat_completions',
+      },
+      {
+        path: ['inference', 'profiles', 'summary_llm', 'runtime'],
+        label: 'Runtime',
+        description: 'inference.profiles.summary_llm.runtime',
+        fieldType: 'string',
+        value: 'bitloops_inference',
+      },
+      {
+        path: ['inference', 'profiles', 'summary_llm', 'model'],
+        label: 'Model',
+        description: 'inference.profiles.summary_llm.model',
+        fieldType: 'string',
+        value: 'gpt-5.4-mini',
+      },
+      {
+        path: ['inference', 'profiles', 'summary_llm', 'api_key'],
+        label: 'API key',
+        description: 'inference.profiles.summary_llm.api_key',
+        fieldType: 'string',
+        value: '${OPENAI_API_KEY}',
+      },
+      {
+        path: ['inference', 'profiles', 'summary_llm', 'base_url'],
+        label: 'Base URL',
+        description: 'inference.profiles.summary_llm.base_url',
+        fieldType: 'string',
+        value: 'https://api.openai.com/v1/chat/completions',
+      },
+      {
+        path: ['inference', 'profiles', 'summary_llm', 'temperature'],
+        label: 'Temperature',
+        description: 'inference.profiles.summary_llm.temperature',
+        fieldType: 'string',
+        value: '0.1',
+      },
+      {
+        path: ['inference', 'profiles', 'summary_llm', 'max_output_tokens'],
+        label: 'Max output tokens',
+        description: 'inference.profiles.summary_llm.max_output_tokens',
+        fieldType: 'integer',
+        value: 200,
+      },
+      {
+        path: ['inference', 'profiles', 'guidance_llm', 'task'],
+        label: 'Task',
+        description: 'inference.profiles.guidance_llm.task',
+        fieldType: 'string',
+        value: 'text_generation',
+      },
+      {
+        path: ['inference', 'profiles', 'guidance_llm', 'driver'],
+        label: 'Driver',
+        description: 'inference.profiles.guidance_llm.driver',
+        fieldType: 'string',
+        value: 'bitloops_platform_chat',
+      },
+      {
+        path: ['inference', 'profiles', 'guidance_llm', 'runtime'],
+        label: 'Runtime',
+        description: 'inference.profiles.guidance_llm.runtime',
+        fieldType: 'string',
+        value: 'bitloops_inference',
+      },
+      {
+        path: ['inference', 'profiles', 'guidance_llm', 'model'],
+        label: 'Model',
+        description: 'inference.profiles.guidance_llm.model',
+        fieldType: 'string',
+        value: 'ministral-3-3b-instruct',
+      },
+      {
+        path: ['inference', 'profiles', 'guidance_llm', 'api_key'],
+        label: 'API key',
+        description: 'inference.profiles.guidance_llm.api_key',
+        fieldType: 'string',
+        value: '${BITLOOPS_PLATFORM_GATEWAY_TOKEN}',
+      },
+      {
+        path: ['inference', 'profiles', 'guidance_llm', 'temperature'],
+        label: 'Temperature',
+        description: 'inference.profiles.guidance_llm.temperature',
+        fieldType: 'string',
+        value: '0.1',
+      },
+      {
+        path: ['inference', 'profiles', 'guidance_llm', 'max_output_tokens'],
+        label: 'Max output tokens',
+        description: 'inference.profiles.guidance_llm.max_output_tokens',
+        fieldType: 'integer',
+        value: 4096,
+      },
+      {
+        path: ['inference', 'profiles', 'local_code', 'task'],
+        label: 'Task',
+        description: 'inference.profiles.local_code.task',
+        fieldType: 'string',
+        value: 'embeddings',
+      },
+      {
+        path: ['inference', 'profiles', 'local_code', 'driver'],
+        label: 'Driver',
+        description: 'inference.profiles.local_code.driver',
+        fieldType: 'string',
+        value: 'bitloops_embeddings_ipc',
+      },
+      {
+        path: ['inference', 'profiles', 'local_code', 'runtime'],
+        label: 'Runtime',
+        description: 'inference.profiles.local_code.runtime',
+        fieldType: 'string',
+        value: 'bitloops_local_embeddings',
+      },
+      {
+        path: ['inference', 'profiles', 'local_code', 'model'],
+        label: 'Model',
+        description: 'inference.profiles.local_code.model',
+        fieldType: 'string',
+        value: 'bge-m3',
+      },
+      {
+        path: ['inference', 'profiles', 'architecture_fact_synthesis', 'task'],
+        label: 'Task',
+        description: 'inference.profiles.architecture_fact_synthesis.task',
+        fieldType: 'string',
+        value: 'structured_generation',
+      },
+      {
+        path: [
+          'inference',
+          'profiles',
+          'architecture_fact_synthesis',
+          'driver',
+        ],
+        label: 'Driver',
+        description: 'inference.profiles.architecture_fact_synthesis.driver',
+        fieldType: 'string',
+        value: '',
+      },
+      {
+        path: [
+          'inference',
+          'profiles',
+          'architecture_fact_synthesis',
+          'runtime',
+        ],
+        label: 'Runtime',
+        description: 'inference.profiles.architecture_fact_synthesis.runtime',
+        fieldType: 'string',
+        value: '',
+      },
+      {
+        path: ['inference', 'profiles', 'architecture_fact_synthesis', 'model'],
+        label: 'Model',
+        description: 'inference.profiles.architecture_fact_synthesis.model',
+        fieldType: 'string',
+        value: '',
+      },
+      {
+        path: [
+          'inference',
+          'profiles',
+          'architecture_fact_synthesis',
+          'temperature',
+        ],
+        label: 'Temperature',
+        description:
+          'inference.profiles.architecture_fact_synthesis.temperature',
+        fieldType: 'string',
+        value: '0.1',
+      },
+      {
+        path: [
+          'inference',
+          'profiles',
+          'architecture_fact_synthesis',
+          'max_output_tokens',
+        ],
+        label: 'Max output tokens',
+        description:
+          'inference.profiles.architecture_fact_synthesis.max_output_tokens',
+        fieldType: 'integer',
+        value: 4096,
+      },
+      {
+        path: [
+          'inference',
+          'profiles',
+          'architecture_fact_synthesis',
+          'thinking_level',
+        ],
+        label: 'Thinking level',
+        description:
+          'inference.profiles.architecture_fact_synthesis.thinking_level',
+        fieldType: 'string',
+        value: '',
+      },
+      {
+        path: [
+          'inference',
+          'profiles',
+          'architecture_role_adjudication',
+          'task',
+        ],
+        label: 'Task',
+        description: 'inference.profiles.architecture_role_adjudication.task',
+        fieldType: 'string',
+        value: 'structured_generation',
+      },
+      {
+        path: [
+          'inference',
+          'profiles',
+          'architecture_role_adjudication',
+          'driver',
+        ],
+        label: 'Driver',
+        description: 'inference.profiles.architecture_role_adjudication.driver',
+        fieldType: 'string',
+        value: '',
+      },
+      {
+        path: [
+          'inference',
+          'profiles',
+          'architecture_role_adjudication',
+          'runtime',
+        ],
+        label: 'Runtime',
+        description:
+          'inference.profiles.architecture_role_adjudication.runtime',
+        fieldType: 'string',
+        value: '',
+      },
+      {
+        path: [
+          'inference',
+          'profiles',
+          'architecture_role_adjudication',
+          'model',
+        ],
+        label: 'Model',
+        description: 'inference.profiles.architecture_role_adjudication.model',
+        fieldType: 'string',
+        value: '',
+      },
+      {
+        path: [
+          'inference',
+          'profiles',
+          'architecture_role_adjudication',
+          'temperature',
+        ],
+        label: 'Temperature',
+        description:
+          'inference.profiles.architecture_role_adjudication.temperature',
+        fieldType: 'string',
+        value: '0.1',
+      },
+      {
+        path: [
+          'inference',
+          'profiles',
+          'architecture_role_adjudication',
+          'max_output_tokens',
+        ],
+        label: 'Max output tokens',
+        description:
+          'inference.profiles.architecture_role_adjudication.max_output_tokens',
+        fieldType: 'integer',
+        value: 1024,
+      },
+      {
+        path: [
+          'inference',
+          'profiles',
+          'architecture_role_adjudication',
+          'thinking_level',
+        ],
+        label: 'Thinking level',
+        description:
+          'inference.profiles.architecture_role_adjudication.thinking_level',
+        fieldType: 'string',
+        value: '',
+      },
+    ],
+  },
+]
+
+const seedFieldSpecsByPath = new Map(
+  [...missingPackSeedSections, ...supplementalSeedSections].flatMap((section) =>
+    section.fields.map((field) => [field.path.join('.'), field] as const),
+  ),
+)
+
+function pathStartsWith(path: string[], prefix: string[]): boolean {
+  return prefix.every((segment, index) => path[index] === segment)
 }
-type CapabilityPackDrafts = Record<CapabilityPackId, CapabilityPackDraft>
 
-function defaultCrossPackPreferences(): CrossPackPreferences {
-  return {
-    daemonStartOnStartup: true,
-    syncEnabled: true,
-    ingestEnabled: true,
-    observabilityEnabled: true,
-  }
-}
-
-function crossPackDirty(
-  current: CrossPackPreferences,
-  initial: CrossPackPreferences,
-): boolean {
+function pathsEqual(left: string[], right: string[]): boolean {
   return (
-    current.daemonStartOnStartup !== initial.daemonStartOnStartup ||
-    current.syncEnabled !== initial.syncEnabled ||
-    current.ingestEnabled !== initial.ingestEnabled ||
-    current.observabilityEnabled !== initial.observabilityEnabled
-  )
-}
-
-function defaultCapabilityPackDrafts(): CapabilityPackDrafts {
-  return capabilityPackCatalog.reduce((drafts, pack) => {
-    drafts[pack.id] = {
-      enabled: pack.initiallyEnabled,
-      guidedSettings: (pack.guidedSettings ?? []).reduce(
-        (settings, definition) => {
-          settings[definition.key] = definition.options[0] ?? ''
-          return settings
-        },
-        {} as CapabilityPackGuidedDraft,
-      ),
-    }
-    return drafts
-  }, {} as CapabilityPackDrafts)
-}
-
-function capabilityPackDraftsDirty(
-  current: CapabilityPackDrafts,
-  initial: CapabilityPackDrafts,
-): boolean {
-  return capabilityPackCatalog.some((pack) => {
-    const currentPack = current[pack.id]
-    const initialPack = initial[pack.id]
-    if (currentPack.enabled !== initialPack.enabled) {
-      return true
-    }
-
-    return Object.keys(currentPack.guidedSettings).some(
-      (key) =>
-        currentPack.guidedSettings[key] !== initialPack.guidedSettings[key],
-    )
-  })
-}
-
-function defaultExpandedPackIds(): string[] {
-  return capabilityPackCatalog
-    .filter((pack) => pack.initiallyEnabled)
-    .map((pack) => pack.id)
-}
-
-function statusForPack(
-  pack: CapabilityPackDefinition,
-  draft: CapabilityPackDraft,
-): string {
-  if (!draft.enabled) {
-    return 'Disabled'
-  }
-
-  return pack.status
-}
-
-function changedPackIds(
-  current: CapabilityPackDrafts,
-  initial: CapabilityPackDrafts,
-): CapabilityPackId[] {
-  return capabilityPackCatalog
-    .filter((pack) => {
-      const currentPack = current[pack.id]
-      const initialPack = initial[pack.id]
-      if (currentPack.enabled !== initialPack.enabled) {
-        return true
-      }
-      return Object.keys(currentPack.guidedSettings).some(
-        (key) =>
-          currentPack.guidedSettings[key] !== initialPack.guidedSettings[key],
-      )
-    })
-    .map((pack) => pack.id)
-}
-
-function advancedSectionsForPack(
-  sections: RuntimeConfigSection[],
-  pack: CapabilityPackDefinition,
-): RuntimeConfigSection[] {
-  return sortedSections(sections).filter(
-    (section) =>
-      pack.advancedSectionKeys.includes(section.key) ||
-      section.fields.some((field) =>
-        pack.advancedSectionKeys.includes(field.path[0] ?? ''),
-      ),
+    left.length === right.length &&
+    left.every((segment, index) => segment === right[index])
   )
 }
 
@@ -323,9 +882,9 @@ function valueToDraft(field: RuntimeConfigField): string {
   return JSON.stringify(field.value, null, 2)
 }
 
-function buildDrafts(snapshot: RuntimeConfigSnapshot): Drafts {
+function buildDrafts(sections: RuntimeConfigSection[]): Drafts {
   const drafts: Drafts = {}
-  for (const section of snapshot.sections) {
+  for (const section of sections) {
     for (const field of section.fields) {
       drafts[fieldDraftKey(field)] = valueToDraft(field)
     }
@@ -356,6 +915,36 @@ function parseFieldDraft(field: RuntimeConfigField, draft: string): unknown {
   return draft
 }
 
+function resolveFieldValueFromDraft(
+  field: RuntimeConfigField,
+  draft: string | undefined,
+): unknown {
+  if (draft == null) {
+    return field.value
+  }
+
+  if (field.fieldType === 'boolean') {
+    return draft === 'true'
+  }
+
+  if (field.fieldType === 'integer') {
+    const trimmed = draft.trim()
+    if (!trimmed) return null
+    const parsed = Number.parseInt(trimmed, 10)
+    return Number.isFinite(parsed) ? parsed : field.value
+  }
+
+  if (field.fieldType === 'json') {
+    try {
+      return JSON.parse(draft)
+    } catch {
+      return field.value
+    }
+  }
+
+  return draft
+}
+
 function formatValue(value: unknown): string {
   if (value == null) return 'not set'
   if (typeof value === 'string') return value
@@ -365,35 +954,1006 @@ function formatValue(value: unknown): string {
   return JSON.stringify(value)
 }
 
-function displayPath(path: string): string {
-  return path
-}
-
 function errorMessage(error: unknown): string {
   if (error instanceof GraphQLRequestError) return error.message
   if (error instanceof Error) return error.message
   return 'Runtime config request failed.'
 }
 
-function sortedSections(sections: RuntimeConfigSection[]) {
+function displayNameFromId(id: string): string {
+  const directLabel = providerLabels.get(id)
+  if (directLabel) return directLabel
+  return id
+    .split(/[_-]/g)
+    .filter(Boolean)
+    .map((segment) => segment[0]?.toUpperCase() + segment.slice(1))
+    .join(' ')
+}
+
+function displayLabelFromKey(key: string): string {
+  return key
+    .split(/[_-]/g)
+    .filter(Boolean)
+    .map((segment) => segment[0]?.toUpperCase() + segment.slice(1))
+    .join(' ')
+}
+
+function inferSyntheticFieldType(value: unknown): string {
+  if (typeof value === 'boolean') return 'boolean'
+  if (typeof value === 'number' && Number.isInteger(value)) return 'integer'
+  if (typeof value === 'string') return 'string'
+  return 'json'
+}
+
+function isExpandableJsonValue(
+  value: unknown,
+): value is Record<string, unknown> {
+  return typeof value === 'object' && value != null && !Array.isArray(value)
+}
+
+function isSecretLikePath(path: string[]) {
+  const key = path[path.length - 1]?.toLowerCase() ?? ''
+  return ['token', 'api_key', 'password', 'secret'].includes(key)
+}
+
+function buildSyntheticFieldsFromValue(params: {
+  basePath: string[]
+  value: unknown
+  existingPaths: Set<string>
+  startingOrder: number
+}): RuntimeConfigField[] {
+  const syntheticFields: RuntimeConfigField[] = []
+  let order = params.startingOrder
+
+  function visit(path: string[], value: unknown) {
+    if (value == null) return
+
+    if (Array.isArray(value)) {
+      const key = path.join('.')
+      const seedField = seedFieldSpecsByPath.get(key)
+      if (params.existingPaths.has(key)) return
+      params.existingPaths.add(key)
+      syntheticFields.push({
+        key,
+        path,
+        label:
+          seedField?.label ?? displayLabelFromKey(path[path.length - 1] ?? key),
+        description: seedField?.description ?? key,
+        fieldType: seedField?.fieldType ?? 'json',
+        value,
+        effectiveValue: value,
+        defaultValue: null,
+        allowedValues: [],
+        validationHints: ['Enter valid JSON.'],
+        required: false,
+        readOnly: false,
+        secret: isSecretLikePath(path),
+        order: order++,
+        source: 'effective',
+      })
+      return
+    }
+
+    if (isExpandableJsonValue(value)) {
+      for (const [childKey, childValue] of Object.entries(value)) {
+        visit([...path, childKey], childValue)
+      }
+      return
+    }
+
+    const key = path.join('.')
+    const seedField = seedFieldSpecsByPath.get(key)
+    if (params.existingPaths.has(key)) return
+    params.existingPaths.add(key)
+    syntheticFields.push({
+      key,
+      path,
+      label:
+        seedField?.label ?? displayLabelFromKey(path[path.length - 1] ?? key),
+      description: seedField?.description ?? key,
+      fieldType: seedField?.fieldType ?? inferSyntheticFieldType(value),
+      value,
+      effectiveValue: value,
+      defaultValue: null,
+      allowedValues: [],
+      validationHints: [],
+      required: false,
+      readOnly: false,
+      secret: isSecretLikePath(path),
+      order: order++,
+      source: 'effective',
+    })
+  }
+
+  visit(params.basePath, params.value)
+  return syntheticFields
+}
+
+function createSeedField(
+  seed: SeedFieldSpec,
+  order: number,
+): RuntimeConfigField {
+  const key = seed.path.join('.')
+  return {
+    key,
+    path: seed.path,
+    label: seed.label,
+    description: seed.description,
+    fieldType: seed.fieldType,
+    value: seed.value,
+    effectiveValue: seed.value,
+    defaultValue: null,
+    allowedValues: [],
+    validationHints: [],
+    required: false,
+    readOnly: false,
+    secret: isSecretLikePath(seed.path),
+    order,
+    source: 'effective',
+  }
+}
+
+function hasMeaningfulSeedValue(value: unknown) {
+  if (value == null) return false
+  if (typeof value === 'string') return value.trim().length > 0
+  return true
+}
+
+function isUnsetFieldValue(value: unknown) {
+  return (
+    value == null || (typeof value === 'string' && value.trim().length === 0)
+  )
+}
+
+function stringValue(value: unknown) {
+  return typeof value === 'string' ? value.trim() : ''
+}
+
+function uniqueAllowedValues(values: string[], currentValue: unknown) {
+  const ordered = [...values]
+  const current = stringValue(currentValue)
+  if (current && !ordered.includes(current)) {
+    ordered.push(current)
+  }
+  return ordered
+}
+
+type DynamicOptionContext = {
+  profileIds: string[]
+  runtimeIds: string[]
+  profileTaskById: Map<string, string>
+}
+
+function buildDynamicOptionContext(
+  sections: RuntimeConfigSection[],
+): DynamicOptionContext {
+  const profileIds = new Set<string>()
+  const runtimeIds = new Set<string>()
+  const profileTaskById = new Map<string, string>()
+
+  for (const section of sections) {
+    for (const field of section.fields) {
+      if (pathStartsWith(field.path, ['inference', 'profiles'])) {
+        const profileId = field.path[2]
+        if (profileId) {
+          profileIds.add(profileId)
+          if (field.path[3] === 'task') {
+            const task = stringValue(field.value)
+            if (task) {
+              profileTaskById.set(profileId, task)
+            }
+          }
+        }
+      }
+
+      if (pathStartsWith(field.path, ['inference', 'runtimes'])) {
+        const runtimeId = field.path[2]
+        if (runtimeId) {
+          runtimeIds.add(runtimeId)
+        }
+      }
+    }
+  }
+
+  return {
+    profileIds: [...profileIds].sort((left, right) =>
+      left.localeCompare(right),
+    ),
+    runtimeIds: [...runtimeIds].sort((left, right) =>
+      left.localeCompare(right),
+    ),
+    profileTaskById,
+  }
+}
+
+function preferredTaskForBinding(path: string[]) {
+  if (!path.includes('inference')) return null
+  if (path[0] === 'architecture') return 'structured_generation'
+  if (path[0] === 'context_guidance') return 'text_generation'
+  if (path[0] === 'semantic_clones') {
+    const slotName = path[path.length - 1] ?? ''
+    if (slotName.includes('embedding')) return 'embeddings'
+    if (slotName.includes('summary')) return 'text_generation'
+  }
+  return null
+}
+
+function profileIdsForBinding(
+  field: RuntimeConfigField,
+  options: DynamicOptionContext,
+) {
+  const preferredTask = preferredTaskForBinding(field.path)
+  if (!preferredTask) {
+    return uniqueAllowedValues(options.profileIds, field.value)
+  }
+
+  const matchingProfiles = options.profileIds.filter(
+    (profileId) => options.profileTaskById.get(profileId) === preferredTask,
+  )
+  return uniqueAllowedValues(
+    matchingProfiles.length > 0 ? matchingProfiles : options.profileIds,
+    field.value,
+  )
+}
+
+function driverOptionsForTask(task: string) {
+  switch (task) {
+    case 'embeddings':
+      return inferenceEmbeddingDriverOptions
+    case 'structured_generation':
+      return inferenceStructuredGenerationDriverOptions
+    case 'text_generation':
+      return inferenceTextGenerationDriverOptions
+    default:
+      return []
+  }
+}
+
+function applyFieldChoiceMetadata(
+  field: RuntimeConfigField,
+  options: DynamicOptionContext,
+): RuntimeConfigField {
+  let allowedValues = [...field.allowedValues]
+  let fieldType = field.fieldType
+
+  if (field.path.length === 3 && field.path.includes('inference')) {
+    allowedValues = profileIdsForBinding(field, options)
+  }
+
+  if (
+    pathStartsWith(field.path, ['inference', 'profiles']) &&
+    field.path.length >= 4
+  ) {
+    const profileId = field.path[2]
+    const fieldName = field.path[3]
+    const task = options.profileTaskById.get(profileId)
+
+    if (fieldName === 'task') {
+      allowedValues = uniqueAllowedValues(inferenceTaskOptions, field.value)
+    } else if (fieldName === 'driver' && task) {
+      allowedValues = uniqueAllowedValues(
+        driverOptionsForTask(task),
+        field.value,
+      )
+    } else if (fieldName === 'runtime') {
+      allowedValues = uniqueAllowedValues(options.runtimeIds, field.value)
+    } else if (fieldName === 'thinking_level') {
+      allowedValues = uniqueAllowedValues(
+        inferenceThinkingLevelOptions,
+        field.value,
+      )
+    }
+  }
+
+  if (allowedValues.length === 0) {
+    return field
+  }
+
+  if (fieldType === 'string') {
+    fieldType = 'enum'
+  }
+
+  return {
+    ...field,
+    fieldType,
+    allowedValues,
+  }
+}
+
+function applySeedDefaultToField(
+  field: RuntimeConfigField,
+): RuntimeConfigField {
+  const seed = seedFieldSpecsByPath.get(field.path.join('.'))
+  if (
+    !seed ||
+    !hasMeaningfulSeedValue(seed.value) ||
+    !isUnsetFieldValue(field.value)
+  ) {
+    return field
+  }
+
+  return {
+    ...field,
+    value: seed.value,
+    effectiveValue: isUnsetFieldValue(field.effectiveValue)
+      ? seed.value
+      : field.effectiveValue,
+  }
+}
+
+function applyMissingSeedFields(
+  section: RuntimeConfigSection,
+  seedSection: SeedSectionSpec,
+): RuntimeConfigSection {
+  const existingPaths = new Set(
+    section.fields.map((field) => field.path.join('.')),
+  )
+  const missingSeedFields = seedSection.fields
+    .filter((seed) => !existingPaths.has(seed.path.join('.')))
+    .map((seed, index) =>
+      createSeedField(seed, section.fields.length + 2_000 + index),
+    )
+
+  if (missingSeedFields.length === 0) {
+    return section
+  }
+
+  return {
+    ...section,
+    fields: sortedFieldList([...section.fields, ...missingSeedFields]),
+  }
+}
+
+function applySupplementalSeedFields(
+  sectionsByKey: Map<string, RuntimeConfigSection>,
+  seedSection: SeedSectionSpec,
+) {
+  const existingPaths = new Set(
+    [...sectionsByKey.values()].flatMap((section) =>
+      section.fields.map((field) => field.path.join('.')),
+    ),
+  )
+  const missingSeedFields = seedSection.fields
+    .filter((seed) => !existingPaths.has(seed.path.join('.')))
+    .map((seed, index) => createSeedField(seed, 4_000 + index))
+
+  if (missingSeedFields.length === 0) {
+    return
+  }
+
+  const existingSection = sectionsByKey.get(seedSection.key)
+  if (existingSection) {
+    sectionsByKey.set(seedSection.key, {
+      ...existingSection,
+      fields: sortedFieldList([
+        ...existingSection.fields,
+        ...missingSeedFields,
+      ]),
+    })
+    return
+  }
+
+  sectionsByKey.set(seedSection.key, {
+    key: seedSection.key,
+    title: seedSection.title,
+    description: seedSection.description,
+    order: seedSection.order,
+    advanced: false,
+    value: {},
+    effectiveValue: {},
+    fields: missingSeedFields,
+  })
+}
+
+function normalizeRuntimeSections(
+  sections: RuntimeConfigSection[],
+): RuntimeConfigSection[] {
+  const normalizedSections = sections.map((section) => {
+    const existingPaths = new Set(
+      section.fields.map((field) => field.path.join('.')),
+    )
+    const syntheticFields = [
+      ...buildSyntheticFieldsFromValue({
+        basePath: [section.key],
+        value: section.value,
+        existingPaths,
+        startingOrder: section.fields.length + 100,
+      }),
+      ...section.fields.flatMap((field, index) => {
+        if (!isExpandableJsonValue(field.value)) return []
+        return buildSyntheticFieldsFromValue({
+          basePath: field.path,
+          value: field.value,
+          existingPaths,
+          startingOrder: section.fields.length + 1000 + index * 100,
+        })
+      }),
+    ]
+
+    const filteredFields = section.fields.filter(
+      (field) =>
+        !(field.fieldType === 'json' && isExpandableJsonValue(field.value)),
+    )
+
+    return {
+      ...section,
+      advanced: false,
+      fields: sortedFieldList([...filteredFields, ...syntheticFields]),
+    }
+  })
+
+  const sectionsByKey = new Map(
+    normalizedSections.map((section) => [section.key, section] as const),
+  )
+
+  for (const seedSection of missingPackSeedSections) {
+    const existingSection = sectionsByKey.get(seedSection.key)
+    if (existingSection) {
+      sectionsByKey.set(
+        seedSection.key,
+        applyMissingSeedFields(existingSection, seedSection),
+      )
+      continue
+    }
+
+    sectionsByKey.set(seedSection.key, {
+      key: seedSection.key,
+      title: seedSection.title,
+      description: seedSection.description,
+      order: seedSection.order,
+      advanced: false,
+      value: {},
+      effectiveValue: {},
+      fields: seedSection.fields.map((seed, index) =>
+        createSeedField(seed, index),
+      ),
+    })
+  }
+
+  for (const seedSection of supplementalSeedSections) {
+    applySupplementalSeedFields(sectionsByKey, seedSection)
+  }
+
+  const seededSections = sortedSections(
+    [...sectionsByKey.values()].map((section) => ({
+      ...section,
+      fields: sortedFieldList(section.fields.map(applySeedDefaultToField)),
+    })),
+  )
+
+  const optionContext = buildDynamicOptionContext(seededSections)
+
+  return seededSections.map((section) => ({
+    ...section,
+    fields: sortedFieldList(
+      section.fields.map((field) =>
+        applyFieldChoiceMetadata(field, optionContext),
+      ),
+    ),
+  }))
+}
+
+function materializeSectionsForDrafts(
+  sections: RuntimeConfigSection[],
+  drafts: Drafts,
+): RuntimeConfigSection[] {
+  const sectionsWithDraftValues = sortedSections(
+    sections.map((section) => ({
+      ...section,
+      fields: sortedFieldList(
+        section.fields.map((field) => ({
+          ...field,
+          value: resolveFieldValueFromDraft(
+            field,
+            drafts[fieldDraftKey(field)],
+          ),
+        })),
+      ),
+    })),
+  )
+
+  const optionContext = buildDynamicOptionContext(sectionsWithDraftValues)
+
+  return sectionsWithDraftValues.map((section) => ({
+    ...section,
+    fields: sortedFieldList(
+      section.fields.map((field) =>
+        applyFieldChoiceMetadata(field, optionContext),
+      ),
+    ),
+  }))
+}
+
+function sortedSections<
+  T extends Pick<RuntimeConfigSection, 'order' | 'title'>,
+>(sections: T[]) {
   return [...sections].sort((left, right) => {
     return left.order - right.order || left.title.localeCompare(right.title)
   })
 }
 
-function sortedFields(section: RuntimeConfigSection) {
-  return [...section.fields].sort((left, right) => {
-    return left.order - right.order || left.label.localeCompare(right.label)
+function pathTail(field: RuntimeConfigField) {
+  return field.path[field.path.length - 1] ?? ''
+}
+
+function sortedFieldList(
+  fields: RuntimeConfigField[],
+  preferredPathTail: string[] = [],
+) {
+  const preferredOrder = new Map(
+    preferredPathTail.map((segment, index) => [segment, index]),
+  )
+  return [...fields].sort((left, right) => {
+    const leftPreferred =
+      preferredOrder.get(pathTail(left)) ?? Number.MAX_SAFE_INTEGER
+    const rightPreferred =
+      preferredOrder.get(pathTail(right)) ?? Number.MAX_SAFE_INTEGER
+    return (
+      leftPreferred - rightPreferred ||
+      left.order - right.order ||
+      left.label.localeCompare(right.label)
+    )
   })
 }
 
-function targetGroups(targets: RuntimeConfigTarget[]) {
-  const groups = new Map<string, RuntimeConfigTarget[]>()
-  for (const target of targets) {
-    const group = target.group || target.scope
-    groups.set(group, [...(groups.get(group) ?? []), target])
+function sortedFields(section: RuntimeConfigSection | DisplaySection) {
+  return sortedFieldList(section.fields)
+}
+
+function flattenSections(
+  sections: RuntimeConfigSection[],
+): SectionFieldEntry[] {
+  return sortedSections(sections).flatMap((section) =>
+    sortedFields(section).map((field) => ({
+      section,
+      field,
+    })),
+  )
+}
+
+function groupEntriesByObjectPath(
+  entries: SectionFieldEntry[],
+  prefix: string[],
+): Map<string, SectionFieldEntry[]> {
+  const groups = new Map<string, SectionFieldEntry[]>()
+  for (const entry of entries) {
+    if (!pathStartsWith(entry.field.path, prefix)) continue
+    const objectId = entry.field.path[prefix.length]
+    if (!objectId) continue
+    groups.set(objectId, [...(groups.get(objectId) ?? []), entry])
   }
-  return [...groups.entries()]
+  return groups
+}
+
+function sortedEntryList(entries: SectionFieldEntry[]) {
+  return [...entries].sort((left, right) => {
+    return (
+      left.section.order - right.section.order ||
+      left.field.order - right.field.order ||
+      left.field.label.localeCompare(right.field.label)
+    )
+  })
+}
+
+function isInferenceBindingEntry(entry: SectionFieldEntry) {
+  return entry.field.path[1] === 'inference'
+}
+
+function isKnowledgeProviderEntry(entry: SectionFieldEntry) {
+  return entry.field.path[1] === 'providers'
+}
+
+function referencedProfileId(
+  entry: SectionFieldEntry,
+  profileBlocks: Map<string, SectionFieldEntry[]>,
+) {
+  return typeof entry.field.value === 'string' &&
+    profileBlocks.has(entry.field.value)
+    ? entry.field.value
+    : null
+}
+
+function referencedRuntimeId(
+  profileEntries: SectionFieldEntry[],
+  runtimeBlocks: Map<string, SectionFieldEntry[]>,
+) {
+  const runtimeEntry = profileEntries.find(
+    (entry) => pathTail(entry.field) === 'runtime',
+  )
+  return typeof runtimeEntry?.field.value === 'string' &&
+    runtimeBlocks.has(runtimeEntry.field.value)
+    ? runtimeEntry.field.value
+    : null
+}
+
+function resolveSharedBlockOwner(
+  sharedBlockOwners: Map<string, SharedBlockOwner>,
+  blockKey: string,
+  locationKey: string,
+  pack: CapabilityPackDefinition,
+) {
+  const existingOwner = sharedBlockOwners.get(blockKey)
+  if (existingOwner) return existingOwner
+
+  const nextOwner: SharedBlockOwner = {
+    locationKey,
+    ownerPackId: pack.id,
+    ownerPackLabel: pack.label,
+  }
+  sharedBlockOwners.set(blockKey, nextOwner)
+  return nextOwner
+}
+
+function applyFieldOwnership(
+  field: RuntimeConfigField,
+  ownershipByFieldKey: Map<string, FieldOwnership>,
+  ownership?: FieldOwnership,
+  forceReadOnly = false,
+) {
+  const key = fieldDraftKey(field)
+  const currentOwnership = ownershipByFieldKey.get(key)
+  const ownedByOther =
+    ownership != null &&
+    currentOwnership != null &&
+    currentOwnership.ownerPackId !== ownership.ownerPackId
+
+  if (ownership != null && currentOwnership == null) {
+    ownershipByFieldKey.set(key, ownership)
+  }
+
+  return {
+    ...field,
+    readOnly: forceReadOnly || field.readOnly || ownedByOther,
+  }
+}
+
+function buildSectionViewsFromEntries(
+  entries: SectionFieldEntry[],
+  options: {
+    sectionKeyPrefix: string
+    ownershipByFieldKey: Map<string, FieldOwnership>
+    ownership?: FieldOwnership
+    forceReadOnly?: boolean
+    note?: string
+  },
+): DisplaySection[] {
+  const grouped = new Map<
+    string,
+    { section: RuntimeConfigSection; fields: RuntimeConfigField[] }
+  >()
+
+  for (const entry of entries) {
+    const groupKey = entry.section.key
+    const current = grouped.get(groupKey) ?? {
+      section: entry.section,
+      fields: [],
+    }
+
+    current.fields.push(
+      applyFieldOwnership(
+        entry.field,
+        options.ownershipByFieldKey,
+        options.ownership,
+        options.forceReadOnly,
+      ),
+    )
+    grouped.set(groupKey, current)
+  }
+
+  return sortedSections(
+    [...grouped.values()].map(({ section, fields }) => ({
+      ...section,
+      key: `${options.sectionKeyPrefix}:${section.key}`,
+      fields: sortedFieldList(fields),
+      note: options.note,
+    })),
+  )
+}
+
+function buildNamedBlockSection(
+  objectType: 'profile' | 'runtime',
+  objectId: string,
+  entries: SectionFieldEntry[],
+  options: {
+    currentLocationKey: string
+    owner: SharedBlockOwner
+    ownershipByFieldKey: Map<string, FieldOwnership>
+  },
+): DisplaySection {
+  const section = entries[0]?.section
+  const editable = options.owner.locationKey === options.currentLocationKey
+  const ownership: FieldOwnership | undefined = editable
+    ? {
+        kind: 'shared-inference-runtime',
+        ownerPackId: options.owner.ownerPackId,
+        ownerPackLabel: options.owner.ownerPackLabel,
+      }
+    : undefined
+
+  return {
+    ...section,
+    key: `${options.currentLocationKey}:${objectType}:${objectId}`,
+    title: `Inference ${objectType} · ${objectId}`,
+    description:
+      objectType === 'profile'
+        ? 'Resolved from the selected capability-pack binding.'
+        : 'Runtime settings referenced by the selected inference profile.',
+    fields: sortedFieldList(
+      entries.map((entry) =>
+        applyFieldOwnership(
+          entry.field,
+          options.ownershipByFieldKey,
+          ownership,
+          !editable,
+        ),
+      ),
+      objectType === 'profile'
+        ? inferenceProfileFieldOrder
+        : inferenceRuntimeFieldOrder,
+    ),
+    note: editable
+      ? undefined
+      : `Shared with ${options.owner.ownerPackLabel}. Edit there.`,
+  }
+}
+
+function buildKnowledgeProviderSection(
+  providerId: string,
+  entries: SectionFieldEntry[],
+  options: {
+    packId: CapabilityPackId
+    packLabel: string
+    ownershipByFieldKey: Map<string, FieldOwnership>
+  },
+): DisplaySection {
+  const section = entries[0]?.section
+  return {
+    ...section,
+    key: `${options.packId}:provider:${providerId}`,
+    title: `Knowledge provider · ${displayNameFromId(providerId)}`,
+    description: 'Provider-specific credentials and connection settings.',
+    fields: sortedFieldList(
+      entries.map((entry) =>
+        applyFieldOwnership(entry.field, options.ownershipByFieldKey, {
+          kind: 'pack-direct',
+          ownerPackId: options.packId,
+          ownerPackLabel: options.packLabel,
+        }),
+      ),
+      knowledgeProviderFieldOrder,
+    ),
+  }
+}
+
+function buildPackLayout(sections: RuntimeConfigSection[]): PackLayout {
+  const entries = flattenSections(sections)
+  const profileBlocks = groupEntriesByObjectPath(entries, [
+    'inference',
+    'profiles',
+  ])
+  const runtimeBlocks = groupEntriesByObjectPath(entries, [
+    'inference',
+    'runtimes',
+  ])
+  const ownershipByFieldKey = new Map<string, FieldOwnership>()
+  const sharedBlockOwners = new Map<string, SharedBlockOwner>()
+  const visiblePacks: CapabilityPackCardView[] = []
+
+  for (const pack of capabilityPackDefinitions) {
+    const directEntries = entries.filter(({ field }) =>
+      pack.directPrefixes.some((prefix) => pathStartsWith(field.path, prefix)),
+    )
+    const dependencyEntries = entries.filter(({ field }) =>
+      (pack.relatedFieldPaths ?? []).some((path) =>
+        pathsEqual(field.path, path),
+      ),
+    )
+
+    if (directEntries.length === 0 && dependencyEntries.length === 0) {
+      continue
+    }
+
+    const items: PackContentItem[] = []
+    const packOwnership: FieldOwnership = {
+      kind: 'pack-direct',
+      ownerPackId: pack.id,
+      ownerPackLabel: pack.label,
+    }
+    const regularDirectEntries =
+      pack.id === 'knowledge-pack'
+        ? directEntries.filter((entry) => !isKnowledgeProviderEntry(entry))
+        : directEntries.filter((entry) => !isInferenceBindingEntry(entry))
+
+    items.push(
+      ...buildSectionViewsFromEntries(regularDirectEntries, {
+        sectionKeyPrefix: `${pack.id}:direct`,
+        ownershipByFieldKey,
+        ownership: packOwnership,
+      }).map((section) => ({
+        kind: 'section' as const,
+        key: section.key,
+        section,
+      })),
+    )
+
+    if (pack.id === 'knowledge-pack') {
+      const providerEntries = directEntries.filter(isKnowledgeProviderEntry)
+      const providers = [
+        ...groupEntriesByObjectPath(providerEntries, [
+          'knowledge',
+          'providers',
+        ]).entries(),
+      ].map(([providerId, providerFields]) => ({
+        key: providerId,
+        label: displayNameFromId(providerId),
+        sections: [
+          buildKnowledgeProviderSection(providerId, providerFields, {
+            packId: pack.id,
+            packLabel: pack.label,
+            ownershipByFieldKey,
+          }),
+        ],
+      }))
+
+      if (providers.length > 0) {
+        items.push({
+          kind: 'providers',
+          key: `${pack.id}:providers`,
+          providers: {
+            key: `${pack.id}:providers`,
+            title: 'Knowledge providers',
+            description:
+              'Choose a provider to expand the exact credentials and connection settings backed by runtime config.',
+            providers,
+          },
+        })
+      }
+    } else {
+      for (const bindingEntry of sortedEntryList(
+        directEntries.filter(isInferenceBindingEntry),
+      )) {
+        const locationKey = `${pack.id}:binding:${fieldDraftKey(bindingEntry.field)}`
+        const bindingField = applyFieldOwnership(
+          bindingEntry.field,
+          ownershipByFieldKey,
+          packOwnership,
+        )
+        const bindingSections: DisplaySection[] = []
+        const profileId = referencedProfileId(bindingEntry, profileBlocks)
+        const profileEntries = profileId
+          ? (profileBlocks.get(profileId) ?? [])
+          : []
+
+        if (profileId && profileEntries.length > 0) {
+          const profileOwner = resolveSharedBlockOwner(
+            sharedBlockOwners,
+            `profile:${profileId}`,
+            `${locationKey}:profile:${profileId}`,
+            pack,
+          )
+          bindingSections.push(
+            buildNamedBlockSection('profile', profileId, profileEntries, {
+              currentLocationKey: `${locationKey}:profile:${profileId}`,
+              owner: profileOwner,
+              ownershipByFieldKey,
+            }),
+          )
+
+          const runtimeId = referencedRuntimeId(profileEntries, runtimeBlocks)
+          const runtimeEntries = runtimeId
+            ? (runtimeBlocks.get(runtimeId) ?? [])
+            : []
+          if (runtimeId && runtimeEntries.length > 0) {
+            const runtimeOwner = resolveSharedBlockOwner(
+              sharedBlockOwners,
+              `runtime:${runtimeId}`,
+              `${locationKey}:runtime:${runtimeId}`,
+              pack,
+            )
+            bindingSections.push(
+              buildNamedBlockSection('runtime', runtimeId, runtimeEntries, {
+                currentLocationKey: `${locationKey}:runtime:${runtimeId}`,
+                owner: runtimeOwner,
+                ownershipByFieldKey,
+              }),
+            )
+          }
+        }
+
+        items.push({
+          kind: 'binding',
+          key: locationKey,
+          binding: {
+            key: locationKey,
+            label: bindingField.label,
+            description:
+              bindingField.description || bindingField.path.join('.'),
+            field: bindingField,
+            sections: bindingSections,
+          },
+        })
+      }
+    }
+
+    if (dependencyEntries.length > 0) {
+      items.push(
+        ...buildSectionViewsFromEntries(dependencyEntries, {
+          sectionKeyPrefix: `${pack.id}:dependency`,
+          ownershipByFieldKey,
+          ownership: {
+            kind: 'supporting-dependency',
+            ownerPackId: pack.id,
+            ownerPackLabel: pack.label,
+          },
+        }).map((section) => ({
+          kind: 'section' as const,
+          key: section.key,
+          section,
+        })),
+      )
+    }
+
+    visiblePacks.push({
+      id: pack.id,
+      label: pack.label,
+      summary: pack.summary,
+      items,
+    })
+  }
+
+  return {
+    visiblePacks,
+    ownershipByFieldKey,
+  }
+}
+
+function visiblePackIdsFromSections(
+  sections: RuntimeConfigSection[],
+): CapabilityPackId[] {
+  return buildPackLayout(sections).visiblePacks.map((pack) => pack.id)
+}
+
+function buildReviewGroups(params: {
+  sections: RuntimeConfigSection[]
+  drafts: Drafts
+  initialDrafts: Drafts
+  ownershipByFieldKey: Map<string, FieldOwnership>
+}): ReviewGroups {
+  const groups: ReviewGroups = {
+    packDirect: [],
+    sharedInferenceRuntime: [],
+    supportingDependency: [],
+  }
+
+  for (const section of sortedSections(params.sections)) {
+    for (const field of sortedFields(section)) {
+      const key = fieldDraftKey(field)
+      if ((params.drafts[key] ?? '') === (params.initialDrafts[key] ?? '')) {
+        continue
+      }
+
+      const ownership = params.ownershipByFieldKey.get(key)
+      const label = ownership
+        ? `${ownership.ownerPackLabel} · ${field.label}`
+        : `${section.title} · ${field.label}`
+
+      switch (ownership?.kind) {
+        case 'pack-direct':
+          groups.packDirect.push(label)
+          break
+        case 'shared-inference-runtime':
+          groups.sharedInferenceRuntime.push(label)
+          break
+        case 'supporting-dependency':
+          groups.supportingDependency.push(label)
+          break
+        default:
+          break
+      }
+    }
+  }
+
+  return groups
 }
 
 function FieldControl({
@@ -419,13 +1979,26 @@ function FieldControl({
     )
   }
 
-  if (field.fieldType === 'enum' && field.allowedValues.length > 0) {
+  if (
+    field.allowedValues.length > 0 &&
+    field.fieldType !== 'boolean' &&
+    field.fieldType !== 'json'
+  ) {
     return (
-      <Select value={value} onValueChange={onChange} disabled={field.readOnly}>
+      <Select
+        value={value || undefined}
+        onValueChange={(nextValue) =>
+          onChange(nextValue === UNSET_SELECT_VALUE ? '' : nextValue)
+        }
+        disabled={field.readOnly}
+      >
         <SelectTrigger className='w-full sm:w-[280px]'>
           <SelectValue placeholder='Select value' />
         </SelectTrigger>
         <SelectContent>
+          {!field.required ? (
+            <SelectItem value={UNSET_SELECT_VALUE}>Not configured</SelectItem>
+          ) : null}
           {field.allowedValues.map((option) => (
             <SelectItem key={option} value={option}>
               {option}
@@ -477,6 +2050,7 @@ function ConfigFieldRow({
   onChange: (value: string) => void
 }) {
   const inputId = `config-field-${field.path.join('-')}`
+
   return (
     <div className='grid gap-2 py-4 md:grid-cols-[minmax(180px,260px)_minmax(0,1fr)] md:gap-6'>
       <div className='space-y-1.5'>
@@ -484,6 +2058,7 @@ function ConfigFieldRow({
           <Label htmlFor={inputId}>{field.label}</Label>
           {dirty && <Badge variant='outline'>Changed</Badge>}
           {field.secret && <Badge variant='secondary'>Secret</Badge>}
+          {field.readOnly && <Badge variant='outline'>Read-only here</Badge>}
         </div>
         <p className='text-xs leading-5 text-muted-foreground'>
           {field.description || field.path.join('.')}
@@ -506,366 +2081,19 @@ function ConfigFieldRow({
   )
 }
 
-function CrossPackControls({
-  preferences,
-  onToggle,
-}: {
-  preferences: CrossPackPreferences
-  onToggle: (key: keyof CrossPackPreferences, value: boolean) => void
-}) {
-  const controls: Array<{
-    key: keyof CrossPackPreferences
-    label: string
-    description: string
-  }> = [
-    {
-      key: 'daemonStartOnStartup',
-      label: 'Start daemon on app startup',
-      description:
-        'Automatically launch the Bitloops daemon when the dashboard opens.',
-    },
-    {
-      key: 'syncEnabled',
-      label: 'Sync enabled',
-      description: 'Keep repository sync available across enabled packs.',
-    },
-    {
-      key: 'ingestEnabled',
-      label: 'Ingest enabled',
-      description: 'Keep repository ingest available for pack-owned knowledge.',
-    },
-    {
-      key: 'observabilityEnabled',
-      label: 'Observability enabled',
-      description: 'Match the existing Bitloops CLI observability concept.',
-    },
-  ]
-
-  return (
-    <div className='grid gap-3 lg:grid-cols-2'>
-      {controls.map((control) => (
-        <div
-          key={control.key}
-          className='rounded-md border bg-muted/20 px-4 py-3'
-        >
-          <div className='flex items-start justify-between gap-3'>
-            <div className='space-y-1'>
-              <Label htmlFor={`cross-pack-${control.key}`}>
-                {control.label}
-              </Label>
-              <p className='text-xs leading-5 text-muted-foreground'>
-                {control.description}
-              </p>
-            </div>
-            <label className='flex h-9 w-fit items-center gap-2 rounded-md border border-input px-3 text-sm shadow-xs'>
-              <input
-                id={`cross-pack-${control.key}`}
-                type='checkbox'
-                checked={preferences[control.key]}
-                onChange={(event) =>
-                  onToggle(control.key, event.currentTarget.checked)
-                }
-                aria-label={control.label}
-              />
-              Enabled
-            </label>
-          </div>
-        </div>
-      ))}
-    </div>
-  )
-}
-
-function CapabilityPackCard({
-  pack,
-  draft,
-  expanded,
-  sections,
-  drafts,
-  initialDrafts,
-  onToggleEnabled,
-  onToggleExpanded,
-  onGuidedSettingChange,
-  onDraftChange,
-}: {
-  pack: CapabilityPackDefinition
-  draft: CapabilityPackDraft
-  expanded: boolean
-  sections: RuntimeConfigSection[]
-  drafts: Drafts
-  initialDrafts: Drafts
-  onToggleEnabled: (enabled: boolean) => void
-  onToggleExpanded: () => void
-  onGuidedSettingChange: (key: string, value: string) => void
-  onDraftChange: (field: RuntimeConfigField, value: string) => void
-}) {
-  const status = statusForPack(pack, draft)
-
-  return (
-    <section
-      data-testid={`capability-pack-card-${pack.id}`}
-      className='rounded-md border bg-background px-4 py-4'
-    >
-      <div className='flex flex-wrap items-start justify-between gap-3'>
-        <div className='space-y-2'>
-          <button
-            type='button'
-            onClick={onToggleExpanded}
-            className='flex items-center gap-2 text-left'
-          >
-            {expanded ? (
-              <ChevronDown className='size-4 text-muted-foreground' />
-            ) : (
-              <ChevronRight className='size-4 text-muted-foreground' />
-            )}
-            <span className='text-sm font-semibold'>{pack.label}</span>
-          </button>
-          <div className='flex flex-wrap items-center gap-2'>
-            <Badge variant={draft.enabled ? 'default' : 'secondary'}>
-              {status}
-            </Badge>
-            <Badge variant='outline'>{pack.selectionKind}</Badge>
-            {pack.experimental ? (
-              <Badge variant='secondary'>Experimental</Badge>
-            ) : null}
-          </div>
-          <p className='text-sm text-muted-foreground'>{pack.summary}</p>
-          {pack.dependencies.length > 0 ? (
-            <p className='text-xs leading-5 text-muted-foreground'>
-              Dependencies: {pack.dependencies.join(', ')}
-            </p>
-          ) : null}
-          <p className='break-all text-xs text-muted-foreground'>
-            {pack.evidence}
-          </p>
-        </div>
-        <label className='flex h-9 w-fit items-center gap-2 rounded-md border border-input px-3 text-sm shadow-xs'>
-          <input
-            type='checkbox'
-            checked={draft.enabled}
-            onChange={(event) => onToggleEnabled(event.currentTarget.checked)}
-            aria-label={`Enable ${pack.label}`}
-          />
-          Enabled
-        </label>
-      </div>
-
-      {expanded ? (
-        <div className='mt-4 space-y-4'>
-          <div className='rounded-md border bg-muted/20 px-4 py-3'>
-            <h5 className='text-sm font-semibold'>Overview</h5>
-            <p className='mt-2 text-xs leading-5 text-muted-foreground'>
-              {draft.enabled
-                ? `${pack.label} is currently ${status.toLowerCase()}.`
-                : `${pack.label} is disabled but remains available for review.`}
-            </p>
-            {pack.selectionKind === 'Dependency-selected' ? (
-              <p className='mt-2 text-xs leading-5 text-muted-foreground'>
-                This pack is currently marked as dependency-selected, so disable
-                behavior should stay backend-owned.
-              </p>
-            ) : null}
-          </div>
-
-          <div className='rounded-md border bg-muted/20 px-4 py-3'>
-            <h5 className='text-sm font-semibold'>Inside this pack</h5>
-            <ul className='mt-2 space-y-1 text-xs leading-5 text-muted-foreground'>
-              {pack.includes.map((item) => (
-                <li key={item}>{item}</li>
-              ))}
-            </ul>
-          </div>
-
-          {pack.guidedSettings?.length ? (
-            <div className='rounded-md border bg-muted/20 px-4 py-3'>
-              <h5 className='text-sm font-semibold'>Guided settings</h5>
-              <div className='mt-3 grid gap-3 md:grid-cols-2'>
-                {pack.guidedSettings.map((setting) => (
-                  <div key={setting.key} className='space-y-1.5'>
-                    <Label htmlFor={`${pack.id}-${setting.key}`}>
-                      {setting.label}
-                    </Label>
-                    <select
-                      id={`${pack.id}-${setting.key}`}
-                      aria-label={setting.label}
-                      value={draft.guidedSettings[setting.key] ?? ''}
-                      onChange={(event) =>
-                        onGuidedSettingChange(
-                          setting.key,
-                          event.currentTarget.value,
-                        )
-                      }
-                      className='h-9 w-full rounded-md border border-input bg-background px-3 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50'
-                    >
-                      {setting.options.map((option) => (
-                        <option key={option} value={option}>
-                          {option}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                ))}
-              </div>
-            </div>
-          ) : null}
-
-          <div className='space-y-3'>
-            <div className='rounded-md border bg-muted/20 px-4 py-3'>
-              <h5 className='text-sm font-semibold'>Advanced config</h5>
-              <p className='mt-1 text-xs leading-5 text-muted-foreground'>
-                Related runtime-config fields stay grouped under the owning
-                capability pack when the backend does not yet expose a dedicated
-                guided contract.
-              </p>
-            </div>
-            {sections.length > 0 ? (
-              sections.map((section) => (
-                <ConfigSectionPanel
-                  key={`${pack.id}-${section.key}`}
-                  section={section}
-                  drafts={drafts}
-                  initialDrafts={initialDrafts}
-                  onDraftChange={onDraftChange}
-                />
-              ))
-            ) : (
-              <div className='rounded-md border border-dashed px-4 py-3 text-sm text-muted-foreground'>
-                No advanced config fields are currently exposed for this pack.
-              </div>
-            )}
-          </div>
-        </div>
-      ) : null}
-    </section>
-  )
-}
-
-function CapabilityPackReviewPanel({
-  crossPackPreferences,
-  initialCrossPackPreferences,
-  packDrafts,
-  initialPackDrafts,
-}: {
-  crossPackPreferences: CrossPackPreferences
-  initialCrossPackPreferences: CrossPackPreferences
-  packDrafts: CapabilityPackDrafts
-  initialPackDrafts: CapabilityPackDrafts
-}) {
-  const changedCrossPackControls: string[] = []
-  if (
-    crossPackPreferences.daemonStartOnStartup !==
-    initialCrossPackPreferences.daemonStartOnStartup
-  ) {
-    changedCrossPackControls.push('Start daemon on app startup')
-  }
-  if (
-    crossPackPreferences.syncEnabled !== initialCrossPackPreferences.syncEnabled
-  ) {
-    changedCrossPackControls.push('Sync enabled')
-  }
-  if (
-    crossPackPreferences.ingestEnabled !==
-    initialCrossPackPreferences.ingestEnabled
-  ) {
-    changedCrossPackControls.push('Ingest enabled')
-  }
-  if (
-    crossPackPreferences.observabilityEnabled !==
-    initialCrossPackPreferences.observabilityEnabled
-  ) {
-    changedCrossPackControls.push('Observability enabled')
-  }
-
-  const changedPacks = changedPackIds(packDrafts, initialPackDrafts)
-
-  return (
-    <section
-      data-testid='capability-pack-review-panel'
-      className='rounded-md border border-amber-500/30 bg-amber-500/5 px-4 py-4'
-    >
-      <div className='flex flex-wrap items-start justify-between gap-3'>
-        <div>
-          <h4 className='text-base font-semibold'>Review changes</h4>
-          <p className='mt-1 text-sm text-muted-foreground'>
-            This review groups cross-pack settings, pack enablement, and
-            pack-specific draft values before `Save & Run`.
-          </p>
-        </div>
-        <Button type='button' disabled>
-          <Save className='me-2 size-4' />
-          Save & Run
-        </Button>
-      </div>
-
-      <div className='mt-4 grid gap-4 lg:grid-cols-2'>
-        <div className='rounded-md border bg-background px-4 py-3'>
-          <h5 className='text-sm font-semibold'>Cross-pack changes</h5>
-          <ul className='mt-2 space-y-1 text-sm text-muted-foreground'>
-            {changedCrossPackControls.length > 0 ? (
-              changedCrossPackControls.map((control) => (
-                <li key={control}>{control}</li>
-              ))
-            ) : (
-              <li>No cross-pack changes in draft.</li>
-            )}
-          </ul>
-        </div>
-        <div className='rounded-md border bg-background px-4 py-3'>
-          <h5 className='text-sm font-semibold'>Pack changes</h5>
-          <ul className='mt-2 space-y-1 text-sm text-muted-foreground'>
-            {changedPacks.length > 0 ? (
-              changedPacks.map((packId) => {
-                const pack = capabilityPackCatalog.find(
-                  (item) => item.id === packId,
-                )
-                return <li key={packId}>{pack?.label ?? packId}</li>
-              })
-            ) : (
-              <li>No pack changes in draft.</li>
-            )}
-          </ul>
-        </div>
-      </div>
-
-      <div className='mt-4 rounded-md border border-destructive/40 bg-destructive/10 px-4 py-3'>
-        <h5 className='text-sm font-semibold text-destructive'>
-          Backend handoff needed
-        </h5>
-        <p className='mt-2 text-sm text-destructive'>
-          The frontend UI is ready to review capability-pack changes, but the
-          backend capability-pack contract is not available from this repo yet.
-        </p>
-        <div className='mt-3 space-y-1 text-xs text-destructive'>
-          <p>
-            <span className='font-medium'>Route:</span>{' '}
-            <code>/settings/configuration</code>
-          </p>
-          <p>
-            <span className='font-medium'>Blocking operation:</span>{' '}
-            <code>planCapabilityPackConfig</code>
-          </p>
-          <p>
-            <span className='font-medium'>Follow-up operation:</span>{' '}
-            <code>applyCapabilityPackConfig</code>
-          </p>
-        </div>
-      </div>
-    </section>
-  )
-}
-
 function ConfigSectionPanel({
   section,
   drafts,
   initialDrafts,
   onDraftChange,
 }: {
-  section: RuntimeConfigSection
+  section: DisplaySection
   drafts: Drafts
   initialDrafts: Drafts
   onDraftChange: (field: RuntimeConfigField, value: string) => void
 }) {
   const fields = sortedFields(section)
+
   return (
     <section className='rounded-md border bg-background px-4 py-3'>
       <div className='flex flex-wrap items-start justify-between gap-3'>
@@ -874,8 +2102,13 @@ function ConfigSectionPanel({
           <p className='mt-1 text-sm text-muted-foreground'>
             {section.description}
           </p>
+          {section.note ? (
+            <p className='mt-1 text-xs leading-5 text-muted-foreground'>
+              {section.note}
+            </p>
+          ) : null}
         </div>
-        {section.advanced && <Badge variant='outline'>Advanced</Badge>}
+        {section.advanced ? <Badge variant='outline'>Advanced</Badge> : null}
       </div>
       <Separator className='mt-4' />
       <div className='divide-y'>
@@ -897,30 +2130,271 @@ function ConfigSectionPanel({
   )
 }
 
+function InferenceBindingPanel({
+  binding,
+  drafts,
+  initialDrafts,
+  onDraftChange,
+}: {
+  binding: InferenceBindingView
+  drafts: Drafts
+  initialDrafts: Drafts
+  onDraftChange: (field: RuntimeConfigField, value: string) => void
+}) {
+  const key = fieldDraftKey(binding.field)
+  const draft = drafts[key] ?? ''
+
+  return (
+    <section className='rounded-md border bg-background px-4 py-4'>
+      <div>
+        <h3 className='text-base font-semibold'>{binding.label}</h3>
+        <p className='mt-1 text-sm text-muted-foreground'>
+          {binding.description}
+        </p>
+      </div>
+      <Separator className='mt-4' />
+      <div className='mt-4 space-y-3'>
+        <section className='rounded-md border bg-background px-4 py-2'>
+          <div className='divide-y'>
+            <ConfigFieldRow
+              field={binding.field}
+              draft={draft}
+              dirty={draft !== (initialDrafts[key] ?? '')}
+              onChange={(value) => onDraftChange(binding.field, value)}
+            />
+          </div>
+        </section>
+        {binding.sections.map((section) => (
+          <ConfigSectionPanel
+            key={section.key}
+            section={section}
+            drafts={drafts}
+            initialDrafts={initialDrafts}
+            onDraftChange={onDraftChange}
+          />
+        ))}
+      </div>
+    </section>
+  )
+}
+
+function KnowledgeProviderPanel({
+  providers,
+  drafts,
+  initialDrafts,
+  onDraftChange,
+}: {
+  providers: ProviderListView
+  drafts: Drafts
+  initialDrafts: Drafts
+  onDraftChange: (field: RuntimeConfigField, value: string) => void
+}) {
+  const [selectedProviderKey, setSelectedProviderKey] = useState(
+    providers.providers[0]?.key ?? '',
+  )
+
+  useEffect(() => {
+    if (
+      providers.providers.length > 0 &&
+      !providers.providers.some(
+        (provider) => provider.key === selectedProviderKey,
+      )
+    ) {
+      setSelectedProviderKey(providers.providers[0]?.key ?? '')
+    }
+  }, [providers.providers, selectedProviderKey])
+
+  const activeProvider =
+    providers.providers.find(
+      (provider) => provider.key === selectedProviderKey,
+    ) ?? providers.providers[0]
+
+  if (!activeProvider) {
+    return null
+  }
+
+  return (
+    <section className='rounded-md border bg-background px-4 py-4'>
+      <div>
+        <h3 className='text-base font-semibold'>{providers.title}</h3>
+        <p className='mt-1 text-sm text-muted-foreground'>
+          {providers.description}
+        </p>
+      </div>
+      <div className='mt-4 flex flex-wrap gap-2'>
+        {providers.providers.map((provider) => (
+          <Button
+            key={provider.key}
+            type='button'
+            size='sm'
+            variant={
+              provider.key === activeProvider.key ? 'default' : 'outline'
+            }
+            onClick={() => setSelectedProviderKey(provider.key)}
+          >
+            {provider.label}
+          </Button>
+        ))}
+      </div>
+      <div className='mt-4 space-y-3'>
+        {activeProvider.sections.map((section) => (
+          <ConfigSectionPanel
+            key={section.key}
+            section={section}
+            drafts={drafts}
+            initialDrafts={initialDrafts}
+            onDraftChange={onDraftChange}
+          />
+        ))}
+      </div>
+    </section>
+  )
+}
+
+function CapabilityPackCard({
+  pack,
+  expanded,
+  drafts,
+  initialDrafts,
+  onToggleExpanded,
+  onDraftChange,
+}: {
+  pack: CapabilityPackCardView
+  expanded: boolean
+  drafts: Drafts
+  initialDrafts: Drafts
+  onToggleExpanded: () => void
+  onDraftChange: (field: RuntimeConfigField, value: string) => void
+}) {
+  return (
+    <section
+      data-testid={`capability-pack-card-${pack.id}`}
+      className='rounded-md border bg-background px-4 py-4'
+    >
+      <div className='space-y-2'>
+        <button
+          type='button'
+          onClick={onToggleExpanded}
+          className='flex items-center gap-2 text-left'
+        >
+          {expanded ? (
+            <ChevronDown className='size-4 text-muted-foreground' />
+          ) : (
+            <ChevronRight className='size-4 text-muted-foreground' />
+          )}
+          <span className='text-sm font-semibold'>{pack.label}</span>
+        </button>
+        <p className='text-sm text-muted-foreground'>{pack.summary}</p>
+      </div>
+
+      {expanded ? (
+        <div className='mt-4 space-y-3'>
+          {pack.items.map((item) => {
+            switch (item.kind) {
+              case 'section':
+                return (
+                  <ConfigSectionPanel
+                    key={item.key}
+                    section={item.section}
+                    drafts={drafts}
+                    initialDrafts={initialDrafts}
+                    onDraftChange={onDraftChange}
+                  />
+                )
+              case 'binding':
+                return (
+                  <InferenceBindingPanel
+                    key={item.key}
+                    binding={item.binding}
+                    drafts={drafts}
+                    initialDrafts={initialDrafts}
+                    onDraftChange={onDraftChange}
+                  />
+                )
+              case 'providers':
+                return (
+                  <KnowledgeProviderPanel
+                    key={item.key}
+                    providers={item.providers}
+                    drafts={drafts}
+                    initialDrafts={initialDrafts}
+                    onDraftChange={onDraftChange}
+                  />
+                )
+              default:
+                return null
+            }
+          })}
+        </div>
+      ) : null}
+    </section>
+  )
+}
+
+function CapabilityPackReviewPanel({ groups }: { groups: ReviewGroups }) {
+  function renderGroup(title: string, items: string[], emptyLabel: string) {
+    return (
+      <div className='rounded-md border bg-background px-4 py-3'>
+        <h5 className='text-sm font-semibold'>{title}</h5>
+        <ul className='mt-2 space-y-1 text-sm text-muted-foreground'>
+          {items.length > 0 ? (
+            items.map((item) => <li key={item}>{item}</li>)
+          ) : (
+            <li>{emptyLabel}</li>
+          )}
+        </ul>
+      </div>
+    )
+  }
+
+  return (
+    <section
+      data-testid='capability-pack-review-panel'
+      className='rounded-md border border-amber-500/30 bg-amber-500/5 px-4 py-4'
+    >
+      <div className='flex flex-wrap items-start justify-between gap-3'>
+        <div>
+          <h4 className='text-base font-semibold'>Review changes</h4>
+          <p className='mt-1 text-sm text-muted-foreground'>
+            This review groups pack-owned config, shared inference/runtime
+            blocks, and supporting dependency changes before saving.
+          </p>
+        </div>
+      </div>
+
+      <div className='mt-4 grid gap-4 lg:grid-cols-2'>
+        {renderGroup(
+          'Pack direct config changes',
+          groups.packDirect,
+          'No pack direct config changes in draft.',
+        )}
+        {renderGroup(
+          'Shared inference/runtime changes',
+          groups.sharedInferenceRuntime,
+          'No shared inference/runtime changes in draft.',
+        )}
+        {renderGroup(
+          'Supporting dependency changes',
+          groups.supportingDependency,
+          'No supporting dependency changes in draft.',
+        )}
+      </div>
+    </section>
+  )
+}
+
 export function SettingsConfiguration() {
-  const [targets, setTargets] = useState<RuntimeConfigTarget[]>([])
+  const [, setTargets] = useState<RuntimeConfigTarget[]>([])
   const [selectedTargetId, setSelectedTargetId] = useState<string>('')
   const [snapshot, setSnapshot] = useState<RuntimeConfigSnapshot | null>(null)
   const [drafts, setDrafts] = useState<Drafts>({})
   const [initialDrafts, setInitialDrafts] = useState<Drafts>({})
-  const [loadingTargets, setLoadingTargets] = useState(true)
+  const [, setLoadingTargets] = useState(true)
   const [loadingSnapshot, setLoadingSnapshot] = useState(false)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [saveMessage, setSaveMessage] = useState<string | null>(null)
-  const [crossPackPreferences, setCrossPackPreferences] =
-    useState<CrossPackPreferences>(() => defaultCrossPackPreferences())
-  const [initialCrossPackPreferences] = useState<CrossPackPreferences>(() =>
-    defaultCrossPackPreferences(),
-  )
-  const [capabilityPackDrafts, setCapabilityPackDrafts] =
-    useState<CapabilityPackDrafts>(() => defaultCapabilityPackDrafts())
-  const [initialCapabilityPackDrafts] = useState<CapabilityPackDrafts>(() =>
-    defaultCapabilityPackDrafts(),
-  )
-  const [expandedPackIds, setExpandedPackIds] = useState<string[]>(
-    defaultExpandedPackIds,
-  )
+  const [expandedPackIds, setExpandedPackIds] = useState<CapabilityPackId[]>([])
   const [reviewOpen, setReviewOpen] = useState(false)
 
   useEffect(() => {
@@ -955,14 +2429,22 @@ export function SettingsConfiguration() {
       setInitialDrafts({})
       return
     }
+
     const controller = new AbortController()
     setLoadingSnapshot(true)
     setError(null)
     setSaveMessage(null)
     fetchRuntimeConfigSnapshot(selectedTargetId, { signal: controller.signal })
       .then((loadedSnapshot) => {
-        const nextDrafts = buildDrafts(loadedSnapshot)
-        setSnapshot(loadedSnapshot)
+        const normalizedSections = normalizeRuntimeSections(
+          loadedSnapshot.sections,
+        )
+        const nextDrafts = buildDrafts(normalizedSections)
+        setExpandedPackIds(visiblePackIdsFromSections(normalizedSections))
+        setSnapshot({
+          ...loadedSnapshot,
+          sections: normalizedSections,
+        })
         setDrafts(nextDrafts)
         setInitialDrafts(nextDrafts)
       })
@@ -974,26 +2456,26 @@ export function SettingsConfiguration() {
     return () => controller.abort()
   }, [selectedTargetId])
 
-  const dirty = useMemo(() => {
-    return Object.keys(drafts).some((key) => drafts[key] !== initialDrafts[key])
-  }, [drafts, initialDrafts])
-  const capabilityPackDirty = useMemo(
-    () =>
-      crossPackDirty(crossPackPreferences, initialCrossPackPreferences) ||
-      capabilityPackDraftsDirty(
-        capabilityPackDrafts,
-        initialCapabilityPackDrafts,
-      ),
-    [
-      capabilityPackDrafts,
-      crossPackPreferences,
-      initialCapabilityPackDrafts,
-      initialCrossPackPreferences,
-    ],
+  const runtimeDirty = useMemo(
+    () => Object.keys(drafts).some((key) => drafts[key] !== initialDrafts[key]),
+    [drafts, initialDrafts],
   )
 
-  const selectedTarget = targets.find(
-    (target) => target.id === selectedTargetId,
+  const baseSections = snapshot?.sections ?? []
+  const sections = useMemo(
+    () => materializeSectionsForDrafts(baseSections, drafts),
+    [baseSections, drafts],
+  )
+  const packLayout = useMemo(() => buildPackLayout(sections), [sections])
+  const reviewGroups = useMemo(
+    () =>
+      buildReviewGroups({
+        sections,
+        drafts,
+        initialDrafts,
+        ownershipByFieldKey: packLayout.ownershipByFieldKey,
+      }),
+    [sections, drafts, initialDrafts, packLayout],
   )
 
   function handleDraftChange(field: RuntimeConfigField, value: string) {
@@ -1001,33 +2483,6 @@ export function SettingsConfiguration() {
       ...current,
       [fieldDraftKey(field)]: value,
     }))
-  }
-
-  function handleCrossPackChange<K extends keyof CrossPackPreferences>(
-    key: K,
-    value: CrossPackPreferences[K],
-  ) {
-    setCrossPackPreferences((current) => ({
-      ...current,
-      [key]: value,
-    }))
-  }
-
-  function handleCapabilityPackToggle(id: CapabilityPackId, enabled: boolean) {
-    setCapabilityPackDrafts((current) => ({
-      ...current,
-      [id]: {
-        ...current[id],
-        enabled,
-      },
-    }))
-    setExpandedPackIds((current) => {
-      if (enabled) {
-        return current.includes(id) ? current : [...current, id]
-      }
-
-      return current.filter((packId) => packId !== id)
-    })
   }
 
   function handleCapabilityPackExpandToggle(id: CapabilityPackId) {
@@ -1038,37 +2493,20 @@ export function SettingsConfiguration() {
     )
   }
 
-  function handleGuidedSettingChange(
-    id: CapabilityPackId,
-    key: string,
-    value: string,
-  ) {
-    setCapabilityPackDrafts((current) => ({
-      ...current,
-      [id]: {
-        ...current[id],
-        guidedSettings: {
-          ...current[id].guidedSettings,
-          [key]: value,
-        },
-      },
-    }))
-  }
-
-  function handleResetCapabilityPackDraft() {
-    setCrossPackPreferences(initialCrossPackPreferences)
-    setCapabilityPackDrafts(initialCapabilityPackDrafts)
-    setExpandedPackIds(defaultExpandedPackIds())
+  function handleResetPageDraft() {
+    setDrafts(initialDrafts)
+    setError(null)
+    setSaveMessage(null)
     setReviewOpen(false)
   }
 
   function handleOpenReview() {
-    if (!capabilityPackDirty) return
+    if (!runtimeDirty) return
     setReviewOpen(true)
   }
 
   async function handleRuntimeConfigSave() {
-    if (!snapshot || !dirty) return
+    if (!snapshot || !runtimeDirty) return
 
     const patches: RuntimeConfigFieldPatch[] = []
     try {
@@ -1096,8 +2534,13 @@ export function SettingsConfiguration() {
         expectedRevision: snapshot.revision,
         patches,
       })
-      const nextDrafts = buildDrafts(updated)
-      setSnapshot(updated)
+      const normalizedSections = normalizeRuntimeSections(updated.sections)
+      const nextDrafts = buildDrafts(normalizedSections)
+      setExpandedPackIds(visiblePackIdsFromSections(normalizedSections))
+      setSnapshot({
+        ...updated,
+        sections: normalizedSections,
+      })
       setDrafts(nextDrafts)
       setInitialDrafts(nextDrafts)
       setSaveMessage('Runtime config saved.')
@@ -1107,14 +2550,6 @@ export function SettingsConfiguration() {
       setSaving(false)
     }
   }
-
-  function handleRuntimeConfigReset() {
-    setDrafts(initialDrafts)
-    setError(null)
-    setSaveMessage(null)
-  }
-
-  const sections = snapshot ? sortedSections(snapshot.sections) : []
 
   return (
     <div className='faded-bottom flex h-full w-full flex-1 flex-col overflow-y-auto scroll-smooth pe-4 pb-12'>
@@ -1126,49 +2561,35 @@ export function SettingsConfiguration() {
             dashboard.
           </p>
         </div>
+
         <section className='rounded-md border bg-background px-4 py-4'>
           <div className='flex flex-wrap items-start justify-between gap-3'>
             <div>
               <h3 className='text-base font-semibold'>Capability Packs</h3>
               <p className='mt-1 text-sm text-muted-foreground'>
-                Configure cross-pack behavior first, then expand each capability
-                pack for guided or advanced settings.
+                Review and edit the real runtime-config-backed capability pack
+                fields directly here.
               </p>
             </div>
             <div className='flex flex-wrap gap-2'>
-              {capabilityPackDirty ? (
+              {runtimeDirty ? (
                 <Badge variant='outline'>Draft changes</Badge>
               ) : (
                 <Badge variant='secondary'>No draft changes</Badge>
               )}
-              <Badge variant='outline'>Backend handoff aware</Badge>
             </div>
           </div>
 
-          <Separator className='my-4' />
-          <CrossPackControls
-            preferences={crossPackPreferences}
-            onToggle={handleCrossPackChange}
-          />
-
           <div className='mt-4 grid gap-4'>
-            {capabilityPackCatalog.map((pack) => (
+            {packLayout.visiblePacks.map((pack) => (
               <CapabilityPackCard
                 key={pack.id}
                 pack={pack}
-                draft={capabilityPackDrafts[pack.id]}
                 expanded={expandedPackIds.includes(pack.id)}
-                sections={advancedSectionsForPack(sections, pack)}
                 drafts={drafts}
                 initialDrafts={initialDrafts}
-                onToggleEnabled={(enabled) =>
-                  handleCapabilityPackToggle(pack.id, enabled)
-                }
                 onToggleExpanded={() =>
                   handleCapabilityPackExpandToggle(pack.id)
-                }
-                onGuidedSettingChange={(key, value) =>
-                  handleGuidedSettingChange(pack.id, key, value)
                 }
                 onDraftChange={handleDraftChange}
               />
@@ -1179,115 +2600,49 @@ export function SettingsConfiguration() {
             <Button
               type='button'
               variant='outline'
-              onClick={handleResetCapabilityPackDraft}
-              disabled={!capabilityPackDirty}
+              onClick={handleResetPageDraft}
+              disabled={!runtimeDirty || saving}
             >
               <RotateCcw className='me-2 size-4' />
-              Reset draft
+              Reset changes
             </Button>
             <Button
               type='button'
               variant='outline'
               onClick={handleOpenReview}
-              disabled={!capabilityPackDirty}
+              disabled={!runtimeDirty}
             >
               Review changes
-            </Button>
-            {!reviewOpen ? (
-              <Button
-                type='button'
-                onClick={handleOpenReview}
-                disabled={!capabilityPackDirty}
-              >
-                <Save className='me-2 size-4' />
-                Save & Run
-              </Button>
-            ) : null}
-          </div>
-
-          {reviewOpen ? (
-            <div className='mt-4'>
-              <CapabilityPackReviewPanel
-                crossPackPreferences={crossPackPreferences}
-                initialCrossPackPreferences={initialCrossPackPreferences}
-                packDrafts={capabilityPackDrafts}
-                initialPackDrafts={initialCapabilityPackDrafts}
-              />
-            </div>
-          ) : null}
-        </section>
-        <div className='flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between'>
-          <div>
-            <h3 className='text-base font-semibold'>Advanced runtime config</h3>
-            <p className='mt-1 text-sm text-muted-foreground'>
-              The existing runtime-config editor stays available for raw config
-              targets while capability-pack backend contracts are still missing.
-            </p>
-          </div>
-          <div className='space-y-2'>
-            <Label>Config target</Label>
-            <Select
-              value={selectedTargetId}
-              onValueChange={setSelectedTargetId}
-              disabled={loadingTargets || targets.length === 0}
-            >
-              <SelectTrigger className='w-full min-w-[280px] lg:w-[460px]'>
-                <SelectValue placeholder='Select config file' />
-              </SelectTrigger>
-              <SelectContent>
-                {targetGroups(targets).map(([group, groupTargets]) => (
-                  <SelectGroup key={group}>
-                    <SelectLabel>{group}</SelectLabel>
-                    {groupTargets.map((target) => (
-                      <SelectItem key={target.id} value={target.id}>
-                        {target.label}
-                      </SelectItem>
-                    ))}
-                  </SelectGroup>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <div className='flex flex-wrap gap-2'>
-            <Button
-              type='button'
-              variant='outline'
-              onClick={handleRuntimeConfigReset}
-              disabled={!dirty || saving}
-            >
-              <RotateCcw className='me-2 size-4' />
-              Reset runtime config
             </Button>
             <Button
               type='button'
               onClick={handleRuntimeConfigSave}
-              disabled={!dirty || saving || loadingSnapshot}
+              disabled={!runtimeDirty || saving || loadingSnapshot}
             >
               {saving ? (
                 <Loader2 className='me-2 size-4 animate-spin' />
               ) : (
                 <Save className='me-2 size-4' />
               )}
-              Save runtime config
+              Save changes
             </Button>
           </div>
-        </div>
-        {selectedTarget && (
-          <div className='flex flex-wrap items-center gap-2 text-sm text-muted-foreground'>
-            <Badge variant='secondary'>{selectedTarget.scope}</Badge>
-            <span className='break-all'>
-              {displayPath(selectedTarget.path)}
-            </span>
-          </div>
-        )}
-        {snapshot && (
+
+          {reviewOpen ? (
+            <div className='mt-4'>
+              <CapabilityPackReviewPanel groups={reviewGroups} />
+            </div>
+          ) : null}
+        </section>
+
+        {snapshot ? (
           <div className='flex flex-wrap gap-2'>
-            {snapshot.restartRequired && (
+            {snapshot.restartRequired ? (
               <Badge variant='outline'>Restart required</Badge>
-            )}
-            {snapshot.reloadRequired && (
+            ) : null}
+            {snapshot.reloadRequired ? (
               <Badge variant='outline'>Reload required</Badge>
-            )}
+            ) : null}
             {snapshot.valid ? (
               <Badge className='gap-1'>
                 <CheckCircle2 className='size-3' />
@@ -1300,53 +2655,28 @@ export function SettingsConfiguration() {
               </Badge>
             )}
           </div>
-        )}
-        {error && (
+        ) : null}
+
+        {error ? (
           <div
             role='alert'
             className='rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive'
           >
             {error}
           </div>
-        )}
-        {saveMessage && (
+        ) : null}
+
+        {saveMessage ? (
           <div className='rounded-md border border-emerald-500/40 bg-emerald-500/10 px-3 py-2 text-sm text-emerald-700 dark:text-emerald-300'>
             {saveMessage}
           </div>
-        )}
+        ) : null}
+
         {snapshot?.validationErrors.length ? (
           <div className='rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive'>
             {snapshot.validationErrors.join('\n')}
           </div>
         ) : null}
-        <Separator className='my-4' />
-        {loadingTargets || loadingSnapshot ? (
-          <div className='flex items-center gap-2 py-8 text-sm text-muted-foreground'>
-            <Loader2 className='size-4 animate-spin' />
-            Loading configuration
-          </div>
-        ) : sections.length > 0 ? (
-          <div
-            className={cn(
-              'grid gap-4',
-              snapshot?.target.kind === 'daemon' ? 'xl:grid-cols-2' : '',
-            )}
-          >
-            {sections.map((section) => (
-              <ConfigSectionPanel
-                key={section.key}
-                section={section}
-                drafts={drafts}
-                initialDrafts={initialDrafts}
-                onDraftChange={handleDraftChange}
-              />
-            ))}
-          </div>
-        ) : (
-          <div className='py-8 text-sm text-muted-foreground'>
-            No existing Bitloops config targets were found.
-          </div>
-        )}
       </div>
     </div>
   )

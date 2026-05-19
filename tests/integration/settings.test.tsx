@@ -82,6 +82,8 @@ describe('Settings integration', () => {
     expect(
       await screen.findByRole('heading', { name: 'Configuration' }),
     ).toBeInTheDocument()
-    expect(screen.getByText('Architecture graph')).toBeInTheDocument()
+    expect(
+      screen.getByRole('heading', { name: 'Capability Packs' }),
+    ).toBeInTheDocument()
   })
 })
