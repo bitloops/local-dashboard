@@ -322,6 +322,31 @@ describe('SettingsConfiguration', () => {
     ).not.toBeInTheDocument()
   })
 
+  it('keeps enabled packs expanded by default so their internals stay visible', async () => {
+    render(<SettingsConfiguration />)
+
+    const codeCityCard = await screen.findByTestId(
+      'capability-pack-card-codecity',
+    )
+    expect(
+      within(codeCityCard).getByText('Inside this pack'),
+    ).toBeInTheDocument()
+    expect(
+      within(codeCityCard).getByText(
+        '3D city world generation and renderer scenes',
+      ),
+    ).toBeInTheDocument()
+
+    const knowledgePackCard = screen.getByTestId(
+      'capability-pack-card-knowledge-pack',
+    )
+    expect(
+      within(knowledgePackCard).getByText(
+        'Shared repository facts used by dependent packs',
+      ),
+    ).toBeInTheDocument()
+  })
+
   it('shows guided settings for guided packs and expands advanced packs when enabled', async () => {
     const user = userEvent.setup()
     render(<SettingsConfiguration />)

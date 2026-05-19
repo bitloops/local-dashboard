@@ -56,13 +56,13 @@ type CapabilityPackDefinition = {
   id: string
   label: string
   summary: string
+  includes: string[]
   evidence: string
   status: CapabilityPackStatus
   selectionKind: CapabilityPackSelectionKind
   experimental?: boolean
   dependencies: string[]
   initiallyEnabled: boolean
-  initiallyExpanded?: boolean
   guidedSettings?: GuidedSettingDefinition[]
   advancedSectionKeys: string[]
 }
@@ -72,6 +72,11 @@ const capabilityPackCatalog: CapabilityPackDefinition[] = [
     id: 'codecity',
     label: 'CodeCity',
     summary: 'Builds the file/world visualisation and health overlays.',
+    includes: [
+      '3D city world generation and renderer scenes',
+      'World-health overlays and hotspot markers',
+      'Dependency arc and architecture-overlay metadata',
+    ],
     evidence: 'bitloops/src/capability_packs/codecity',
     status: 'Ready',
     selectionKind: 'Explicit',
@@ -83,12 +88,16 @@ const capabilityPackCatalog: CapabilityPackDefinition[] = [
     id: 'architecture-graph',
     label: 'Architecture graph',
     summary: 'Builds components, contracts, entry points, and system facts.',
+    includes: [
+      'Fact synthesis for systems, containers, and components',
+      'Role adjudication for ambiguous architectural boundaries',
+      'Entry points, contracts, and flow-derived architecture facts',
+    ],
     evidence: 'bitloops/src/capability_packs/architecture_graph',
     status: 'Needs setup',
     selectionKind: 'Explicit',
     dependencies: ['Knowledge pack'],
     initiallyEnabled: true,
-    initiallyExpanded: true,
     guidedSettings: [
       {
         key: 'factSynthesisRuntime',
@@ -108,12 +117,16 @@ const capabilityPackCatalog: CapabilityPackDefinition[] = [
     label: 'Context Guidance',
     summary:
       'Guides repository-aware text generation with knowledge-backed prompts.',
+    includes: [
+      'Repository-aware guidance prompts',
+      'Knowledge-backed context assembly',
+      'Inference bindings for guided text generation',
+    ],
     evidence: 'bitloops/src/capability_packs/context_guidance',
     status: 'Ready',
     selectionKind: 'Explicit',
     dependencies: ['Knowledge pack'],
     initiallyEnabled: true,
-    initiallyExpanded: true,
     guidedSettings: [
       {
         key: 'guidanceGenerationRuntime',
@@ -128,6 +141,11 @@ const capabilityPackCatalog: CapabilityPackDefinition[] = [
     label: 'Test harness',
     summary:
       'Discovers tests, coverage, classifications, and verification records.',
+    includes: [
+      'Test discovery and classification metadata',
+      'Coverage and verification snapshots',
+      'Pack-facing test execution evidence',
+    ],
     evidence: 'bitloops/src/capability_packs/test_harness',
     status: 'Ready',
     selectionKind: 'Dependency-selected',
@@ -139,6 +157,11 @@ const capabilityPackCatalog: CapabilityPackDefinition[] = [
     id: 'knowledge-pack',
     label: 'Knowledge pack',
     summary: 'Stores and refreshes durable knowledge records.',
+    includes: [
+      'Durable knowledge documents and refresh metadata',
+      'Refresh cadence and ingestion state',
+      'Shared repository facts used by dependent packs',
+    ],
     evidence: 'bitloops/src/capability_packs/knowledge.rs',
     status: 'Ready',
     selectionKind: 'Dependency-selected',
@@ -150,6 +173,11 @@ const capabilityPackCatalog: CapabilityPackDefinition[] = [
     id: 'semantic-clones',
     label: 'Semantic clones',
     summary: 'Identifies similar symbols and clone edges.',
+    includes: [
+      'Similarity scoring for related symbols',
+      'Clone-edge generation and thresholds',
+      'Review data for likely semantic duplicates',
+    ],
     evidence: 'bitloops/src/capability_packs/semantic_clones',
     status: 'Failed',
     selectionKind: 'Explicit',
@@ -225,7 +253,7 @@ function capabilityPackDraftsDirty(
 
 function defaultExpandedPackIds(): string[] {
   return capabilityPackCatalog
-    .filter((pack) => pack.initiallyEnabled && pack.initiallyExpanded)
+    .filter((pack) => pack.initiallyEnabled)
     .map((pack) => pack.id)
 }
 
@@ -637,6 +665,15 @@ function CapabilityPackCard({
                 behavior should stay backend-owned.
               </p>
             ) : null}
+          </div>
+
+          <div className='rounded-md border bg-muted/20 px-4 py-3'>
+            <h5 className='text-sm font-semibold'>Inside this pack</h5>
+            <ul className='mt-2 space-y-1 text-xs leading-5 text-muted-foreground'>
+              {pack.includes.map((item) => (
+                <li key={item}>{item}</li>
+              ))}
+            </ul>
           </div>
 
           {pack.guidedSettings?.length ? (
@@ -1080,8 +1117,8 @@ export function SettingsConfiguration() {
   const sections = snapshot ? sortedSections(snapshot.sections) : []
 
   return (
-    <div className='flex flex-1 flex-col'>
-      <div className='flex-none space-y-3'>
+    <div className='faded-bottom flex h-full w-full flex-1 flex-col overflow-y-auto scroll-smooth pe-4 pb-12'>
+      <div className='space-y-3'>
         <div>
           <h3 className='text-lg font-medium'>Configuration</h3>
           <p className='text-sm text-muted-foreground'>
@@ -1282,9 +1319,7 @@ export function SettingsConfiguration() {
             {snapshot.validationErrors.join('\n')}
           </div>
         ) : null}
-      </div>
-      <Separator className='my-4 flex-none' />
-      <div className='faded-bottom h-full w-full overflow-y-auto scroll-smooth pe-4 pb-12'>
+        <Separator className='my-4' />
         {loadingTargets || loadingSnapshot ? (
           <div className='flex items-center gap-2 py-8 text-sm text-muted-foreground'>
             <Loader2 className='size-4 animate-spin' />
