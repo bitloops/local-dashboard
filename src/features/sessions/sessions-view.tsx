@@ -85,6 +85,10 @@ function interactionUpdateKey(update: DashboardInteractionUpdateDto): string {
   ].join('|')
 }
 
+function sessionRefreshKey(session: DashboardInteractionSessionDto): string {
+  return `${session.session_id}|${session.last_event_at ?? ''}|${session.turn_count}|${session.ended_at ?? ''}`
+}
+
 type SessionsMainTab = 'sessions' | 'checkpoints'
 
 export function SessionsView() {
@@ -101,8 +105,10 @@ export function SessionsView() {
     minWidth: EDITOR_PANEL_MIN,
     maxWidth: EDITOR_PANEL_MAX,
   })
-  // Bumped whenever a dashboard query result lands successfully.
+  // Bumped when the selected session's summary row changes.
   const [sessionDetailRefreshToken, setSessionDetailRefreshToken] = useState(0)
+  const lastSelectedSessionIdRef = useRef<string | null>(null)
+  const lastSelectedSessionRefreshKeyRef = useRef<string | null>(null)
 
   const {
     setQuery,
@@ -168,17 +174,38 @@ export function SessionsView() {
 
   useSessionsResultSync({ variables })
 
-  // Force-refresh the session detail sidebar whenever a new query result
-  // arrives successfully. The table-row data already re-syncs via
-  // `useSessionsResultSync`, but the sidebar fetches its own detail and is
-  // keyed by (repoId, sessionId, refreshToken) — bumping the token is what
-  // tells it to refetch turns/tool-use/token data for the still-selected
-  // session.
+  // Force-refresh the session detail sidebar only when the selected session's
+  // own row changes. Successful query results can update unrelated rows, and
+  // the sidebar should not refetch detail unless the selected session changed.
   useEffect(() => {
-    if (result.status === 'success') {
+    if (selectedSessionId == null) {
+      lastSelectedSessionIdRef.current = null
+      lastSelectedSessionRefreshKeyRef.current = null
+      return
+    }
+
+    const selectedSession =
+      sessionRows.find((row) => row.session_id === selectedSessionId) ?? null
+    if (selectedSession == null) {
+      return
+    }
+
+    setSelectedSessionSummary(selectedSession)
+
+    const nextKey = sessionRefreshKey(selectedSession)
+    if (lastSelectedSessionIdRef.current !== selectedSessionId) {
+      lastSelectedSessionIdRef.current = selectedSessionId
+      lastSelectedSessionRefreshKeyRef.current = nextKey
+      return
+    }
+
+    const previousKey = lastSelectedSessionRefreshKeyRef.current
+    lastSelectedSessionRefreshKeyRef.current = nextKey
+
+    if (previousKey != null && previousKey !== nextKey) {
       setSessionDetailRefreshToken((value) => value + 1)
     }
-  }, [result])
+  }, [selectedSessionId, sessionRows, setSelectedSessionSummary])
 
   const parsedVars = parseSessionsVariablesJson(variables)
   const [resolvedRepoId, setResolvedRepoId] = useState<string | null>(null)
