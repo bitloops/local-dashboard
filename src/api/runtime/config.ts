@@ -131,6 +131,12 @@ export type RuntimeConfigFieldPatch = {
   value: unknown
 }
 
+export type RuntimeExecutableResolution = {
+  command: string
+  path: string | null
+  found: boolean
+}
+
 export type UpdateRuntimeConfigInput = {
   targetId: string
   expectedRevision: string
@@ -258,6 +264,16 @@ const UPDATE_CONFIG_MUTATION = `
   }
 `
 
+const EXECUTABLE_RESOLUTIONS_QUERY = `
+  query RuntimeExecutableResolutions($commands: [String!]!) {
+    runtimeExecutableResolutions(commands: $commands) {
+      command
+      path
+      found
+    }
+  }
+`
+
 export async function fetchRuntimeConfigTargets(
   options?: GraphQLRequestOptions,
 ): Promise<RuntimeConfigTarget[]> {
@@ -281,6 +297,19 @@ export async function fetchRuntimeConfigSnapshot(
   }
 
   return response.data.configSnapshot
+}
+
+export async function fetchRuntimeExecutableResolutions(
+  commands: string[],
+  options?: GraphQLRequestOptions,
+): Promise<RuntimeExecutableResolution[]> {
+  if (commands.length === 0) return []
+
+  const response = await requestRuntimeGraphQL<{
+    runtimeExecutableResolutions: RuntimeExecutableResolution[]
+  }>(EXECUTABLE_RESOLUTIONS_QUERY, { commands }, options)
+
+  return response.data?.runtimeExecutableResolutions ?? []
 }
 
 export async function updateRuntimeConfig(

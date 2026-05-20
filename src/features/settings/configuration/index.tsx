@@ -10,6 +10,7 @@ import {
 } from 'lucide-react'
 import { GraphQLRequestError } from '@/api/graphql/errors'
 import {
+  fetchRuntimeExecutableResolutions,
   fetchRuntimeConfigSnapshot,
   fetchRuntimeConfigTargets,
   updateRuntimeConfig,
@@ -18,6 +19,7 @@ import {
   type RuntimeConfigSection,
   type RuntimeConfigSnapshot,
   type RuntimeConfigTarget,
+  type RuntimeExecutableResolution,
 } from '@/api/runtime/config'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -100,6 +102,7 @@ type FieldOwnership = {
 }
 
 type ReviewGroups = {
+  initialSetup: string[]
   packDirect: string[]
   sharedInferenceRuntime: string[]
   supportingDependency: string[]
@@ -200,9 +203,10 @@ const providerLabels = new Map<string, string>([
 const UNSET_SELECT_VALUE = '__unset__'
 
 const inferenceTaskOptions = [
-  'embeddings',
   'text_generation',
+  'text-generation',
   'structured_generation',
+  'structured-generation',
 ]
 
 const inferenceEmbeddingDriverOptions = ['bitloops_embeddings_ipc']
@@ -218,7 +222,106 @@ const inferenceStructuredGenerationDriverOptions = [
   'claude_code_print',
 ]
 
-const inferenceThinkingLevelOptions = ['low', 'medium', 'high']
+const codexThinkingLevelOptions = [
+  'low',
+  'medium',
+  'high',
+  'extra_high',
+  'xhigh',
+]
+const claudeThinkingLevelOptions = ['low', 'medium', 'high', 'xhigh', 'max']
+const DEFAULT_INFERENCE_REQUEST_TIMEOUT_SECS = 300
+const DEFAULT_LOCAL_AGENT_REQUEST_TIMEOUT_SECS = 300
+const DEFAULT_CODEX_MODEL = 'gpt-5.4-mini'
+const DEFAULT_CLAUDE_MODEL = 'claude-opus-4-7'
+const REPO_SETUP_SECTION_KEY = 'repo_init_setup'
+const DAEMON_SETUP_SECTION_KEY = 'daemon_init_setup'
+
+const structuredGenerationToolDefaults = new Map<
+  string,
+  { driver: string; runtime: string; model: string }
+>([
+  [
+    'codex_exec',
+    {
+      driver: 'codex_exec',
+      runtime: 'codex',
+      model: DEFAULT_CODEX_MODEL,
+    },
+  ],
+  [
+    'claude_code_print',
+    {
+      driver: 'claude_code_print',
+      runtime: 'claude',
+      model: DEFAULT_CLAUDE_MODEL,
+    },
+  ],
+  [
+    'codex',
+    {
+      driver: 'codex_exec',
+      runtime: 'codex',
+      model: DEFAULT_CODEX_MODEL,
+    },
+  ],
+  [
+    'claude',
+    {
+      driver: 'claude_code_print',
+      runtime: 'claude',
+      model: DEFAULT_CLAUDE_MODEL,
+    },
+  ],
+])
+
+const repoSetupSeedSection: SeedSectionSpec = {
+  key: REPO_SETUP_SECTION_KEY,
+  title: 'Repo setup',
+  description: 'Per-repo setup choices carried over from bitloops init.',
+  order: 1,
+  fields: [
+    {
+      path: ['devql', 'sync_enabled'],
+      label: 'Sync',
+      description: 'Run repository sync as part of setup.',
+      fieldType: 'boolean',
+      value: false,
+    },
+    {
+      path: ['devql', 'ingest_enabled'],
+      label: 'Ingest',
+      description: 'Import commit history as part of setup.',
+      fieldType: 'boolean',
+      value: false,
+    },
+  ],
+}
+
+const daemonSetupSeedSection: SeedSectionSpec = {
+  key: DAEMON_SETUP_SECTION_KEY,
+  title: 'Daemon setup',
+  description: 'Daemon-level setup choices carried over from bitloops init.',
+  order: 2,
+  fields: [
+    {
+      path: ['dashboard', 'auto_start_daemon'],
+      label: 'Daemon should start automatically',
+      description: 'Start the Bitloops daemon automatically for this setup.',
+      fieldType: 'boolean',
+      value: false,
+    },
+    {
+      path: ['telemetry', 'enabled'],
+      label: 'Enable telemetry',
+      description: 'Enable anonymous Bitloops telemetry.',
+      fieldType: 'boolean',
+      value: false,
+    },
+  ],
+}
+
+const setupSeedSections = [repoSetupSeedSection, daemonSetupSeedSection]
 
 const missingPackSeedSections: SeedSectionSpec[] = [
   {
@@ -442,7 +545,7 @@ const supplementalSeedSections: SeedSectionSpec[] = [
         description:
           'inference.runtimes.bitloops_inference.request_timeout_secs',
         fieldType: 'integer',
-        value: 300,
+        value: DEFAULT_INFERENCE_REQUEST_TIMEOUT_SECS,
       },
       {
         path: ['inference', 'runtimes', 'codex', 'command'],
@@ -470,14 +573,14 @@ const supplementalSeedSections: SeedSectionSpec[] = [
         label: 'Request timeout secs',
         description: 'inference.runtimes.codex.request_timeout_secs',
         fieldType: 'integer',
-        value: 900,
+        value: DEFAULT_LOCAL_AGENT_REQUEST_TIMEOUT_SECS,
       },
       {
         path: ['inference', 'runtimes', 'claude', 'command'],
         label: 'Command',
         description: 'inference.runtimes.claude.command',
         fieldType: 'string',
-        value: '',
+        value: 'claude',
       },
       {
         path: ['inference', 'runtimes', 'claude', 'args'],
@@ -498,7 +601,7 @@ const supplementalSeedSections: SeedSectionSpec[] = [
         label: 'Request timeout secs',
         description: 'inference.runtimes.claude.request_timeout_secs',
         fieldType: 'integer',
-        value: 900,
+        value: DEFAULT_LOCAL_AGENT_REQUEST_TIMEOUT_SECS,
       },
       {
         path: ['inference', 'runtimes', 'bitloops_local_embeddings', 'command'],
@@ -538,7 +641,7 @@ const supplementalSeedSections: SeedSectionSpec[] = [
         description:
           'inference.runtimes.bitloops_local_embeddings.request_timeout_secs',
         fieldType: 'integer',
-        value: 300,
+        value: DEFAULT_INFERENCE_REQUEST_TIMEOUT_SECS,
       },
       {
         path: ['inference', 'profiles', 'summary_llm', 'task'],
@@ -552,7 +655,7 @@ const supplementalSeedSections: SeedSectionSpec[] = [
         label: 'Driver',
         description: 'inference.profiles.summary_llm.driver',
         fieldType: 'string',
-        value: 'openai_chat_completions',
+        value: 'bitloops_platform_chat',
       },
       {
         path: ['inference', 'profiles', 'summary_llm', 'runtime'],
@@ -566,21 +669,14 @@ const supplementalSeedSections: SeedSectionSpec[] = [
         label: 'Model',
         description: 'inference.profiles.summary_llm.model',
         fieldType: 'string',
-        value: 'gpt-5.4-mini',
+        value: 'ministral-3-3b-instruct',
       },
       {
         path: ['inference', 'profiles', 'summary_llm', 'api_key'],
         label: 'API key',
         description: 'inference.profiles.summary_llm.api_key',
         fieldType: 'string',
-        value: '${OPENAI_API_KEY}',
-      },
-      {
-        path: ['inference', 'profiles', 'summary_llm', 'base_url'],
-        label: 'Base URL',
-        description: 'inference.profiles.summary_llm.base_url',
-        fieldType: 'string',
-        value: 'https://api.openai.com/v1/chat/completions',
+        value: '${BITLOOPS_PLATFORM_GATEWAY_TOKEN}',
       },
       {
         path: ['inference', 'profiles', 'summary_llm', 'temperature'],
@@ -643,33 +739,33 @@ const supplementalSeedSections: SeedSectionSpec[] = [
         label: 'Max output tokens',
         description: 'inference.profiles.guidance_llm.max_output_tokens',
         fieldType: 'integer',
-        value: 4096,
+        value: 124096,
       },
       {
-        path: ['inference', 'profiles', 'local_code', 'task'],
+        path: ['inference', 'profiles', 'platform_code', 'task'],
         label: 'Task',
-        description: 'inference.profiles.local_code.task',
+        description: 'inference.profiles.platform_code.task',
         fieldType: 'string',
         value: 'embeddings',
       },
       {
-        path: ['inference', 'profiles', 'local_code', 'driver'],
+        path: ['inference', 'profiles', 'platform_code', 'driver'],
         label: 'Driver',
-        description: 'inference.profiles.local_code.driver',
+        description: 'inference.profiles.platform_code.driver',
         fieldType: 'string',
         value: 'bitloops_embeddings_ipc',
       },
       {
-        path: ['inference', 'profiles', 'local_code', 'runtime'],
+        path: ['inference', 'profiles', 'platform_code', 'runtime'],
         label: 'Runtime',
-        description: 'inference.profiles.local_code.runtime',
+        description: 'inference.profiles.platform_code.runtime',
         fieldType: 'string',
-        value: 'bitloops_local_embeddings',
+        value: 'bitloops_platform_embeddings',
       },
       {
-        path: ['inference', 'profiles', 'local_code', 'model'],
+        path: ['inference', 'profiles', 'platform_code', 'model'],
         label: 'Model',
-        description: 'inference.profiles.local_code.model',
+        description: 'inference.profiles.platform_code.model',
         fieldType: 'string',
         value: 'bge-m3',
       },
@@ -843,10 +939,35 @@ const supplementalSeedSections: SeedSectionSpec[] = [
 ]
 
 const seedFieldSpecsByPath = new Map(
-  [...missingPackSeedSections, ...supplementalSeedSections].flatMap((section) =>
+  [
+    ...setupSeedSections,
+    ...missingPackSeedSections,
+    ...supplementalSeedSections,
+  ].flatMap((section) =>
     section.fields.map((field) => [field.path.join('.'), field] as const),
   ),
 )
+const initSetupFieldSpecsByPath = new Map(
+  setupSeedSections.flatMap((section) =>
+    section.fields.map((field) => [field.path.join('.'), field] as const),
+  ),
+)
+const setupSectionKeys = new Set(
+  setupSeedSections.map((section) => section.key),
+)
+const setupSectionTestIds = new Map<string, string>([
+  [REPO_SETUP_SECTION_KEY, 'repo-setup-options'],
+  [DAEMON_SETUP_SECTION_KEY, 'daemon-setup-options'],
+])
+const setupSectionKeyByFieldPath = new Map(
+  setupSeedSections.flatMap((section) =>
+    section.fields.map((field) => [field.path.join('.'), section.key] as const),
+  ),
+)
+
+function setupSectionTestId(sectionKey: string) {
+  return setupSectionTestIds.get(sectionKey)
+}
 
 function pathStartsWith(path: string[], prefix: string[]): boolean {
   return prefix.every((segment, index) => path[index] === segment)
@@ -859,8 +980,172 @@ function pathsEqual(left: string[], right: string[]): boolean {
   )
 }
 
+function pathDraftKey(path: string[]) {
+  return path.join('\u001f')
+}
+
+function isRuntimeCommandField(field: RuntimeConfigField) {
+  return (
+    field.path.length === 4 &&
+    field.path[0] === 'inference' &&
+    field.path[1] === 'runtimes' &&
+    field.path[3] === 'command'
+  )
+}
+
+function isBareExecutableCommand(value: unknown): value is string {
+  return (
+    typeof value === 'string' &&
+    value.trim().length > 0 &&
+    !value.includes('/') &&
+    !value.includes('\\')
+  )
+}
+
+function runtimeExecutableCommands(sections: RuntimeConfigSection[]) {
+  const commands = new Set<string>()
+  for (const section of sections) {
+    for (const field of section.fields) {
+      if (
+        isRuntimeCommandField(field) &&
+        isBareExecutableCommand(field.value)
+      ) {
+        commands.add(field.value.trim())
+      }
+    }
+  }
+  return [...commands].sort((left, right) => left.localeCompare(right))
+}
+
+function executableResolutionHint(
+  command: string,
+  resolution: RuntimeExecutableResolution | undefined,
+) {
+  if (!resolution) return null
+  if (resolution.found && resolution.path) {
+    return `Resolved executable: ${resolution.path}`
+  }
+  return `Executable not found on PATH: ${command}`
+}
+
+function applyRuntimeExecutableResolutionHints(
+  sections: RuntimeConfigSection[],
+  resolutions: RuntimeExecutableResolution[],
+) {
+  if (resolutions.length === 0) return sections
+
+  const resolutionsByCommand = new Map(
+    resolutions.map((resolution) => [resolution.command, resolution] as const),
+  )
+
+  return sections.map((section) => ({
+    ...section,
+    fields: section.fields.map((field) => {
+      if (
+        !isRuntimeCommandField(field) ||
+        !isBareExecutableCommand(field.value)
+      ) {
+        return field
+      }
+
+      const command = field.value.trim()
+      const resolution = resolutionsByCommand.get(command)
+      const hint = executableResolutionHint(command, resolution)
+      if (!hint) return field
+
+      const resolvedValue =
+        resolution?.found && resolution.path ? resolution.path : field.value
+
+      return {
+        ...field,
+        value: resolvedValue,
+        effectiveValue: valuesEqual(field.effectiveValue, field.value)
+          ? resolvedValue
+          : field.effectiveValue,
+        validationHints: [
+          ...field.validationHints.filter(
+            (existingHint) =>
+              !existingHint.startsWith('Resolved executable: ') &&
+              !existingHint.startsWith('Executable not found on PATH: '),
+          ),
+          hint,
+        ],
+      }
+    }),
+  }))
+}
+
+async function resolveRuntimeExecutableHints(
+  sections: RuntimeConfigSection[],
+  signal: AbortSignal,
+) {
+  const commands = runtimeExecutableCommands(sections)
+  if (commands.length === 0) return sections
+
+  try {
+    const resolutions = await fetchRuntimeExecutableResolutions(commands, {
+      signal,
+    })
+    return applyRuntimeExecutableResolutionHints(sections, resolutions)
+  } catch (err: unknown) {
+    if (err instanceof DOMException && err.name === 'AbortError') {
+      throw err
+    }
+    return sections
+  }
+}
+
 function fieldDraftKey(field: RuntimeConfigField): string {
-  return field.path.join('\u001f')
+  return pathDraftKey(field.path)
+}
+
+function siblingProfileDraftKey(field: RuntimeConfigField, fieldName: string) {
+  return pathDraftKey([...field.path.slice(0, 3), fieldName])
+}
+
+function profileToolDefaultsForChange(
+  field: RuntimeConfigField,
+  value: string,
+) {
+  if (
+    !pathStartsWith(field.path, ['inference', 'profiles']) ||
+    field.path.length !== 4
+  ) {
+    return null
+  }
+
+  const fieldName = field.path[3]
+  if (fieldName !== 'driver' && fieldName !== 'runtime') {
+    return null
+  }
+
+  return structuredGenerationToolDefaults.get(value) ?? null
+}
+
+function applyProfileToolDefaults(
+  drafts: Drafts,
+  field: RuntimeConfigField,
+  value: string,
+) {
+  const defaults = profileToolDefaultsForChange(field, value)
+  if (!defaults) return drafts
+
+  const next = { ...drafts }
+  const driverKey = siblingProfileDraftKey(field, 'driver')
+  const runtimeKey = siblingProfileDraftKey(field, 'runtime')
+  const modelKey = siblingProfileDraftKey(field, 'model')
+
+  if (driverKey in next) {
+    next[driverKey] = defaults.driver
+  }
+  if (runtimeKey in next) {
+    next[runtimeKey] = defaults.runtime
+  }
+  if (modelKey in next) {
+    next[modelKey] = defaults.model
+  }
+
+  return next
 }
 
 function valueToDraft(field: RuntimeConfigField): string {
@@ -890,6 +1175,42 @@ function buildDrafts(sections: RuntimeConfigSection[]): Drafts {
     }
   }
   return drafts
+}
+
+function collectValueLeafPathKeys(
+  value: unknown,
+  path: string[],
+  keys: Set<string>,
+) {
+  if (value == null) return
+
+  if (Array.isArray(value)) {
+    keys.add(pathDraftKey(path))
+    return
+  }
+
+  if (isExpandableJsonValue(value)) {
+    for (const [childKey, childValue] of Object.entries(value)) {
+      collectValueLeafPathKeys(childValue, [...path, childKey], keys)
+    }
+    return
+  }
+
+  keys.add(pathDraftKey(path))
+}
+
+function persistedFieldKeysFromSections(sections: RuntimeConfigSection[]) {
+  const keys = new Set<string>()
+
+  for (const section of sections) {
+    collectValueLeafPathKeys(section.value, [section.key], keys)
+    for (const field of section.fields) {
+      keys.add(fieldDraftKey(field))
+      collectValueLeafPathKeys(field.value, field.path, keys)
+    }
+  }
+
+  return [...keys]
 }
 
 function parseFieldDraft(field: RuntimeConfigField, draft: string): unknown {
@@ -952,6 +1273,33 @@ function formatValue(value: unknown): string {
     return String(value)
   }
   return JSON.stringify(value)
+}
+
+function valuesEqual(left: unknown, right: unknown): boolean {
+  return JSON.stringify(left) === JSON.stringify(right)
+}
+
+function visibleFieldDescription(field: RuntimeConfigField): string | null {
+  const description = field.description.trim()
+  if (!description || description === field.path.join('.')) {
+    return null
+  }
+  return description
+}
+
+function shouldShowEffectiveValue(field: RuntimeConfigField): boolean {
+  return (
+    field.effectiveValue !== null &&
+    !valuesEqual(field.effectiveValue, field.value)
+  )
+}
+
+function shouldShowDefaultValue(field: RuntimeConfigField): boolean {
+  return (
+    field.defaultValue !== null &&
+    !valuesEqual(field.defaultValue, field.value) &&
+    !valuesEqual(field.defaultValue, field.effectiveValue)
+  )
 }
 
 function errorMessage(error: unknown): string {
@@ -1093,10 +1441,120 @@ function createSeedField(
   }
 }
 
+function initSetupFieldWithMetadata(
+  field: RuntimeConfigField,
+  seed: SeedFieldSpec,
+  order: number,
+  targetKind: string | null,
+): RuntimeConfigField {
+  return {
+    ...field,
+    label: seed.label,
+    description: seed.description,
+    fieldType: seed.fieldType,
+    readOnly: field.readOnly || initSetupFieldReadOnly(seed, targetKind),
+    order,
+  }
+}
+
+function isRepoConfigTargetKind(targetKind: string | null) {
+  return targetKind === 'repo_shared' || targetKind === 'repo_local'
+}
+
+function initSetupFieldReadOnly(
+  seed: SeedFieldSpec,
+  targetKind: string | null,
+) {
+  const key = seed.path.join('.')
+  if (key === 'devql.sync_enabled' || key === 'devql.ingest_enabled') {
+    return !isRepoConfigTargetKind(targetKind)
+  }
+  if (key === 'dashboard.auto_start_daemon' || key === 'telemetry.enabled') {
+    return targetKind !== 'daemon'
+  }
+  return false
+}
+
+function createInitSetupSeedField(
+  seed: SeedFieldSpec,
+  order: number,
+  targetKind: string | null,
+) {
+  return {
+    ...createSeedField(seed, order),
+    readOnly: initSetupFieldReadOnly(seed, targetKind),
+  }
+}
+
+function applyInitSetupSection(
+  sectionsByKey: Map<string, RuntimeConfigSection>,
+  targetKind: string | null,
+) {
+  const initFieldsByPath = new Map<
+    string,
+    { field: RuntimeConfigField; sectionKey: string }
+  >()
+
+  for (const [sectionKey, section] of sectionsByKey) {
+    if (setupSectionKeys.has(sectionKey)) continue
+
+    const remainingFields: RuntimeConfigField[] = []
+    for (const field of section.fields) {
+      const key = field.path.join('.')
+      const seed = initSetupFieldSpecsByPath.get(key)
+      const targetSectionKey = setupSectionKeyByFieldPath.get(key)
+      if (!seed) {
+        remainingFields.push(field)
+        continue
+      }
+
+      if (targetSectionKey && !initFieldsByPath.has(key)) {
+        initFieldsByPath.set(key, {
+          field,
+          sectionKey: targetSectionKey,
+        })
+      }
+    }
+
+    sectionsByKey.set(sectionKey, {
+      ...section,
+      fields: sortedFieldList(remainingFields),
+    })
+  }
+
+  for (const setupSection of setupSeedSections) {
+    const fields = setupSection.fields.map((seed, index) => {
+      const existing = initFieldsByPath.get(seed.path.join('.'))
+      return existing?.sectionKey === setupSection.key
+        ? initSetupFieldWithMetadata(existing.field, seed, index, targetKind)
+        : createInitSetupSeedField(seed, index, targetKind)
+    })
+
+    sectionsByKey.set(setupSection.key, {
+      key: setupSection.key,
+      title: setupSection.title,
+      description: setupSection.description,
+      order: setupSection.order,
+      advanced: false,
+      value: {},
+      effectiveValue: {},
+      fields,
+    })
+  }
+}
+
 function hasMeaningfulSeedValue(value: unknown) {
   if (value == null) return false
   if (typeof value === 'string') return value.trim().length > 0
   return true
+}
+
+function isPackInferenceBindingPath(path: string[]) {
+  return (
+    path.length === 3 &&
+    path[1] === 'inference' &&
+    ['architecture', 'context_guidance', 'semantic_clones'].includes(path[0])
+  )
 }
 
 function isUnsetFieldValue(value: unknown) {
@@ -1118,10 +1576,28 @@ function uniqueAllowedValues(values: string[], currentValue: unknown) {
   return ordered
 }
 
+function structuredGenerationRuntimeOptions(runtimeIds: string[]) {
+  return runtimeIds.filter((runtimeId) =>
+    ['codex', 'claude'].includes(runtimeId),
+  )
+}
+
 type DynamicOptionContext = {
   profileIds: string[]
   runtimeIds: string[]
   profileTaskById: Map<string, string>
+  profileDriverById: Map<string, string>
+}
+
+function canonicalInferenceTask(task: string) {
+  switch (task) {
+    case 'text-generation':
+      return 'text_generation'
+    case 'structured-generation':
+      return 'structured_generation'
+    default:
+      return task
+  }
 }
 
 function buildDynamicOptionContext(
@@ -1130,6 +1606,7 @@ function buildDynamicOptionContext(
   const profileIds = new Set<string>()
   const runtimeIds = new Set<string>()
   const profileTaskById = new Map<string, string>()
+  const profileDriverById = new Map<string, string>()
 
   for (const section of sections) {
     for (const field of section.fields) {
@@ -1140,7 +1617,13 @@ function buildDynamicOptionContext(
           if (field.path[3] === 'task') {
             const task = stringValue(field.value)
             if (task) {
-              profileTaskById.set(profileId, task)
+              profileTaskById.set(profileId, canonicalInferenceTask(task))
+            }
+          }
+          if (field.path[3] === 'driver') {
+            const driver = stringValue(field.value)
+            if (driver) {
+              profileDriverById.set(profileId, driver)
             }
           }
         }
@@ -1163,6 +1646,7 @@ function buildDynamicOptionContext(
       left.localeCompare(right),
     ),
     profileTaskById,
+    profileDriverById,
   }
 }
 
@@ -1197,7 +1681,7 @@ function profileIdsForBinding(
 }
 
 function driverOptionsForTask(task: string) {
-  switch (task) {
+  switch (canonicalInferenceTask(task)) {
     case 'embeddings':
       return inferenceEmbeddingDriverOptions
     case 'structured_generation':
@@ -1205,6 +1689,28 @@ function driverOptionsForTask(task: string) {
     case 'text_generation':
       return inferenceTextGenerationDriverOptions
     default:
+      return []
+  }
+}
+
+function thinkingLevelOptionsForProfile(
+  driver: string | undefined,
+  task: string | undefined,
+) {
+  switch (driver) {
+    case 'codex_exec':
+      return codexThinkingLevelOptions
+    case 'claude_code_print':
+      return claudeThinkingLevelOptions
+    default:
+      if (canonicalInferenceTask(task ?? '') === 'structured_generation') {
+        return [
+          ...new Set([
+            ...codexThinkingLevelOptions,
+            ...claudeThinkingLevelOptions,
+          ]),
+        ]
+      }
       return []
   }
 }
@@ -1227,6 +1733,7 @@ function applyFieldChoiceMetadata(
     const profileId = field.path[2]
     const fieldName = field.path[3]
     const task = options.profileTaskById.get(profileId)
+    const driver = options.profileDriverById.get(profileId)
 
     if (fieldName === 'task') {
       allowedValues = uniqueAllowedValues(inferenceTaskOptions, field.value)
@@ -1236,10 +1743,14 @@ function applyFieldChoiceMetadata(
         field.value,
       )
     } else if (fieldName === 'runtime') {
-      allowedValues = uniqueAllowedValues(options.runtimeIds, field.value)
+      const runtimeOptions =
+        canonicalInferenceTask(task ?? '') === 'structured_generation'
+          ? structuredGenerationRuntimeOptions(options.runtimeIds)
+          : options.runtimeIds
+      allowedValues = uniqueAllowedValues(runtimeOptions, field.value)
     } else if (fieldName === 'thinking_level') {
       allowedValues = uniqueAllowedValues(
-        inferenceThinkingLevelOptions,
+        thinkingLevelOptionsForProfile(driver, task),
         field.value,
       )
     }
@@ -1266,6 +1777,7 @@ function applySeedDefaultToField(
   const seed = seedFieldSpecsByPath.get(field.path.join('.'))
   if (
     !seed ||
+    !isPackInferenceBindingPath(field.path) ||
     !hasMeaningfulSeedValue(seed.value) ||
     !isUnsetFieldValue(field.value)
   ) {
@@ -1347,6 +1859,7 @@ function applySupplementalSeedFields(
 
 function normalizeRuntimeSections(
   sections: RuntimeConfigSection[],
+  targetKind: string | null = null,
 ): RuntimeConfigSection[] {
   const normalizedSections = sections.map((section) => {
     const existingPaths = new Set(
@@ -1385,6 +1898,8 @@ function normalizeRuntimeSections(
   const sectionsByKey = new Map(
     normalizedSections.map((section) => [section.key, section] as const),
   )
+
+  applyInitSetupSection(sectionsByKey, targetKind)
 
   for (const seedSection of missingPackSeedSections) {
     const existingSection = sectionsByKey.get(seedSection.key)
@@ -1503,12 +2018,19 @@ function sortedFields(section: RuntimeConfigSection | DisplaySection) {
 function flattenSections(
   sections: RuntimeConfigSection[],
 ): SectionFieldEntry[] {
-  return sortedSections(sections).flatMap((section) =>
-    sortedFields(section).map((field) => ({
-      section,
-      field,
-    })),
-  )
+  const entries: SectionFieldEntry[] = []
+  const seenFieldKeys = new Set<string>()
+
+  for (const section of sortedSections(sections)) {
+    for (const field of sortedFields(section)) {
+      const key = fieldDraftKey(field)
+      if (seenFieldKeys.has(key)) continue
+      seenFieldKeys.add(key)
+      entries.push({ section, field })
+    }
+  }
+
+  return entries
 }
 
 function groupEntriesByObjectPath(
@@ -1676,8 +2198,8 @@ function buildNamedBlockSection(
     title: `Inference ${objectType} · ${objectId}`,
     description:
       objectType === 'profile'
-        ? 'Resolved from the selected capability-pack binding.'
-        : 'Runtime settings referenced by the selected inference profile.',
+        ? 'Resolved from the enabled capability-pack binding.'
+        : 'Runtime settings referenced by the enabled inference profile.',
     fields: sortedFieldList(
       entries.map((entry) =>
         applyFieldOwnership(
@@ -1907,12 +2429,6 @@ function buildPackLayout(sections: RuntimeConfigSection[]): PackLayout {
   }
 }
 
-function visiblePackIdsFromSections(
-  sections: RuntimeConfigSection[],
-): CapabilityPackId[] {
-  return buildPackLayout(sections).visiblePacks.map((pack) => pack.id)
-}
-
 function buildReviewGroups(params: {
   sections: RuntimeConfigSection[]
   drafts: Drafts
@@ -1920,6 +2436,7 @@ function buildReviewGroups(params: {
   ownershipByFieldKey: Map<string, FieldOwnership>
 }): ReviewGroups {
   const groups: ReviewGroups = {
+    initialSetup: [],
     packDirect: [],
     sharedInferenceRuntime: [],
     supportingDependency: [],
@@ -1948,12 +2465,339 @@ function buildReviewGroups(params: {
           groups.supportingDependency.push(label)
           break
         default:
+          if (setupSectionKeys.has(section.key)) {
+            groups.initialSetup.push(label)
+          }
           break
       }
     }
   }
 
   return groups
+}
+
+function findFieldByPath(
+  sections: RuntimeConfigSection[],
+  path: string[],
+): RuntimeConfigField | null {
+  for (const section of sections) {
+    const field = section.fields.find((item) => pathsEqual(item.path, path))
+    if (field) return field
+  }
+  return null
+}
+
+function sectionsReflectPatches(
+  sections: RuntimeConfigSection[],
+  patches: RuntimeConfigFieldPatch[],
+) {
+  return patches.every((patch) => {
+    const field = findFieldByPath(sections, patch.path)
+    return field != null && valuesEqual(field.value, patch.value)
+  })
+}
+
+function fieldMapByPath(sections: RuntimeConfigSection[]) {
+  const fields = new Map<string, RuntimeConfigField>()
+  for (const section of sections) {
+    for (const field of section.fields) {
+      const key = fieldDraftKey(field)
+      if (!fields.has(key)) {
+        fields.set(key, field)
+      }
+    }
+  }
+  return fields
+}
+
+function referencedProfileIdsFromPackBindings(
+  sections: RuntimeConfigSection[],
+  drafts: Drafts,
+  persistedFieldKeys: Set<string>,
+  patchKeys: Set<string>,
+) {
+  const profileIds = new Set<string>()
+  for (const section of sections) {
+    for (const field of section.fields) {
+      if (!isPackInferenceBindingPath(field.path)) continue
+      const key = fieldDraftKey(field)
+      if (!persistedFieldKeys.has(key) && !patchKeys.has(key)) continue
+      const value = resolveFieldValueFromDraft(field, drafts[key])
+      if (typeof value === 'string' && value.trim()) {
+        profileIds.add(value.trim())
+      }
+    }
+  }
+  return profileIds
+}
+
+function seedFieldsUnderPath(prefix: string[]) {
+  return [...seedFieldSpecsByPath.values()].filter((seed) =>
+    pathStartsWith(seed.path, prefix),
+  )
+}
+
+function draftValueForField(field: RuntimeConfigField, drafts: Drafts) {
+  return resolveFieldValueFromDraft(field, drafts[fieldDraftKey(field)])
+}
+
+function addMissingSeedFieldPatch(params: {
+  seed: SeedFieldSpec
+  fieldsByPath: Map<string, RuntimeConfigField>
+  drafts: Drafts
+  persistedFieldKeys: Set<string>
+  patchKeys: Set<string>
+  patches: RuntimeConfigFieldPatch[]
+}) {
+  const key = pathDraftKey(params.seed.path)
+  if (params.persistedFieldKeys.has(key) || params.patchKeys.has(key)) {
+    return
+  }
+
+  const field = params.fieldsByPath.get(key)
+  const value = field
+    ? draftValueForField(field, params.drafts)
+    : params.seed.value
+
+  if (!hasMeaningfulSeedValue(value)) {
+    return
+  }
+
+  params.patchKeys.add(key)
+  params.patches.push({
+    path: params.seed.path,
+    value,
+  })
+}
+
+function addMissingReferencedInferenceDefaults(params: {
+  sections: RuntimeConfigSection[]
+  drafts: Drafts
+  persistedFieldKeys: string[]
+  patchKeys: Set<string>
+  patches: RuntimeConfigFieldPatch[]
+}) {
+  const persistedFieldKeys = new Set(params.persistedFieldKeys)
+  const fieldsByPath = fieldMapByPath(params.sections)
+  const profileIds = referencedProfileIdsFromPackBindings(
+    params.sections,
+    params.drafts,
+    persistedFieldKeys,
+    params.patchKeys,
+  )
+  const runtimeIds = new Set<string>()
+
+  for (const profileId of profileIds) {
+    for (const seed of seedFieldsUnderPath([
+      'inference',
+      'profiles',
+      profileId,
+    ])) {
+      addMissingSeedFieldPatch({
+        seed,
+        fieldsByPath,
+        drafts: params.drafts,
+        persistedFieldKeys,
+        patchKeys: params.patchKeys,
+        patches: params.patches,
+      })
+    }
+
+    const runtimeField = fieldsByPath.get(
+      pathDraftKey(['inference', 'profiles', profileId, 'runtime']),
+    )
+    const runtimeId = runtimeField
+      ? stringValue(draftValueForField(runtimeField, params.drafts))
+      : stringValue(
+          seedFieldSpecsByPath.get(
+            ['inference', 'profiles', profileId, 'runtime'].join('.'),
+          )?.value,
+        )
+    if (runtimeId) {
+      runtimeIds.add(runtimeId)
+    }
+  }
+
+  for (const runtimeId of runtimeIds) {
+    for (const seed of seedFieldsUnderPath([
+      'inference',
+      'runtimes',
+      runtimeId,
+    ])) {
+      addMissingSeedFieldPatch({
+        seed,
+        fieldsByPath,
+        drafts: params.drafts,
+        persistedFieldKeys,
+        patchKeys: params.patchKeys,
+        patches: params.patches,
+      })
+    }
+  }
+}
+
+function seedFieldsForCapabilityPack(packId: CapabilityPackId) {
+  const pack = capabilityPackDefinitions.find(
+    (candidate) => candidate.id === packId,
+  )
+  if (!pack) return []
+
+  return [...seedFieldSpecsByPath.values()].filter((seed) =>
+    pack.directPrefixes.some((prefix) => pathStartsWith(seed.path, prefix)),
+  )
+}
+
+function addEnabledPackSeedDefaults(params: {
+  enabledPackIds: CapabilityPackId[]
+  fieldsByPath: Map<string, RuntimeConfigField>
+  drafts: Drafts
+  persistedFieldKeys: Set<string>
+  patchKeys: Set<string>
+  patches: RuntimeConfigFieldPatch[]
+}) {
+  for (const packId of params.enabledPackIds) {
+    for (const seed of seedFieldsForCapabilityPack(packId)) {
+      addMissingSeedFieldPatch({
+        seed,
+        fieldsByPath: params.fieldsByPath,
+        drafts: params.drafts,
+        persistedFieldKeys: params.persistedFieldKeys,
+        patchKeys: params.patchKeys,
+        patches: params.patches,
+      })
+    }
+  }
+}
+
+function enabledPackHasMissingSeedDefaults(params: {
+  packId: CapabilityPackId
+  sections: RuntimeConfigSection[]
+  drafts: Drafts
+  persistedFieldKeys: Set<string>
+}) {
+  const directSeeds = seedFieldsForCapabilityPack(params.packId)
+  if (
+    directSeeds.some(
+      (seed) =>
+        !params.persistedFieldKeys.has(pathDraftKey(seed.path)) &&
+        hasMeaningfulSeedValue(seed.value),
+    )
+  ) {
+    return true
+  }
+
+  const fieldsByPath = fieldMapByPath(params.sections)
+  const profileIds = new Set<string>()
+  for (const seed of directSeeds) {
+    if (!isPackInferenceBindingPath(seed.path)) continue
+    const field = fieldsByPath.get(pathDraftKey(seed.path))
+    const value = field ? draftValueForField(field, params.drafts) : seed.value
+    if (typeof value === 'string' && value.trim()) {
+      profileIds.add(value.trim())
+    }
+  }
+
+  for (const profileId of profileIds) {
+    const hasMissingProfileSeed = seedFieldsUnderPath([
+      'inference',
+      'profiles',
+      profileId,
+    ]).some(
+      (seed) =>
+        !params.persistedFieldKeys.has(pathDraftKey(seed.path)) &&
+        hasMeaningfulSeedValue(seed.value),
+    )
+    if (hasMissingProfileSeed) return true
+
+    const runtimeField = fieldsByPath.get(
+      pathDraftKey(['inference', 'profiles', profileId, 'runtime']),
+    )
+    const runtimeId = runtimeField
+      ? stringValue(draftValueForField(runtimeField, params.drafts))
+      : stringValue(
+          seedFieldSpecsByPath.get(
+            ['inference', 'profiles', profileId, 'runtime'].join('.'),
+          )?.value,
+        )
+    if (!runtimeId) continue
+
+    const hasMissingRuntimeSeed = seedFieldsUnderPath([
+      'inference',
+      'runtimes',
+      runtimeId,
+    ]).some(
+      (seed) =>
+        !params.persistedFieldKeys.has(pathDraftKey(seed.path)) &&
+        hasMeaningfulSeedValue(seed.value),
+    )
+    if (hasMissingRuntimeSeed) return true
+  }
+
+  return false
+}
+
+function enabledPacksHaveMissingDefaults(params: {
+  enabledPackIds: CapabilityPackId[]
+  sections: RuntimeConfigSection[]
+  drafts: Drafts
+  persistedFieldKeys: string[]
+}) {
+  if (params.enabledPackIds.length === 0) return false
+
+  const persistedFieldKeys = new Set(params.persistedFieldKeys)
+  return params.enabledPackIds.some((packId) =>
+    enabledPackHasMissingSeedDefaults({
+      packId,
+      sections: params.sections,
+      drafts: params.drafts,
+      persistedFieldKeys,
+    }),
+  )
+}
+
+function buildRuntimeConfigPatches(params: {
+  sections: RuntimeConfigSection[]
+  drafts: Drafts
+  initialDrafts: Drafts
+  persistedFieldKeys: string[]
+  enabledPackIds: CapabilityPackId[]
+}) {
+  const patches: RuntimeConfigFieldPatch[] = []
+  const patchKeys = new Set<string>()
+  const persistedFieldKeys = new Set(params.persistedFieldKeys)
+
+  for (const section of params.sections) {
+    for (const field of section.fields) {
+      const key = fieldDraftKey(field)
+      if ((params.drafts[key] ?? '') === (params.initialDrafts[key] ?? '')) {
+        continue
+      }
+      patchKeys.add(key)
+      patches.push({
+        path: field.path,
+        value: parseFieldDraft(field, params.drafts[key] ?? ''),
+      })
+    }
+  }
+
+  addEnabledPackSeedDefaults({
+    enabledPackIds: params.enabledPackIds,
+    fieldsByPath: fieldMapByPath(params.sections),
+    drafts: params.drafts,
+    persistedFieldKeys,
+    patchKeys,
+    patches,
+  })
+
+  addMissingReferencedInferenceDefaults({
+    sections: params.sections,
+    drafts: params.drafts,
+    persistedFieldKeys: params.persistedFieldKeys,
+    patchKeys,
+    patches,
+  })
+
+  return patches
 }
 
 function FieldControl({
@@ -1986,7 +2830,7 @@ function FieldControl({
   ) {
     return (
       <Select
-        value={value || undefined}
+        value={value || UNSET_SELECT_VALUE}
         onValueChange={(nextValue) =>
           onChange(nextValue === UNSET_SELECT_VALUE ? '' : nextValue)
         }
@@ -2050,6 +2894,7 @@ function ConfigFieldRow({
   onChange: (value: string) => void
 }) {
   const inputId = `config-field-${field.path.join('-')}`
+  const fieldDescription = visibleFieldDescription(field)
 
   return (
     <div className='grid gap-2 py-4 md:grid-cols-[minmax(180px,260px)_minmax(0,1fr)] md:gap-6'>
@@ -2060,15 +2905,22 @@ function ConfigFieldRow({
           {field.secret && <Badge variant='secondary'>Secret</Badge>}
           {field.readOnly && <Badge variant='outline'>Read-only here</Badge>}
         </div>
-        <p className='text-xs leading-5 text-muted-foreground'>
-          {field.description || field.path.join('.')}
-        </p>
+        {fieldDescription ? (
+          <p className='text-xs leading-5 text-muted-foreground'>
+            {fieldDescription}
+          </p>
+        ) : null}
         {field.validationHints.length > 0 && (
           <p className='text-xs leading-5 text-muted-foreground'>
             {field.validationHints.join(' ')}
           </p>
         )}
-        {field.effectiveValue !== null && (
+        {shouldShowDefaultValue(field) ? (
+          <p className='text-xs leading-5 text-muted-foreground'>
+            Default: {formatValue(field.defaultValue)}
+          </p>
+        ) : null}
+        {shouldShowEffectiveValue(field) && (
           <p className='break-all text-xs leading-5 text-muted-foreground'>
             Effective: {formatValue(field.effectiveValue)}
           </p>
@@ -2095,7 +2947,10 @@ function ConfigSectionPanel({
   const fields = sortedFields(section)
 
   return (
-    <section className='rounded-md border bg-background px-4 py-3'>
+    <section
+      data-testid={setupSectionTestId(section.key)}
+      className='rounded-md border bg-background px-4 py-3'
+    >
       <div className='flex flex-wrap items-start justify-between gap-3'>
         <div>
           <h3 className='text-base font-semibold'>{section.title}</h3>
@@ -2193,17 +3048,6 @@ function KnowledgeProviderPanel({
     providers.providers[0]?.key ?? '',
   )
 
-  useEffect(() => {
-    if (
-      providers.providers.length > 0 &&
-      !providers.providers.some(
-        (provider) => provider.key === selectedProviderKey,
-      )
-    ) {
-      setSelectedProviderKey(providers.providers[0]?.key ?? '')
-    }
-  }, [providers.providers, selectedProviderKey])
-
   const activeProvider =
     providers.providers.find(
       (provider) => provider.key === selectedProviderKey,
@@ -2253,16 +3097,20 @@ function KnowledgeProviderPanel({
 
 function CapabilityPackCard({
   pack,
+  enabled,
   expanded,
   drafts,
   initialDrafts,
+  onToggleEnabled,
   onToggleExpanded,
   onDraftChange,
 }: {
   pack: CapabilityPackCardView
+  enabled: boolean
   expanded: boolean
   drafts: Drafts
   initialDrafts: Drafts
+  onToggleEnabled: () => void
   onToggleExpanded: () => void
   onDraftChange: (field: RuntimeConfigField, value: string) => void
 }) {
@@ -2271,20 +3119,32 @@ function CapabilityPackCard({
       data-testid={`capability-pack-card-${pack.id}`}
       className='rounded-md border bg-background px-4 py-4'
     >
-      <div className='space-y-2'>
-        <button
+      <div className='flex flex-wrap items-start justify-between gap-3'>
+        <div className='space-y-2'>
+          <button
+            type='button'
+            onClick={onToggleExpanded}
+            className='flex items-center gap-2 text-left'
+          >
+            {expanded ? (
+              <ChevronDown className='size-4 text-muted-foreground' />
+            ) : (
+              <ChevronRight className='size-4 text-muted-foreground' />
+            )}
+            <span className='text-sm font-semibold'>{pack.label}</span>
+          </button>
+          <p className='text-sm text-muted-foreground'>{pack.summary}</p>
+        </div>
+        <Button
           type='button'
-          onClick={onToggleExpanded}
-          className='flex items-center gap-2 text-left'
+          size='sm'
+          variant={enabled ? 'default' : 'outline'}
+          aria-pressed={enabled}
+          onClick={onToggleEnabled}
         >
-          {expanded ? (
-            <ChevronDown className='size-4 text-muted-foreground' />
-          ) : (
-            <ChevronRight className='size-4 text-muted-foreground' />
-          )}
-          <span className='text-sm font-semibold'>{pack.label}</span>
-        </button>
-        <p className='text-sm text-muted-foreground'>{pack.summary}</p>
+          {enabled ? 'Disable' : 'Enable'}
+          <span className='sr-only'> {pack.label}</span>
+        </Button>
       </div>
 
       {expanded ? (
@@ -2364,6 +3224,11 @@ function CapabilityPackReviewPanel({ groups }: { groups: ReviewGroups }) {
 
       <div className='mt-4 grid gap-4 lg:grid-cols-2'>
         {renderGroup(
+          'Initial setup changes',
+          groups.initialSetup,
+          'No initial setup changes in draft.',
+        )}
+        {renderGroup(
           'Pack direct config changes',
           groups.packDirect,
           'No pack direct config changes in draft.',
@@ -2384,7 +3249,7 @@ function CapabilityPackReviewPanel({ groups }: { groups: ReviewGroups }) {
 }
 
 export function SettingsConfiguration() {
-  const [, setTargets] = useState<RuntimeConfigTarget[]>([])
+  const [targets, setTargets] = useState<RuntimeConfigTarget[]>([])
   const [selectedTargetId, setSelectedTargetId] = useState<string>('')
   const [snapshot, setSnapshot] = useState<RuntimeConfigSnapshot | null>(null)
   const [drafts, setDrafts] = useState<Drafts>({})
@@ -2394,6 +3259,8 @@ export function SettingsConfiguration() {
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [saveMessage, setSaveMessage] = useState<string | null>(null)
+  const [persistedFieldKeys, setPersistedFieldKeys] = useState<string[]>([])
+  const [enabledPackIds, setEnabledPackIds] = useState<CapabilityPackId[]>([])
   const [expandedPackIds, setExpandedPackIds] = useState<CapabilityPackId[]>([])
   const [reviewOpen, setReviewOpen] = useState(false)
 
@@ -2427,6 +3294,9 @@ export function SettingsConfiguration() {
       setSnapshot(null)
       setDrafts({})
       setInitialDrafts({})
+      setPersistedFieldKeys([])
+      setEnabledPackIds([])
+      setExpandedPackIds([])
       return
     }
 
@@ -2435,12 +3305,20 @@ export function SettingsConfiguration() {
     setError(null)
     setSaveMessage(null)
     fetchRuntimeConfigSnapshot(selectedTargetId, { signal: controller.signal })
-      .then((loadedSnapshot) => {
-        const normalizedSections = normalizeRuntimeSections(
-          loadedSnapshot.sections,
+      .then(async (loadedSnapshot) => {
+        const normalizedSections = await resolveRuntimeExecutableHints(
+          normalizeRuntimeSections(
+            loadedSnapshot.sections,
+            loadedSnapshot.target.kind,
+          ),
+          controller.signal,
         )
         const nextDrafts = buildDrafts(normalizedSections)
-        setExpandedPackIds(visiblePackIdsFromSections(normalizedSections))
+        setPersistedFieldKeys(
+          persistedFieldKeysFromSections(loadedSnapshot.sections),
+        )
+        setEnabledPackIds([])
+        setExpandedPackIds([])
         setSnapshot({
           ...loadedSnapshot,
           sections: normalizedSections,
@@ -2456,16 +3334,35 @@ export function SettingsConfiguration() {
     return () => controller.abort()
   }, [selectedTargetId])
 
-  const runtimeDirty = useMemo(
+  const draftDirty = useMemo(
     () => Object.keys(drafts).some((key) => drafts[key] !== initialDrafts[key]),
     [drafts, initialDrafts],
   )
 
-  const baseSections = snapshot?.sections ?? []
   const sections = useMemo(
-    () => materializeSectionsForDrafts(baseSections, drafts),
-    [baseSections, drafts],
+    () => materializeSectionsForDrafts(snapshot?.sections ?? [], drafts),
+    [snapshot?.sections, drafts],
   )
+  const setupSections = useMemo(
+    () =>
+      setupSeedSections
+        .map((setupSection) =>
+          sections.find((section) => section.key === setupSection.key),
+        )
+        .filter((section): section is RuntimeConfigSection => section != null),
+    [sections],
+  )
+  const enabledPackDirty = useMemo(
+    () =>
+      enabledPacksHaveMissingDefaults({
+        enabledPackIds,
+        sections,
+        drafts,
+        persistedFieldKeys,
+      }),
+    [enabledPackIds, sections, drafts, persistedFieldKeys],
+  )
+  const runtimeDirty = draftDirty || enabledPackDirty
   const packLayout = useMemo(() => buildPackLayout(sections), [sections])
   const reviewGroups = useMemo(
     () =>
@@ -2480,9 +3377,21 @@ export function SettingsConfiguration() {
 
   function handleDraftChange(field: RuntimeConfigField, value: string) {
     setDrafts((current) => ({
-      ...current,
+      ...applyProfileToolDefaults(current, field, value),
       [fieldDraftKey(field)]: value,
     }))
+  }
+
+  function handleCapabilityPackEnabledToggle(id: CapabilityPackId) {
+    const enabled = enabledPackIds.includes(id)
+    setEnabledPackIds((current) =>
+      enabled ? current.filter((packId) => packId !== id) : [...current, id],
+    )
+    if (!enabled) {
+      setExpandedPackIds((current) =>
+        current.includes(id) ? current : [...current, id],
+      )
+    }
   }
 
   function handleCapabilityPackExpandToggle(id: CapabilityPackId) {
@@ -2495,6 +3404,7 @@ export function SettingsConfiguration() {
 
   function handleResetPageDraft() {
     setDrafts(initialDrafts)
+    setEnabledPackIds([])
     setError(null)
     setSaveMessage(null)
     setReviewOpen(false)
@@ -2510,16 +3420,15 @@ export function SettingsConfiguration() {
 
     const patches: RuntimeConfigFieldPatch[] = []
     try {
-      for (const section of snapshot.sections) {
-        for (const field of section.fields) {
-          const key = fieldDraftKey(field)
-          if ((drafts[key] ?? '') === (initialDrafts[key] ?? '')) continue
-          patches.push({
-            path: field.path,
-            value: parseFieldDraft(field, drafts[key] ?? ''),
-          })
-        }
-      }
+      patches.push(
+        ...buildRuntimeConfigPatches({
+          sections,
+          drafts,
+          initialDrafts,
+          persistedFieldKeys,
+          enabledPackIds,
+        }),
+      )
     } catch (err: unknown) {
       setError(errorMessage(err))
       return
@@ -2534,9 +3443,18 @@ export function SettingsConfiguration() {
         expectedRevision: snapshot.revision,
         patches,
       })
-      const normalizedSections = normalizeRuntimeSections(updated.sections)
+      const normalizedSections = normalizeRuntimeSections(
+        updated.sections,
+        updated.target.kind,
+      )
+      if (!sectionsReflectPatches(normalizedSections, patches)) {
+        setError('Runtime config save did not change the returned snapshot.')
+        return
+      }
       const nextDrafts = buildDrafts(normalizedSections)
-      setExpandedPackIds(visiblePackIdsFromSections(normalizedSections))
+      setPersistedFieldKeys(persistedFieldKeysFromSections(updated.sections))
+      setEnabledPackIds([])
+      setExpandedPackIds([])
       setSnapshot({
         ...updated,
         sections: normalizedSections,
@@ -2562,6 +3480,42 @@ export function SettingsConfiguration() {
           </p>
         </div>
 
+        {targets.length > 1 ? (
+          <div className='grid gap-2 rounded-md border bg-background px-4 py-3 md:grid-cols-[minmax(180px,260px)_minmax(0,1fr)] md:gap-6'>
+            <div className='space-y-1.5'>
+              <Label htmlFor='runtime-config-target'>Config target</Label>
+              <p className='text-xs leading-5 text-muted-foreground'>
+                Choose which Bitloops config file these fields save into.
+              </p>
+            </div>
+            <select
+              id='runtime-config-target'
+              aria-label='Config target'
+              value={selectedTargetId}
+              onChange={(event) =>
+                setSelectedTargetId(event.currentTarget.value)
+              }
+              className='h-9 w-full rounded-md border border-input bg-background px-3 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 sm:w-[360px]'
+            >
+              {targets.map((configTarget) => (
+                <option key={configTarget.id} value={configTarget.id}>
+                  {configTarget.group} · {configTarget.label}
+                </option>
+              ))}
+            </select>
+          </div>
+        ) : null}
+
+        {setupSections.map((section) => (
+          <ConfigSectionPanel
+            key={section.key}
+            section={section}
+            drafts={drafts}
+            initialDrafts={initialDrafts}
+            onDraftChange={handleDraftChange}
+          />
+        ))}
+
         <section className='rounded-md border bg-background px-4 py-4'>
           <div className='flex flex-wrap items-start justify-between gap-3'>
             <div>
@@ -2585,9 +3539,13 @@ export function SettingsConfiguration() {
               <CapabilityPackCard
                 key={pack.id}
                 pack={pack}
+                enabled={enabledPackIds.includes(pack.id)}
                 expanded={expandedPackIds.includes(pack.id)}
                 drafts={drafts}
                 initialDrafts={initialDrafts}
+                onToggleEnabled={() =>
+                  handleCapabilityPackEnabledToggle(pack.id)
+                }
                 onToggleExpanded={() =>
                   handleCapabilityPackExpandToggle(pack.id)
                 }
