@@ -222,6 +222,15 @@ const REPO_SYNC_FIELD_PATH = ['devql', 'sync_enabled']
 const REPO_INGEST_FIELD_PATH = ['devql', 'ingest_enabled']
 const REPO_SYNC_FIELD_KEY = REPO_SYNC_FIELD_PATH.join('\u001f')
 const REPO_INGEST_FIELD_KEY = REPO_INGEST_FIELD_PATH.join('\u001f')
+const INFERENCE_NAME_FIELD = '__name'
+const INFERENCE_NAME_PATTERN = /^[A-Za-z0-9_-]+$/u
+
+type InferenceObjectKind = 'profile' | 'runtime'
+
+type InferenceRenamePlan = {
+  profileRenames: Map<string, string>
+  runtimeRenames: Map<string, string>
+}
 
 const structuredGenerationToolDefaults = new Map<
   string,
@@ -928,8 +937,16 @@ function applyRuntimeExecutableResolutionHints(
       const hint = executableResolutionHint(command, resolution)
       if (!hint) return field
 
+      const resolvedValue =
+        resolution?.found === true && resolution.path ? resolution.path : null
+
       return {
         ...field,
+        value: resolvedValue ?? field.value,
+        effectiveValue:
+          resolvedValue && valuesEqual(field.effectiveValue, field.value)
+            ? resolvedValue
+            : field.effectiveValue,
         validationHints: [
           ...field.validationHints.filter(
             (existingHint) =>
@@ -1381,6 +1398,40 @@ function createSeedField(
   }
 }
 
+function createInferenceNameField(
+  kind: InferenceObjectKind,
+  objectId: string,
+): RuntimeConfigField {
+  const path =
+    kind === 'profile'
+      ? ['inference', 'profiles', objectId, INFERENCE_NAME_FIELD]
+      : ['inference', 'runtimes', objectId, INFERENCE_NAME_FIELD]
+  const key = path.join('.')
+
+  return {
+    key,
+    path,
+    label: 'Name',
+    description:
+      kind === 'profile'
+        ? 'Inference profile config key.'
+        : 'Inference runtime config key.',
+    fieldType: 'string',
+    value: objectId,
+    effectiveValue: objectId,
+    defaultValue: null,
+    allowedValues: [],
+    validationHints: [
+      'Use letters, numbers, underscores, or dashes; references update on save.',
+    ],
+    required: true,
+    readOnly: false,
+    secret: false,
+    order: -1_000,
+    source: 'synthetic',
+  }
+}
+
 function initSetupFieldWithMetadata(
   field: RuntimeConfigField,
   seed: SeedFieldSpec,
@@ -1497,6 +1548,37 @@ function isPackInferenceBindingPath(path: string[]) {
   )
 }
 
+function isInferenceProfileFieldPath(path: string[]) {
+  return pathStartsWith(path, ['inference', 'profiles']) && path.length >= 4
+}
+
+function isInferenceRuntimeFieldPath(path: string[]) {
+  return pathStartsWith(path, ['inference', 'runtimes']) && path.length >= 4
+}
+
+function isInferenceNameFieldPath(path: string[]) {
+  return (
+    (isInferenceProfileFieldPath(path) || isInferenceRuntimeFieldPath(path)) &&
+    path[3] === INFERENCE_NAME_FIELD
+  )
+}
+
+function inferenceObjectKindForPath(
+  path: string[],
+): InferenceObjectKind | null {
+  if (isInferenceProfileFieldPath(path)) return 'profile'
+  if (isInferenceRuntimeFieldPath(path)) return 'runtime'
+  return null
+}
+
+function inferenceObjectIdForPath(path: string[]) {
+  return path[2] ?? ''
+}
+
+function isInferenceNameField(field: RuntimeConfigField) {
+  return isInferenceNameFieldPath(field.path)
+}
+
 function isUnsetFieldValue(value: unknown) {
   return (
     value == null || (typeof value === 'string' && value.trim().length === 0)
@@ -1527,10 +1609,6 @@ function uniqueAllowedValues(
     ordered.push(current)
   }
   return ordered
-}
-
-function structuredGenerationRuntimeOptions(runtimeIds: string[]) {
-  return runtimeIds
 }
 
 type DynamicOptionContext = {
@@ -1591,9 +1669,28 @@ function buildDynamicOptionContext(
   const runtimeIds = new Set<string>()
   const profileTaskById = new Map<string, string>()
   const profileDriverById = new Map<string, string>()
+  const profileNameById = new Map<string, string>()
+  const runtimeNameById = new Map<string, string>()
 
   for (const section of sections) {
     for (const field of section.fields) {
+      if (!isInferenceNameField(field)) continue
+      const objectId = inferenceObjectIdForPath(field.path)
+      const name = stringValue(field.value)
+      if (!objectId || !name) continue
+
+      if (inferenceObjectKindForPath(field.path) === 'profile') {
+        profileNameById.set(objectId, name)
+      } else {
+        runtimeNameById.set(objectId, name)
+      }
+    }
+  }
+
+  for (const section of sections) {
+    for (const field of section.fields) {
+      if (isInferenceNameField(field)) continue
+
       if (pathStartsWith(field.path, ['inference', 'profiles'])) {
         const profileId = field.path[2]
         if (profileId) {
@@ -1618,7 +1715,7 @@ function buildDynamicOptionContext(
       if (pathStartsWith(field.path, ['inference', 'runtimes'])) {
         const runtimeId = field.path[2]
         if (runtimeId) {
-          runtimeIds.add(runtimeId)
+          runtimeIds.add(runtimeNameById.get(runtimeId) ?? runtimeId)
         }
       }
     }
@@ -1626,7 +1723,7 @@ function buildDynamicOptionContext(
 
   for (const [profileId, task] of profileTaskById) {
     if (isRunnableInferenceTask(task)) {
-      profileIds.add(profileId)
+      profileIds.add(profileNameById.get(profileId) ?? profileId)
     }
   }
 
@@ -1640,35 +1737,6 @@ function buildDynamicOptionContext(
     profileTaskById,
     profileDriverById,
   }
-}
-
-function preferredTaskForBinding(path: string[]) {
-  if (!path.includes('inference')) return null
-  if (path[0] === 'architecture') return 'structured_generation'
-  if (path[0] === 'context_guidance') return 'text_generation'
-  if (path[0] === 'semantic_clones') {
-    const slotName = path[path.length - 1] ?? ''
-    if (slotName.includes('summary')) return 'text_generation'
-  }
-  return null
-}
-
-function profileIdsForBinding(
-  field: RuntimeConfigField,
-  options: DynamicOptionContext,
-) {
-  const preferredTask = preferredTaskForBinding(field.path)
-  if (!preferredTask) {
-    return uniqueAllowedValues(options.profileIds, field.value)
-  }
-
-  const matchingProfiles = options.profileIds.filter(
-    (profileId) => options.profileTaskById.get(profileId) === preferredTask,
-  )
-  return uniqueAllowedValues(
-    matchingProfiles.length > 0 ? matchingProfiles : options.profileIds,
-    field.value,
-  )
 }
 
 function driverOptionsForTask(task: string) {
@@ -1766,6 +1834,18 @@ function runtimeFieldValidationHints(fieldName: string) {
   }
 }
 
+function inferenceSelectorKind(
+  field: RuntimeConfigField,
+): InferenceObjectKind | null {
+  if (field.fieldType === 'profile') return 'profile'
+  if (field.fieldType === 'runtime') return 'runtime'
+  if (isPackInferenceBindingPath(field.path)) return 'profile'
+  if (isInferenceProfileFieldPath(field.path) && field.path[3] === 'runtime') {
+    return 'runtime'
+  }
+  return null
+}
+
 function applyFieldChoiceMetadata(
   field: RuntimeConfigField,
   options: DynamicOptionContext,
@@ -1773,9 +1853,12 @@ function applyFieldChoiceMetadata(
   let allowedValues = [...field.allowedValues]
   let fieldType = field.fieldType
   let validationHints: string[] = []
+  const selectorKind = inferenceSelectorKind(field)
 
-  if (field.path.length === 3 && field.path.includes('inference')) {
-    allowedValues = profileIdsForBinding(field, options)
+  if (selectorKind === 'profile') {
+    allowedValues = uniqueAllowedValues(options.profileIds, field.value)
+  } else if (selectorKind === 'runtime') {
+    allowedValues = uniqueAllowedValues(options.runtimeIds, field.value)
   }
 
   if (
@@ -1798,12 +1881,6 @@ function applyFieldChoiceMetadata(
         driverOptionsForTask(task),
         field.value,
       )
-    } else if (fieldName === 'runtime') {
-      const runtimeOptions =
-        canonicalInferenceTask(task ?? '') === 'structured_generation'
-          ? structuredGenerationRuntimeOptions(options.runtimeIds)
-          : options.runtimeIds
-      allowedValues = uniqueAllowedValues(runtimeOptions, field.value)
     } else if (fieldName === 'thinking_level') {
       allowedValues = uniqueAllowedValues(
         thinkingLevelOptionsForProfile(driver, task),
@@ -1923,6 +2000,47 @@ function applySupplementalSeedFields(
   })
 }
 
+function applyInferenceNameFields(
+  sections: RuntimeConfigSection[],
+): RuntimeConfigSection[] {
+  const additionsBySectionKey = new Map<string, RuntimeConfigField[]>()
+  const entries = flattenSections(sections)
+
+  function addNameFieldsForKind(kind: InferenceObjectKind, prefix: string[]) {
+    for (const [, objectEntries] of groupEntriesByObjectPath(entries, prefix)) {
+      const concreteEntry = objectEntries.find(
+        (entry) => !isInferenceNameField(entry.field),
+      )
+      if (!concreteEntry) continue
+
+      const objectId = inferenceObjectIdForPath(concreteEntry.field.path)
+      if (!objectId) continue
+      if (objectEntries.some((entry) => isInferenceNameField(entry.field))) {
+        continue
+      }
+
+      additionsBySectionKey.set(concreteEntry.section.key, [
+        ...(additionsBySectionKey.get(concreteEntry.section.key) ?? []),
+        createInferenceNameField(kind, objectId),
+      ])
+    }
+  }
+
+  addNameFieldsForKind('profile', ['inference', 'profiles'])
+  addNameFieldsForKind('runtime', ['inference', 'runtimes'])
+
+  if (additionsBySectionKey.size === 0) return sections
+
+  return sections.map((section) => {
+    const additions = additionsBySectionKey.get(section.key) ?? []
+    if (additions.length === 0) return section
+    return {
+      ...section,
+      fields: sortedFieldList([...section.fields, ...additions]),
+    }
+  })
+}
+
 function normalizeRuntimeSections(
   sections: RuntimeConfigSection[],
   targetKind: string | null = null,
@@ -1995,11 +2113,13 @@ function normalizeRuntimeSections(
     applySupplementalSeedFields(sectionsByKey, seedSection)
   }
 
-  const seededSections = sortedSections(
-    [...sectionsByKey.values()].map((section) => ({
-      ...section,
-      fields: sortedFieldList(section.fields.map(applySeedDefaultToField)),
-    })),
+  const seededSections = applyInferenceNameFields(
+    sortedSections(
+      [...sectionsByKey.values()].map((section) => ({
+        ...section,
+        fields: sortedFieldList(section.fields.map(applySeedDefaultToField)),
+      })),
+    ),
   )
 
   const optionContext = buildDynamicOptionContext(seededSections)
@@ -2244,14 +2364,18 @@ function buildStrictInferenceProfileSection(
   if (!isRunnableInferenceTask(task)) return null
 
   const driver = entriesFieldValue(entries, 'driver')
+  const displayProfileId =
+    entriesFieldValue(entries, INFERENCE_NAME_FIELD) ?? profileId
   const fields = entries
     .map((entry) => entry.field)
     .filter((field) =>
-      shouldRenderInferenceProfileField({
-        fieldName: pathTail(field),
-        task,
-        driver,
-      }),
+      isInferenceNameField(field)
+        ? true
+        : shouldRenderInferenceProfileField({
+            fieldName: pathTail(field),
+            task,
+            driver,
+          }),
     )
 
   if (fields.length === 0) return null
@@ -2260,11 +2384,14 @@ function buildStrictInferenceProfileSection(
   return {
     ...section,
     key: `inference-config:profile:${profileId}`,
-    title: `Inference profile · ${profileId}`,
+    title: `Inference profile · ${displayProfileId}`,
     description:
       'Persistent [inference.profiles.*] TOML for the Bitloops inference daemon.',
     advanced: false,
-    fields: sortedFieldList(fields, inferenceProfileFieldOrder),
+    fields: sortedFieldList(fields, [
+      INFERENCE_NAME_FIELD,
+      ...inferenceProfileFieldOrder,
+    ]),
   }
 }
 
@@ -2274,9 +2401,15 @@ function buildStrictInferenceRuntimeSection(
 ): DisplaySection | null {
   if (isEmbeddingRuntimeId(runtimeId)) return null
 
+  const displayRuntimeId =
+    entriesFieldValue(entries, INFERENCE_NAME_FIELD) ?? runtimeId
   const fields = entries
     .map((entry) => entry.field)
-    .filter((field) => inferenceRuntimeFieldOrder.includes(pathTail(field)))
+    .filter(
+      (field) =>
+        isInferenceNameField(field) ||
+        inferenceRuntimeFieldOrder.includes(pathTail(field)),
+    )
 
   if (fields.length === 0) return null
 
@@ -2284,11 +2417,14 @@ function buildStrictInferenceRuntimeSection(
   return {
     ...section,
     key: `inference-config:runtime:${runtimeId}`,
-    title: `Inference runtime · ${runtimeId}`,
+    title: `Inference runtime · ${displayRuntimeId}`,
     description:
       'Persistent [inference.runtimes.*] TOML for provider and local agent execution.',
     advanced: false,
-    fields: sortedFieldList(fields, inferenceRuntimeFieldOrder),
+    fields: sortedFieldList(fields, [
+      INFERENCE_NAME_FIELD,
+      ...inferenceRuntimeFieldOrder,
+    ]),
   }
 }
 
@@ -2524,15 +2660,15 @@ function buildReviewGroups(params: {
   return groups
 }
 
-function findFieldByPath(
+function findFieldsByPath(
   sections: RuntimeConfigSection[],
   path: string[],
-): RuntimeConfigField | null {
+): RuntimeConfigField[] {
+  const fields: RuntimeConfigField[] = []
   for (const section of sections) {
-    const field = section.fields.find((item) => pathsEqual(item.path, path))
-    if (field) return field
+    fields.push(...section.fields.filter((item) => pathsEqual(item.path, path)))
   }
-  return null
+  return fields
 }
 
 function sectionsReflectPatches(
@@ -2547,8 +2683,9 @@ function sectionsReflectPatches(
       )
     }
 
-    const field = findFieldByPath(sections, patch.path)
-    return field != null && valuesEqual(field.value, patch.value)
+    return findFieldsByPath(sections, patch.path).some((field) =>
+      valuesEqual(field.value, patch.value),
+    )
   })
 }
 
@@ -2565,6 +2702,140 @@ function fieldMapByPath(sections: RuntimeConfigSection[]) {
   return fields
 }
 
+function collectInferenceObjectNames(params: {
+  sections: RuntimeConfigSection[]
+  drafts: Drafts
+  kind: InferenceObjectKind
+}) {
+  const namesById = new Map<string, string>()
+
+  for (const section of params.sections) {
+    for (const field of section.fields) {
+      if (inferenceObjectKindForPath(field.path) !== params.kind) continue
+      const objectId = inferenceObjectIdForPath(field.path)
+      if (!objectId || !isInferenceNameField(field)) continue
+      namesById.set(
+        objectId,
+        stringValue(
+          resolveFieldValueFromDraft(
+            field,
+            params.drafts[fieldDraftKey(field)],
+          ),
+        ),
+      )
+    }
+  }
+
+  return namesById
+}
+
+function validateInferenceNames(
+  sections: RuntimeConfigSection[],
+  drafts: Drafts,
+): string | null {
+  const profileNames = collectInferenceObjectNames({
+    sections,
+    drafts,
+    kind: 'profile',
+  })
+  const runtimeNames = collectInferenceObjectNames({
+    sections,
+    drafts,
+    kind: 'runtime',
+  })
+  const allNames = [...profileNames.values(), ...runtimeNames.values()]
+
+  if (allNames.some((name) => name.length === 0)) {
+    return 'Inference names cannot be blank.'
+  }
+  if (allNames.some((name) => !INFERENCE_NAME_PATTERN.test(name))) {
+    return 'Inference names may only contain letters, numbers, underscores, and dashes.'
+  }
+
+  if (new Set(profileNames.values()).size !== profileNames.size) {
+    return 'Inference profile names must be unique.'
+  }
+  if (new Set(runtimeNames.values()).size !== runtimeNames.size) {
+    return 'Inference runtime names must be unique.'
+  }
+
+  return null
+}
+
+function buildInferenceRenamePlan(
+  sections: RuntimeConfigSection[],
+  drafts: Drafts,
+): InferenceRenamePlan {
+  const profileRenames = new Map<string, string>()
+  const runtimeRenames = new Map<string, string>()
+
+  for (const [profileId, profileName] of collectInferenceObjectNames({
+    sections,
+    drafts,
+    kind: 'profile',
+  })) {
+    if (profileName !== profileId) {
+      profileRenames.set(profileId, profileName)
+    }
+  }
+
+  for (const [runtimeId, runtimeName] of collectInferenceObjectNames({
+    sections,
+    drafts,
+    kind: 'runtime',
+  })) {
+    if (runtimeName !== runtimeId) {
+      runtimeRenames.set(runtimeId, runtimeName)
+    }
+  }
+
+  return {
+    profileRenames,
+    runtimeRenames,
+  }
+}
+
+function inferenceRenameForPath(
+  path: string[],
+  renamePlan: InferenceRenamePlan,
+) {
+  const objectId = inferenceObjectIdForPath(path)
+  if (isInferenceProfileFieldPath(path)) {
+    return renamePlan.profileRenames.get(objectId) ?? null
+  }
+  if (isInferenceRuntimeFieldPath(path)) {
+    return renamePlan.runtimeRenames.get(objectId) ?? null
+  }
+  return null
+}
+
+function fieldBelongsToRenamedInferenceObject(
+  field: RuntimeConfigField,
+  renamePlan: InferenceRenamePlan,
+) {
+  return (
+    !isInferenceNameField(field) &&
+    inferenceRenameForPath(field.path, renamePlan) != null
+  )
+}
+
+function rewriteInferenceReferenceValue(
+  field: RuntimeConfigField,
+  value: unknown,
+  renamePlan: InferenceRenamePlan,
+) {
+  if (typeof value !== 'string') return value
+
+  switch (inferenceSelectorKind(field)) {
+    case 'profile':
+      return renamePlan.profileRenames.get(value) ?? value
+    case 'runtime':
+      return renamePlan.runtimeRenames.get(value) ?? value
+    default:
+      return value
+  }
+}
+
 function referencedProfileIdsFromPackBindings(
   sections: RuntimeConfigSection[],
   drafts: Drafts,
@@ -2574,7 +2845,7 @@ function referencedProfileIdsFromPackBindings(
   const profileIds = new Set<string>()
   for (const section of sections) {
     for (const field of section.fields) {
-      if (!isPackInferenceBindingPath(field.path)) continue
+      if (inferenceSelectorKind(field) !== 'profile') continue
       const key = fieldDraftKey(field)
       if (!persistedFieldKeys.has(key) && !patchKeys.has(key)) continue
       const value = resolveFieldValueFromDraft(field, drafts[key])
@@ -2594,6 +2865,121 @@ function seedFieldsUnderPath(prefix: string[]) {
 
 function draftValueForField(field: RuntimeConfigField, drafts: Drafts) {
   return resolveFieldValueFromDraft(field, drafts[fieldDraftKey(field)])
+}
+
+function renamedInferenceFieldPath(
+  field: RuntimeConfigField,
+  renamePlan: InferenceRenamePlan,
+) {
+  const renamedObjectId = inferenceRenameForPath(field.path, renamePlan)
+  if (!renamedObjectId) return field.path
+  return [...field.path.slice(0, 2), renamedObjectId, ...field.path.slice(3)]
+}
+
+function addPatchIfAbsent(params: {
+  path: string[]
+  value?: unknown
+  unset?: boolean
+  patchKeys: Set<string>
+  patches: RuntimeConfigFieldPatch[]
+}) {
+  const key = pathDraftKey(params.path)
+  if (params.patchKeys.has(key)) return
+  params.patchKeys.add(key)
+  params.patches.push(
+    params.unset === true
+      ? {
+          path: params.path,
+          unset: true,
+        }
+      : {
+          path: params.path,
+          value: params.value,
+        },
+  )
+}
+
+function addInferenceRenamePatches(params: {
+  sections: RuntimeConfigSection[]
+  drafts: Drafts
+  renamePlan: InferenceRenamePlan
+  patchKeys: Set<string>
+  patches: RuntimeConfigFieldPatch[]
+}) {
+  for (const section of params.sections) {
+    for (const field of section.fields) {
+      if (
+        isInferenceNameField(field) ||
+        !fieldBelongsToRenamedInferenceObject(field, params.renamePlan)
+      ) {
+        continue
+      }
+
+      const value = rewriteInferenceReferenceValue(
+        field,
+        draftValueForField(field, params.drafts),
+        params.renamePlan,
+      )
+      addPatchIfAbsent({
+        path: renamedInferenceFieldPath(field, params.renamePlan),
+        value,
+        patchKeys: params.patchKeys,
+        patches: params.patches,
+      })
+    }
+  }
+
+  for (const profileId of params.renamePlan.profileRenames.keys()) {
+    addPatchIfAbsent({
+      path: ['inference', 'profiles', profileId],
+      unset: true,
+      patchKeys: params.patchKeys,
+      patches: params.patches,
+    })
+  }
+  for (const runtimeId of params.renamePlan.runtimeRenames.keys()) {
+    addPatchIfAbsent({
+      path: ['inference', 'runtimes', runtimeId],
+      unset: true,
+      patchKeys: params.patchKeys,
+      patches: params.patches,
+    })
+  }
+}
+
+function addInferenceReferenceRenamePatches(params: {
+  sections: RuntimeConfigSection[]
+  drafts: Drafts
+  renamePlan: InferenceRenamePlan
+  patchKeys: Set<string>
+  patches: RuntimeConfigFieldPatch[]
+}) {
+  for (const section of params.sections) {
+    for (const field of section.fields) {
+      if (
+        isInferenceNameField(field) ||
+        fieldBelongsToRenamedInferenceObject(field, params.renamePlan) ||
+        inferenceSelectorKind(field) == null
+      ) {
+        continue
+      }
+
+      const value = draftValueForField(field, params.drafts)
+      const rewrittenValue = rewriteInferenceReferenceValue(
+        field,
+        value,
+        params.renamePlan,
+      )
+      if (valuesEqual(rewrittenValue, field.value)) continue
+
+      addPatchIfAbsent({
+        path: field.path,
+        value: rewrittenValue,
+        patchKeys: params.patchKeys,
+        patches: params.patches,
+      })
+    }
+  }
 }
 
 function addMissingSeedFieldPatch(params: {
@@ -2873,6 +3259,10 @@ function buildRuntimeConfigPatches(params: {
   const patches: RuntimeConfigFieldPatch[] = []
   const patchKeys = new Set<string>()
   const persistedFieldKeys = new Set(params.persistedFieldKeys)
+  const inferenceRenamePlan = buildInferenceRenamePlan(
+    params.sections,
+    params.drafts,
+  )
   const initialEnabledPackIds = params.initialEnabledPackIds ?? []
   const newlyEnabledPackIds = capabilityPackIdDifference(
     params.enabledPackIds,
@@ -2883,8 +3273,23 @@ function buildRuntimeConfigPatches(params: {
     params.enabledPackIds,
   )
 
+  addInferenceRenamePatches({
+    sections: params.sections,
+    drafts: params.drafts,
+    renamePlan: inferenceRenamePlan,
+    patchKeys,
+    patches,
+  })
+
   for (const section of params.sections) {
     for (const field of section.fields) {
+      if (
+        isInferenceNameField(field) ||
+        fieldBelongsToRenamedInferenceObject(field, inferenceRenamePlan)
+      ) {
+        continue
+      }
+
       const key = fieldDraftKey(field)
       if ((params.drafts[key] ?? '') === (params.initialDrafts[key] ?? '')) {
         continue
@@ -2899,10 +3304,22 @@ function buildRuntimeConfigPatches(params: {
       patchKeys.add(key)
       patches.push({
         path: field.path,
-        value: parseFieldDraft(field, params.drafts[key] ?? ''),
+        value: rewriteInferenceReferenceValue(
+          field,
+          parseFieldDraft(field, params.drafts[key] ?? ''),
+          inferenceRenamePlan,
+        ),
       })
     }
   }
+
+  addInferenceReferenceRenamePatches({
+    sections: params.sections,
+    drafts: params.drafts,
+    renamePlan: inferenceRenamePlan,
+    patchKeys,
+    patches,
+  })
 
   addEnabledPackSeedDefaults({
     enabledPackIds: newlyEnabledPackIds,
@@ -2930,6 +3347,44 @@ function buildRuntimeConfigPatches(params: {
   }
 
   return patches
+}
+
+function applyInferenceNameReferenceDrafts(params: {
+  sections: RuntimeConfigSection[]
+  currentDrafts: Drafts
+  nameField: RuntimeConfigField
+  nextName: string
+}) {
+  if (!isInferenceNameField(params.nameField)) return params.currentDrafts
+
+  const objectKind = inferenceObjectKindForPath(params.nameField.path)
+  const objectId = inferenceObjectIdForPath(params.nameField.path)
+  const nameKey = fieldDraftKey(params.nameField)
+  const previousName = stringValue(params.currentDrafts[nameKey]) || objectId
+  const trimmedNextName = params.nextName.trim()
+  const nextDrafts = {
+    ...params.currentDrafts,
+    [nameKey]: params.nextName,
+  }
+
+  if (!objectKind || !trimmedNextName || previousName === trimmedNextName) {
+    return nextDrafts
+  }
+
+  for (const section of params.sections) {
+    for (const field of section.fields) {
+      if (isInferenceNameField(field)) continue
+      if (inferenceSelectorKind(field) !== objectKind) continue
+
+      const key = fieldDraftKey(field)
+      const currentValue = params.currentDrafts[key] ?? valueToDraft(field)
+      if (currentValue === previousName || currentValue === objectId) {
+        nextDrafts[key] = trimmedNextName
+      }
+    }
+  }
+
+  return nextDrafts
 }
 
 function FieldControl({
@@ -3730,10 +4185,17 @@ export function SettingsConfiguration() {
   function handleDraftChange(field: RuntimeConfigField, value: string) {
     setDrafts((current) => {
       const key = fieldDraftKey(field)
-      const next = {
-        ...applyProfileToolDefaults(current, field, value),
-        [key]: value,
-      }
+      const next = isInferenceNameField(field)
+        ? applyInferenceNameReferenceDrafts({
+            sections,
+            currentDrafts: current,
+            nameField: field,
+            nextName: value,
+          })
+        : {
+            ...applyProfileToolDefaults(current, field, value),
+            [key]: value,
+          }
 
       if (key === REPO_SYNC_FIELD_KEY && value !== 'true') {
         next[REPO_INGEST_FIELD_KEY] = 'false'
@@ -3805,6 +4267,12 @@ export function SettingsConfiguration() {
     const patches: RuntimeConfigFieldPatch[] = []
     const repoPatches: RuntimeConfigFieldPatch[] = []
     try {
+      const inferenceNameError = validateInferenceNames(sections, drafts)
+      if (inferenceNameError) {
+        setError(inferenceNameError)
+        return
+      }
+
       if (draftDirty || enabledPackDirty || enablementDirty) {
         patches.push(
           ...buildRuntimeConfigPatches({
