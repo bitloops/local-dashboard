@@ -128,7 +128,8 @@ export type RuntimeConfigSnapshot = {
 
 export type RuntimeConfigFieldPatch = {
   path: string[]
-  value: unknown
+  value?: unknown
+  unset?: boolean
 }
 
 export type RuntimeExecutableResolution = {

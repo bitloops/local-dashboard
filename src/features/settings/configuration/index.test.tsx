@@ -607,7 +607,7 @@ describe('SettingsConfiguration', () => {
     if (!HTMLElement.prototype.scrollIntoView) {
       HTMLElement.prototype.scrollIntoView = () => {}
     }
-    vi.clearAllMocks()
+    vi.resetAllMocks()
     vi.mocked(fetchRuntimeExecutableResolutions).mockResolvedValue([])
     vi.mocked(fetchRuntimeConfigTargets).mockResolvedValue([target])
     vi.mocked(fetchRuntimeConfigSnapshot).mockResolvedValue(snapshot())
@@ -658,8 +658,53 @@ describe('SettingsConfiguration', () => {
     expect(screen.queryByText('Render mode')).not.toBeInTheDocument()
   })
 
+  it('hydrates capability pack enablement from persisted config paths', async () => {
+    vi.mocked(fetchRuntimeConfigSnapshot).mockResolvedValueOnce(
+      snapshot({
+        sections: snapshot().sections.filter(
+          (configSection) => configSection.key !== 'architecture',
+        ),
+      }),
+    )
+    render(<SettingsConfiguration />)
+
+    const architectureCard = await screen.findByTestId(
+      'capability-pack-card-architecture-graph',
+    )
+    expect(
+      within(architectureCard).getByRole('button', {
+        name: 'Enable Architecture graph',
+      }),
+    ).toBeInTheDocument()
+
+    const semanticClonesCard = screen.getByTestId(
+      'capability-pack-card-semantic-clones',
+    )
+    expect(
+      within(semanticClonesCard).getByRole('button', {
+        name: 'Disable Semantic clones',
+      }),
+    ).toBeInTheDocument()
+
+    const knowledgeCard = screen.getByTestId(
+      'capability-pack-card-knowledge-pack',
+    )
+    expect(
+      within(knowledgeCard).getByRole('button', {
+        name: 'Disable Knowledge pack',
+      }),
+    ).toBeInTheDocument()
+  })
+
   it('expands pack fields without enabling the pack until Enable is clicked', async () => {
     const user = userEvent.setup()
+    vi.mocked(fetchRuntimeConfigSnapshot).mockResolvedValueOnce(
+      snapshot({
+        sections: snapshot().sections.filter(
+          (configSection) => configSection.key !== 'architecture',
+        ),
+      }),
+    )
     render(<SettingsConfiguration />)
 
     let architectureCard = await screen.findByTestId(
@@ -709,6 +754,78 @@ describe('SettingsConfiguration', () => {
     ).toBeInTheDocument()
   })
 
+  it('saves disabled persisted capability packs as unset patches', async () => {
+    const user = userEvent.setup()
+    vi.mocked(updateRuntimeConfig).mockResolvedValueOnce(
+      snapshot({
+        revision: 'rev-2',
+        sections: snapshot().sections.filter(
+          (configSection) => configSection.key !== 'architecture',
+        ),
+      }),
+    )
+    render(<SettingsConfiguration />)
+
+    const architectureCard = await screen.findByTestId(
+      'capability-pack-card-architecture-graph',
+    )
+    await user.click(
+      within(architectureCard).getByRole('button', {
+        name: 'Disable Architecture graph',
+      }),
+    )
+    await user.click(screen.getByRole('button', { name: 'Save changes' }))
+
+    expect(updateRuntimeConfig).toHaveBeenCalledWith({
+      targetId: 'target-daemon',
+      expectedRevision: 'rev-1',
+      patches: [
+        {
+          path: ['architecture'],
+          unset: true,
+        },
+      ],
+    })
+    const submittedPatches =
+      vi.mocked(updateRuntimeConfig).mock.calls[0]?.[0].patches ?? []
+    expect(
+      submittedPatches.some((patch) => patch.path[0] === 'inference'),
+    ).toBe(false)
+    expect(await screen.findByText('Runtime config saved.')).toBeInTheDocument()
+    expect(
+      within(
+        await screen.findByTestId('capability-pack-card-architecture-graph'),
+      ).getByRole('button', { name: 'Enable Architecture graph' }),
+    ).toBeInTheDocument()
+  })
+
+  it('resets capability pack enablement to the file-derived state', async () => {
+    const user = userEvent.setup()
+    render(<SettingsConfiguration />)
+
+    const architectureCard = await screen.findByTestId(
+      'capability-pack-card-architecture-graph',
+    )
+    await user.click(
+      within(architectureCard).getByRole('button', {
+        name: 'Disable Architecture graph',
+      }),
+    )
+    expect(
+      within(architectureCard).getByRole('button', {
+        name: 'Enable Architecture graph',
+      }),
+    ).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Reset changes' }))
+    expect(
+      within(architectureCard).getByRole('button', {
+        name: 'Disable Architecture graph',
+      }),
+    ).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Save changes' })).toBeDisabled()
+  })
+
   it('does not render raw config paths or duplicate effective values as field help text', async () => {
     const user = userEvent.setup()
     render(<SettingsConfiguration />)
@@ -739,6 +856,9 @@ describe('SettingsConfiguration', () => {
       target,
       repoTarget,
     ])
+    vi.mocked(fetchRuntimeConfigSnapshot)
+      .mockResolvedValueOnce(snapshot())
+      .mockResolvedValueOnce(snapshot({ target: repoTarget }))
     render(<SettingsConfiguration />)
 
     expect(
@@ -803,6 +923,23 @@ describe('SettingsConfiguration', () => {
     expect(
       within(semanticClonesCard).queryByText('Advanced config'),
     ).not.toBeInTheDocument()
+  })
+
+  it('does not render dead repo setup controls when no repo config target exists', async () => {
+    vi.mocked(fetchRuntimeConfigTargets).mockResolvedValueOnce([target])
+    render(<SettingsConfiguration />)
+
+    const repoSetupPanel = await screen.findByTestId('repo-setup-options')
+    expect(
+      within(repoSetupPanel).getByText(
+        'No repository config files are available.',
+      ),
+    ).toBeInTheDocument()
+    expect(
+      within(repoSetupPanel).queryByLabelText('Repository'),
+    ).not.toBeInTheDocument()
+    expect(fieldRowByLabel(repoSetupPanel, 'Sync')).toBeNull()
+    expect(fieldRowByLabel(repoSetupPanel, 'Ingest')).toBeNull()
   })
 
   it('renders a strict inference config panel for all runnable backend profiles and runtimes', async () => {
@@ -1339,10 +1476,13 @@ describe('SettingsConfiguration', () => {
       'Fact synthesis',
     )
     expectFieldSelectValue(architectureCard, 'Fact synthesis', 'summary_llm')
+    const inferencePanel = await screen.findByTestId('inference-config-panel')
+    const summaryProfile = sectionByHeading(
+      inferencePanel,
+      'Inference profile · summary_llm',
+    )
     expect(
-      within(
-        await screen.findByTestId('inference-config-panel'),
-      ).getByDisplayValue('gpt-5.4-mini'),
+      within(summaryProfile).getByDisplayValue('gpt-5.4-mini'),
     ).toBeInTheDocument()
 
     let contextCard = screen.getByTestId(
@@ -1729,11 +1869,7 @@ describe('SettingsConfiguration', () => {
     )
     expect(taskSelect).toBeInTheDocument()
 
-    const driverSelect = expectFieldSelectValue(
-      profilePanel,
-      'Driver',
-      'codex_exec',
-    )
+    const driverSelect = expectFieldSelectValue(profilePanel, 'Driver', 'codex')
     expect(
       within(
         fieldRowByLabel(profilePanel, 'Driver') as HTMLElement,
@@ -1741,12 +1877,14 @@ describe('SettingsConfiguration', () => {
     ).not.toBeInTheDocument()
     await user.click(driverSelect)
     expect(
-      await screen.findByRole('option', { name: 'codex_exec' }),
+      await screen.findByRole('option', { name: 'codex' }),
     ).toBeInTheDocument()
+    expect(screen.getByRole('option', { name: 'claude' })).toBeInTheDocument()
+    expect(screen.queryByRole('option', { name: 'codex_exec' })).toBeNull()
     expect(
-      screen.getByRole('option', { name: 'claude_code_print' }),
-    ).toBeInTheDocument()
-    await user.click(screen.getByRole('option', { name: 'codex_exec' }))
+      screen.queryByRole('option', { name: 'claude_code_print' }),
+    ).toBeNull()
+    await user.click(screen.getByRole('option', { name: 'codex' }))
 
     const runtimeSelect = expectFieldSelectValue(
       profilePanel,
@@ -1792,7 +1930,7 @@ describe('SettingsConfiguration', () => {
     await user.click(screen.getByRole('option', { name: 'high' }))
   })
 
-  it('renders the task aliases and driver-specific thinking levels from the inference reference', async () => {
+  it('deduplicates task aliases and keeps driver-specific thinking levels from the inference reference', async () => {
     const user = userEvent.setup()
     vi.mocked(fetchRuntimeConfigSnapshot).mockResolvedValueOnce(
       snapshot({
@@ -1881,22 +2019,20 @@ describe('SettingsConfiguration', () => {
     const textTaskSelect = expectFieldSelectValue(
       guidanceProfile,
       'Task',
-      'text-generation',
+      'text_generation',
     )
     await user.click(textTaskSelect)
     expect(
       await screen.findByRole('option', { name: 'text_generation' }),
     ).toBeInTheDocument()
     expect(
-      screen.getByRole('option', { name: 'text-generation' }),
-    ).toBeInTheDocument()
-    expect(
       screen.getByRole('option', { name: 'structured_generation' }),
     ).toBeInTheDocument()
+    expect(screen.queryByRole('option', { name: 'text-generation' })).toBeNull()
     expect(
-      screen.getByRole('option', { name: 'structured-generation' }),
-    ).toBeInTheDocument()
-    await user.click(screen.getByRole('option', { name: 'text-generation' }))
+      screen.queryByRole('option', { name: 'structured-generation' }),
+    ).toBeNull()
+    await user.click(screen.getByRole('option', { name: 'text_generation' }))
 
     const textDriverSelect = expectFieldSelectValue(
       guidanceProfile,
@@ -1921,7 +2057,37 @@ describe('SettingsConfiguration', () => {
       inferencePanel,
       'Inference profile · architecture_role_adjudication',
     )
-    expectFieldSelectValue(architectureProfile, 'Task', 'structured-generation')
+    const architectureDriverSelect = expectFieldSelectValue(
+      architectureProfile,
+      'Driver',
+      'claude',
+    )
+    await user.click(architectureDriverSelect)
+    expect(
+      await screen.findByRole('option', { name: 'codex' }),
+    ).toBeInTheDocument()
+    expect(screen.getByRole('option', { name: 'claude' })).toBeInTheDocument()
+    expect(screen.queryByRole('option', { name: 'codex_exec' })).toBeNull()
+    expect(
+      screen.queryByRole('option', { name: 'claude_code_print' }),
+    ).toBeNull()
+    await user.click(screen.getByRole('option', { name: 'claude' }))
+
+    const architectureTaskSelect = expectFieldSelectValue(
+      architectureProfile,
+      'Task',
+      'structured_generation',
+    )
+    await user.click(architectureTaskSelect)
+    expect(
+      await screen.findByRole('option', { name: 'structured_generation' }),
+    ).toBeInTheDocument()
+    expect(
+      screen.queryByRole('option', { name: 'structured-generation' }),
+    ).toBeNull()
+    await user.click(
+      screen.getByRole('option', { name: 'structured_generation' }),
+    )
 
     const claudeThinkingSelect = expectFieldSelectValue(
       architectureProfile,
@@ -1938,6 +2104,336 @@ describe('SettingsConfiguration', () => {
     expect(screen.getByRole('option', { name: 'max' })).toBeInTheDocument()
     expect(screen.queryByRole('option', { name: 'extra_high' })).toBeNull()
     await user.click(screen.getByRole('option', { name: 'max' }))
+  })
+
+  it('adds Codex and Claude runtime defaults when saved profiles reference scaffolded runtimes', async () => {
+    const user = userEvent.setup()
+    const initialSections = [
+      section(
+        'architecture',
+        'Architecture',
+        'Architecture graph configuration.',
+        5,
+        [
+          field(
+            ['architecture', 'inference', 'fact_synthesis'],
+            'Fact synthesis',
+            'architecture_fact_synthesis',
+          ),
+          field(
+            ['architecture', 'inference', 'role_adjudication'],
+            'Role adjudication',
+            'architecture_role_adjudication',
+          ),
+        ],
+      ),
+      section(
+        'inference_profiles',
+        'Inference profiles',
+        'Reusable inference profile definitions',
+        10,
+        [
+          field(
+            ['inference', 'profiles', 'architecture_fact_synthesis', 'task'],
+            'Task',
+            'structured_generation',
+          ),
+          field(
+            ['inference', 'profiles', 'architecture_fact_synthesis', 'driver'],
+            'Driver',
+            '',
+          ),
+          field(
+            ['inference', 'profiles', 'architecture_fact_synthesis', 'runtime'],
+            'Runtime',
+            '',
+          ),
+          field(
+            ['inference', 'profiles', 'architecture_fact_synthesis', 'model'],
+            'Model',
+            '',
+          ),
+          field(
+            ['inference', 'profiles', 'architecture_role_adjudication', 'task'],
+            'Task',
+            'structured_generation',
+          ),
+          field(
+            [
+              'inference',
+              'profiles',
+              'architecture_role_adjudication',
+              'driver',
+            ],
+            'Driver',
+            '',
+          ),
+          field(
+            [
+              'inference',
+              'profiles',
+              'architecture_role_adjudication',
+              'runtime',
+            ],
+            'Runtime',
+            '',
+          ),
+          field(
+            [
+              'inference',
+              'profiles',
+              'architecture_role_adjudication',
+              'model',
+            ],
+            'Model',
+            '',
+          ),
+        ],
+      ),
+    ]
+    const savedPatches = [
+      {
+        path: [
+          'inference',
+          'profiles',
+          'architecture_fact_synthesis',
+          'driver',
+        ],
+        value: 'codex_exec',
+      },
+      {
+        path: [
+          'inference',
+          'profiles',
+          'architecture_fact_synthesis',
+          'runtime',
+        ],
+        value: 'codex',
+      },
+      {
+        path: ['inference', 'profiles', 'architecture_fact_synthesis', 'model'],
+        value: 'gpt-5.4-mini',
+      },
+      {
+        path: [
+          'inference',
+          'profiles',
+          'architecture_role_adjudication',
+          'driver',
+        ],
+        value: 'claude_code_print',
+      },
+      {
+        path: [
+          'inference',
+          'profiles',
+          'architecture_role_adjudication',
+          'runtime',
+        ],
+        value: 'claude',
+      },
+      {
+        path: [
+          'inference',
+          'profiles',
+          'architecture_role_adjudication',
+          'model',
+        ],
+        value: 'claude-opus-4-7',
+      },
+      {
+        path: ['inference', 'runtimes', 'codex', 'command'],
+        value: 'codex',
+      },
+      {
+        path: ['inference', 'runtimes', 'codex', 'args'],
+        value: ['--ask-for-approval', 'never'],
+      },
+      {
+        path: ['inference', 'runtimes', 'codex', 'startup_timeout_secs'],
+        value: 5,
+      },
+      {
+        path: ['inference', 'runtimes', 'codex', 'request_timeout_secs'],
+        value: 300,
+      },
+      {
+        path: ['inference', 'runtimes', 'claude', 'command'],
+        value: 'claude',
+      },
+      {
+        path: ['inference', 'runtimes', 'claude', 'args'],
+        value: [],
+      },
+      {
+        path: ['inference', 'runtimes', 'claude', 'startup_timeout_secs'],
+        value: 5,
+      },
+      {
+        path: ['inference', 'runtimes', 'claude', 'request_timeout_secs'],
+        value: 300,
+      },
+    ]
+
+    vi.mocked(fetchRuntimeConfigSnapshot).mockResolvedValueOnce(
+      snapshot({ sections: initialSections }),
+    )
+    vi.mocked(updateRuntimeConfig).mockImplementationOnce(async ({ patches }) =>
+      snapshot({
+        revision: 'rev-2',
+        sections: [
+          section(
+            'saved',
+            'Saved config',
+            'Saved config values.',
+            10,
+            patches
+              .filter((patch) => patch.unset !== true)
+              .map((patch) =>
+                field(
+                  patch.path,
+                  patch.path[patch.path.length - 1] ?? 'Value',
+                  patch.value,
+                ),
+              ),
+          ),
+        ],
+      }),
+    )
+
+    render(<SettingsConfiguration />)
+
+    const inferencePanel = await screen.findByTestId('inference-config-panel')
+    const factProfile = sectionByHeading(
+      inferencePanel,
+      'Inference profile · architecture_fact_synthesis',
+    )
+    await chooseFieldOption(user, factProfile, 'Driver', 'codex_exec')
+
+    const roleProfile = sectionByHeading(
+      inferencePanel,
+      'Inference profile · architecture_role_adjudication',
+    )
+    await chooseFieldOption(user, roleProfile, 'Driver', 'claude_code_print')
+
+    await user.click(screen.getByRole('button', { name: 'Save changes' }))
+
+    expect(updateRuntimeConfig).toHaveBeenCalledWith({
+      targetId: 'target-daemon',
+      expectedRevision: 'rev-1',
+      patches: expect.arrayContaining(savedPatches),
+    })
+    expect(await screen.findByText('Runtime config saved.')).toBeInTheDocument()
+  })
+
+  it('adds default Architecture graph profile tools and local runtimes when enabling the pack', async () => {
+    const user = userEvent.setup()
+    const expectedRuntimePatches = [
+      {
+        path: [
+          'inference',
+          'profiles',
+          'architecture_fact_synthesis',
+          'driver',
+        ],
+        value: 'codex_exec',
+      },
+      {
+        path: [
+          'inference',
+          'profiles',
+          'architecture_fact_synthesis',
+          'runtime',
+        ],
+        value: 'codex',
+      },
+      {
+        path: ['inference', 'profiles', 'architecture_fact_synthesis', 'model'],
+        value: 'gpt-5.4-mini',
+      },
+      {
+        path: [
+          'inference',
+          'profiles',
+          'architecture_role_adjudication',
+          'driver',
+        ],
+        value: 'claude_code_print',
+      },
+      {
+        path: [
+          'inference',
+          'profiles',
+          'architecture_role_adjudication',
+          'runtime',
+        ],
+        value: 'claude',
+      },
+      {
+        path: [
+          'inference',
+          'profiles',
+          'architecture_role_adjudication',
+          'model',
+        ],
+        value: 'claude-opus-4-7',
+      },
+      {
+        path: ['inference', 'runtimes', 'codex', 'command'],
+        value: 'codex',
+      },
+      {
+        path: ['inference', 'runtimes', 'claude', 'command'],
+        value: 'claude',
+      },
+    ]
+    vi.mocked(fetchRuntimeConfigSnapshot).mockResolvedValueOnce(
+      snapshot({ sections: [] }),
+    )
+    vi.mocked(updateRuntimeConfig).mockImplementationOnce(async ({ patches }) =>
+      snapshot({
+        revision: 'rev-2',
+        sections: [
+          section(
+            'saved',
+            'Saved config',
+            'Saved config values.',
+            10,
+            patches
+              .filter((patch) => patch.unset !== true)
+              .map((patch) =>
+                field(
+                  patch.path,
+                  patch.path[patch.path.length - 1] ?? 'Value',
+                  patch.value,
+                ),
+              ),
+          ),
+        ],
+      }),
+    )
+
+    render(<SettingsConfiguration />)
+
+    await enablePack(user, 'architecture-graph', 'Architecture graph')
+    await user.click(screen.getByRole('button', { name: 'Save changes' }))
+
+    expect(updateRuntimeConfig).toHaveBeenCalledWith({
+      targetId: 'target-daemon',
+      expectedRevision: 'rev-1',
+      patches: expect.arrayContaining([
+        {
+          path: ['architecture', 'inference', 'fact_synthesis'],
+          value: 'architecture_fact_synthesis',
+        },
+        {
+          path: ['architecture', 'inference', 'role_adjudication'],
+          value: 'architecture_role_adjudication',
+        },
+        ...expectedRuntimePatches,
+      ]),
+    })
+    expect(await screen.findByText('Runtime config saved.')).toBeInTheDocument()
   })
 
   it('does not overwrite explicit blank backend runtime fields with supplemental defaults', async () => {
@@ -2628,8 +3124,8 @@ describe('SettingsConfiguration', () => {
     render(<SettingsConfiguration />)
 
     const repoSetupPanel = await screen.findByTestId('repo-setup-options')
-    expect(expectFieldCheckbox(repoSetupPanel, 'Sync')).toBeDisabled()
-    expect(expectFieldCheckbox(repoSetupPanel, 'Ingest')).toBeDisabled()
+    expect(fieldRowByLabel(repoSetupPanel, 'Sync')).toBeNull()
+    expect(fieldRowByLabel(repoSetupPanel, 'Ingest')).toBeNull()
     const daemonSetupPanel = await screen.findByTestId('daemon-setup-options')
     await user.click(
       expectFieldCheckbox(

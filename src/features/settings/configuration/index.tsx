@@ -189,12 +189,7 @@ const providerLabels = new Map<string, string>([
 
 const UNSET_SELECT_VALUE = '__unset__'
 
-const inferenceTaskOptions = [
-  'text_generation',
-  'text-generation',
-  'structured_generation',
-  'structured-generation',
-]
+const inferenceTaskOptions = ['text_generation', 'structured_generation']
 
 const inferenceTextGenerationDriverOptions = [
   'bitloops_platform_chat',
@@ -202,10 +197,7 @@ const inferenceTextGenerationDriverOptions = [
   'ollama_chat',
 ]
 
-const inferenceStructuredGenerationDriverOptions = [
-  'codex_exec',
-  'claude_code_print',
-]
+const inferenceStructuredGenerationDriverOptions = ['codex', 'claude']
 
 const codexThinkingLevelOptions = [
   'low',
@@ -238,7 +230,7 @@ const structuredGenerationToolDefaults = new Map<
   [
     'codex_exec',
     {
-      driver: 'codex_exec',
+      driver: 'codex',
       runtime: 'codex',
       model: DEFAULT_CODEX_MODEL,
     },
@@ -246,7 +238,7 @@ const structuredGenerationToolDefaults = new Map<
   [
     'claude_code_print',
     {
-      driver: 'claude_code_print',
+      driver: 'claude',
       runtime: 'claude',
       model: DEFAULT_CLAUDE_MODEL,
     },
@@ -254,7 +246,7 @@ const structuredGenerationToolDefaults = new Map<
   [
     'codex',
     {
-      driver: 'codex_exec',
+      driver: 'codex',
       runtime: 'codex',
       model: DEFAULT_CODEX_MODEL,
     },
@@ -262,7 +254,7 @@ const structuredGenerationToolDefaults = new Map<
   [
     'claude',
     {
-      driver: 'claude_code_print',
+      driver: 'claude',
       runtime: 'claude',
       model: DEFAULT_CLAUDE_MODEL,
     },
@@ -669,7 +661,7 @@ const supplementalSeedSections: SeedSectionSpec[] = [
         label: 'Driver',
         description: 'inference.profiles.architecture_fact_synthesis.driver',
         fieldType: 'string',
-        value: '',
+        value: 'codex',
       },
       {
         path: [
@@ -681,14 +673,14 @@ const supplementalSeedSections: SeedSectionSpec[] = [
         label: 'Runtime',
         description: 'inference.profiles.architecture_fact_synthesis.runtime',
         fieldType: 'string',
-        value: '',
+        value: 'codex',
       },
       {
         path: ['inference', 'profiles', 'architecture_fact_synthesis', 'model'],
         label: 'Model',
         description: 'inference.profiles.architecture_fact_synthesis.model',
         fieldType: 'string',
-        value: '',
+        value: DEFAULT_CODEX_MODEL,
       },
       {
         path: [
@@ -751,7 +743,7 @@ const supplementalSeedSections: SeedSectionSpec[] = [
         label: 'Driver',
         description: 'inference.profiles.architecture_role_adjudication.driver',
         fieldType: 'string',
-        value: '',
+        value: 'claude',
       },
       {
         path: [
@@ -764,7 +756,7 @@ const supplementalSeedSections: SeedSectionSpec[] = [
         description:
           'inference.profiles.architecture_role_adjudication.runtime',
         fieldType: 'string',
-        value: '',
+        value: 'claude',
       },
       {
         path: [
@@ -776,7 +768,7 @@ const supplementalSeedSections: SeedSectionSpec[] = [
         label: 'Model',
         description: 'inference.profiles.architecture_role_adjudication.model',
         fieldType: 'string',
-        value: '',
+        value: DEFAULT_CLAUDE_MODEL,
       },
       {
         path: [
@@ -1060,6 +1052,22 @@ function applyProfileToolDefaults(
 }
 
 function valueToDraft(field: RuntimeConfigField): string {
+  if (
+    pathStartsWith(field.path, ['inference', 'profiles']) &&
+    field.path[3] === 'task' &&
+    typeof field.value === 'string'
+  ) {
+    return canonicalInferenceTask(field.value)
+  }
+
+  if (
+    pathStartsWith(field.path, ['inference', 'profiles']) &&
+    field.path[3] === 'driver' &&
+    typeof field.value === 'string'
+  ) {
+    return canonicalStructuredGenerationDriver(field.value)
+  }
+
   if (field.fieldType === 'boolean') {
     return field.value === true ? 'true' : 'false'
   }
@@ -1122,6 +1130,27 @@ function persistedFieldKeysFromSections(sections: RuntimeConfigSection[]) {
   }
 
   return [...keys]
+}
+
+function persistedFieldKeyMatchesPathPrefix(key: string, prefix: string[]) {
+  const prefixKey = pathDraftKey(prefix)
+  return key === prefixKey || key.startsWith(`${prefixKey}\u001f`)
+}
+
+function capabilityPackIdsFromPersistedSections(
+  sections: RuntimeConfigSection[],
+): CapabilityPackId[] {
+  const persistedFieldKeys = persistedFieldKeysFromSections(sections)
+
+  return capabilityPackDefinitions
+    .filter((pack) =>
+      pack.directPrefixes.some((prefix) =>
+        persistedFieldKeys.some((key) =>
+          persistedFieldKeyMatchesPathPrefix(key, prefix),
+        ),
+      ),
+    )
+    .map((pack) => pack.id)
 }
 
 function parseFieldDraft(field: RuntimeConfigField, draft: string): unknown {
@@ -1478,10 +1507,23 @@ function stringValue(value: unknown) {
   return typeof value === 'string' ? value.trim() : ''
 }
 
-function uniqueAllowedValues(values: string[], currentValue: unknown) {
-  const ordered = [...values]
+function uniqueAllowedValues(
+  values: string[],
+  currentValue: unknown,
+  normalize: (value: string) => string = (value) => value,
+) {
+  const ordered: string[] = []
+  const seen = new Set<string>()
+  for (const value of values) {
+    const normalized = normalize(value)
+    if (seen.has(normalized)) continue
+    seen.add(normalized)
+    ordered.push(value)
+  }
+
   const current = stringValue(currentValue)
-  if (current && !ordered.includes(current)) {
+  const normalizedCurrent = normalize(current)
+  if (current && !seen.has(normalizedCurrent)) {
     ordered.push(current)
   }
   return ordered
@@ -1509,6 +1551,17 @@ function canonicalInferenceTask(task: string) {
   }
 }
 
+function canonicalStructuredGenerationDriver(driver: string) {
+  switch (driver) {
+    case 'codex_exec':
+      return 'codex'
+    case 'claude_code_print':
+      return 'claude'
+    default:
+      return driver
+  }
+}
+
 function isRunnableInferenceTask(task: string | undefined) {
   return (
     task === 'text_generation' ||
@@ -1519,7 +1572,8 @@ function isRunnableInferenceTask(task: string | undefined) {
 }
 
 function isLocalStructuredGenerationDriver(driver: string | undefined) {
-  return driver === 'codex_exec' || driver === 'claude_code_print'
+  const canonicalDriver = canonicalStructuredGenerationDriver(driver ?? '')
+  return canonicalDriver === 'codex' || canonicalDriver === 'claude'
 }
 
 function isHttpGenerationDriver(driver: string | undefined) {
@@ -1552,7 +1606,10 @@ function buildDynamicOptionContext(
           if (field.path[3] === 'driver') {
             const driver = stringValue(field.value)
             if (driver) {
-              profileDriverById.set(profileId, driver)
+              profileDriverById.set(
+                profileId,
+                canonicalStructuredGenerationDriver(driver),
+              )
             }
           }
         }
@@ -1629,10 +1686,10 @@ function thinkingLevelOptionsForProfile(
   driver: string | undefined,
   task: string | undefined,
 ) {
-  switch (driver) {
-    case 'codex_exec':
+  switch (canonicalStructuredGenerationDriver(driver ?? '')) {
+    case 'codex':
       return codexThinkingLevelOptions
-    case 'claude_code_print':
+    case 'claude':
       return claudeThinkingLevelOptions
     default:
       if (canonicalInferenceTask(task ?? '') === 'structured_generation') {
@@ -1731,7 +1788,11 @@ function applyFieldChoiceMetadata(
     const driver = options.profileDriverById.get(profileId)
 
     if (fieldName === 'task') {
-      allowedValues = uniqueAllowedValues(inferenceTaskOptions, field.value)
+      allowedValues = uniqueAllowedValues(
+        inferenceTaskOptions,
+        field.value,
+        canonicalInferenceTask,
+      )
     } else if (fieldName === 'driver' && task) {
       allowedValues = uniqueAllowedValues(
         driverOptionsForTask(task),
@@ -2477,8 +2538,15 @@ function findFieldByPath(
 function sectionsReflectPatches(
   sections: RuntimeConfigSection[],
   patches: RuntimeConfigFieldPatch[],
+  persistedFieldKeys = persistedFieldKeysFromSections(sections),
 ) {
   return patches.every((patch) => {
+    if (patch.unset === true) {
+      return !persistedFieldKeys.some((key) =>
+        persistedFieldKeyMatchesPathPrefix(key, patch.path),
+      )
+    }
+
     const field = findFieldByPath(sections, patch.path)
     return field != null && valuesEqual(field.value, patch.value)
   })
@@ -2742,21 +2810,90 @@ function enabledPacksHaveMissingDefaults(params: {
   )
 }
 
+function capabilityPackIdDifference(
+  left: CapabilityPackId[],
+  right: CapabilityPackId[],
+) {
+  const rightIds = new Set(right)
+  return left.filter((packId) => !rightIds.has(packId))
+}
+
+function capabilityPackIdsEqual(
+  left: CapabilityPackId[],
+  right: CapabilityPackId[],
+) {
+  return (
+    left.length === right.length &&
+    left.every((packId) => right.includes(packId))
+  )
+}
+
+function capabilityPackForId(packId: CapabilityPackId) {
+  return capabilityPackDefinitions.find((pack) => pack.id === packId)
+}
+
+function pathBelongsToCapabilityPack(path: string[], packId: CapabilityPackId) {
+  return (
+    capabilityPackForId(packId)?.directPrefixes.some((prefix) =>
+      pathStartsWith(path, prefix),
+    ) ?? false
+  )
+}
+
+function addDisabledPackUnsetPatches(params: {
+  disabledPackIds: CapabilityPackId[]
+  patchKeys: Set<string>
+  patches: RuntimeConfigFieldPatch[]
+}) {
+  for (const packId of params.disabledPackIds) {
+    const pack = capabilityPackForId(packId)
+    if (!pack) continue
+
+    for (const prefix of pack.directPrefixes) {
+      const key = pathDraftKey(prefix)
+      if (params.patchKeys.has(key)) continue
+
+      params.patchKeys.add(key)
+      params.patches.push({
+        path: prefix,
+        unset: true,
+      })
+    }
+  }
+}
+
 function buildRuntimeConfigPatches(params: {
   sections: RuntimeConfigSection[]
   drafts: Drafts
   initialDrafts: Drafts
   persistedFieldKeys: string[]
   enabledPackIds: CapabilityPackId[]
+  initialEnabledPackIds?: CapabilityPackId[]
 }) {
   const patches: RuntimeConfigFieldPatch[] = []
   const patchKeys = new Set<string>()
   const persistedFieldKeys = new Set(params.persistedFieldKeys)
+  const initialEnabledPackIds = params.initialEnabledPackIds ?? []
+  const newlyEnabledPackIds = capabilityPackIdDifference(
+    params.enabledPackIds,
+    initialEnabledPackIds,
+  )
+  const newlyDisabledPackIds = capabilityPackIdDifference(
+    initialEnabledPackIds,
+    params.enabledPackIds,
+  )
 
   for (const section of params.sections) {
     for (const field of section.fields) {
       const key = fieldDraftKey(field)
       if ((params.drafts[key] ?? '') === (params.initialDrafts[key] ?? '')) {
+        continue
+      }
+      if (
+        newlyDisabledPackIds.some((packId) =>
+          pathBelongsToCapabilityPack(field.path, packId),
+        )
+      ) {
         continue
       }
       patchKeys.add(key)
@@ -2768,7 +2905,7 @@ function buildRuntimeConfigPatches(params: {
   }
 
   addEnabledPackSeedDefaults({
-    enabledPackIds: params.enabledPackIds,
+    enabledPackIds: newlyEnabledPackIds,
     fieldsByPath: fieldMapByPath(params.sections),
     drafts: params.drafts,
     persistedFieldKeys,
@@ -2776,13 +2913,21 @@ function buildRuntimeConfigPatches(params: {
     patches,
   })
 
-  addMissingReferencedInferenceDefaults({
-    sections: params.sections,
-    drafts: params.drafts,
-    persistedFieldKeys: params.persistedFieldKeys,
+  addDisabledPackUnsetPatches({
+    disabledPackIds: newlyDisabledPackIds,
     patchKeys,
     patches,
   })
+
+  if (patches.some((patch) => patch.unset !== true)) {
+    addMissingReferencedInferenceDefaults({
+      sections: params.sections,
+      drafts: params.drafts,
+      persistedFieldKeys: params.persistedFieldKeys,
+      patchKeys,
+      patches,
+    })
+  }
 
   return patches
 }
@@ -3038,7 +3183,11 @@ function RepoSetupPanel({
       </div>
       <Separator className='mt-4' />
       <div className='divide-y'>
-        {repoTargets.length > 0 ? (
+        {repoTargets.length === 0 ? (
+          <p className='py-4 text-sm text-muted-foreground'>
+            No repository config files are available.
+          </p>
+        ) : (
           <div className='grid gap-2 py-4 md:grid-cols-[minmax(180px,260px)_minmax(0,1fr)] md:gap-6'>
             <div className='space-y-1.5'>
               <Label htmlFor='repo-setup-target'>Repository</Label>
@@ -3066,21 +3215,23 @@ function RepoSetupPanel({
               ))}
             </select>
           </div>
-        ) : null}
-        {fields.map((field) => {
-          const fieldWithRepoRules = repoSetupFieldForDrafts(field, drafts)
-          const key = fieldDraftKey(fieldWithRepoRules)
-          const draft = drafts[key] ?? ''
-          return (
-            <ConfigFieldRow
-              key={key}
-              field={fieldWithRepoRules}
-              draft={draft}
-              dirty={draft !== (initialDrafts[key] ?? '')}
-              onChange={(value) => onDraftChange(fieldWithRepoRules, value)}
-            />
-          )
-        })}
+        )}
+        {repoTargets.length > 0
+          ? fields.map((field) => {
+              const fieldWithRepoRules = repoSetupFieldForDrafts(field, drafts)
+              const key = fieldDraftKey(fieldWithRepoRules)
+              const draft = drafts[key] ?? ''
+              return (
+                <ConfigFieldRow
+                  key={key}
+                  field={fieldWithRepoRules}
+                  draft={draft}
+                  dirty={draft !== (initialDrafts[key] ?? '')}
+                  onChange={(value) => onDraftChange(fieldWithRepoRules, value)}
+                />
+              )
+            })
+          : null}
       </div>
     </section>
   )
@@ -3365,6 +3516,9 @@ export function SettingsConfiguration() {
   const [repoPersistedFieldKeys, setRepoPersistedFieldKeys] = useState<
     string[]
   >([])
+  const [initialEnabledPackIds, setInitialEnabledPackIds] = useState<
+    CapabilityPackId[]
+  >([])
   const [enabledPackIds, setEnabledPackIds] = useState<CapabilityPackId[]>([])
   const [expandedPackIds, setExpandedPackIds] = useState<CapabilityPackId[]>([])
   const [reviewOpen, setReviewOpen] = useState(false)
@@ -3414,6 +3568,7 @@ export function SettingsConfiguration() {
       setDrafts({})
       setInitialDrafts({})
       setPersistedFieldKeys([])
+      setInitialEnabledPackIds([])
       setEnabledPackIds([])
       setExpandedPackIds([])
       return
@@ -3433,10 +3588,14 @@ export function SettingsConfiguration() {
           controller.signal,
         )
         const nextDrafts = buildDrafts(normalizedSections)
+        const nextEnabledPackIds = capabilityPackIdsFromPersistedSections(
+          loadedSnapshot.sections,
+        )
         setPersistedFieldKeys(
           persistedFieldKeysFromSections(loadedSnapshot.sections),
         )
-        setEnabledPackIds([])
+        setInitialEnabledPackIds(nextEnabledPackIds)
+        setEnabledPackIds(nextEnabledPackIds)
         setExpandedPackIds([])
         setSnapshot({
           ...loadedSnapshot,
@@ -3504,6 +3663,14 @@ export function SettingsConfiguration() {
       ),
     [repoDrafts, repoInitialDrafts],
   )
+  const enablementDirty = useMemo(
+    () => !capabilityPackIdsEqual(enabledPackIds, initialEnabledPackIds),
+    [enabledPackIds, initialEnabledPackIds],
+  )
+  const newlyEnabledPackIds = useMemo(
+    () => capabilityPackIdDifference(enabledPackIds, initialEnabledPackIds),
+    [enabledPackIds, initialEnabledPackIds],
+  )
 
   const sections = useMemo(
     () => materializeSectionsForDrafts(snapshot?.sections ?? [], drafts),
@@ -3535,14 +3702,15 @@ export function SettingsConfiguration() {
   const enabledPackDirty = useMemo(
     () =>
       enabledPacksHaveMissingDefaults({
-        enabledPackIds,
+        enabledPackIds: newlyEnabledPackIds,
         sections,
         drafts,
         persistedFieldKeys,
       }),
-    [enabledPackIds, sections, drafts, persistedFieldKeys],
+    [newlyEnabledPackIds, sections, drafts, persistedFieldKeys],
   )
-  const runtimeDirty = draftDirty || enabledPackDirty || repoDraftDirty
+  const runtimeDirty =
+    draftDirty || enabledPackDirty || enablementDirty || repoDraftDirty
   const inferenceConfigLayout = useMemo(
     () => buildInferenceConfigLayout(sections),
     [sections],
@@ -3620,7 +3788,7 @@ export function SettingsConfiguration() {
   function handleResetPageDraft() {
     setDrafts(initialDrafts)
     setRepoDrafts(repoInitialDrafts)
-    setEnabledPackIds([])
+    setEnabledPackIds(initialEnabledPackIds)
     setError(null)
     setSaveMessage(null)
     setReviewOpen(false)
@@ -3637,7 +3805,7 @@ export function SettingsConfiguration() {
     const patches: RuntimeConfigFieldPatch[] = []
     const repoPatches: RuntimeConfigFieldPatch[] = []
     try {
-      if (draftDirty || enabledPackDirty) {
+      if (draftDirty || enabledPackDirty || enablementDirty) {
         patches.push(
           ...buildRuntimeConfigPatches({
             sections,
@@ -3645,6 +3813,7 @@ export function SettingsConfiguration() {
             initialDrafts,
             persistedFieldKeys,
             enabledPackIds,
+            initialEnabledPackIds,
           }),
         )
       }
@@ -3678,13 +3847,23 @@ export function SettingsConfiguration() {
           updated.sections,
           updated.target.kind,
         )
-        if (!sectionsReflectPatches(normalizedSections, patches)) {
+        if (
+          !sectionsReflectPatches(
+            normalizedSections,
+            patches,
+            persistedFieldKeysFromSections(updated.sections),
+          )
+        ) {
           setError('Runtime config save did not change the returned snapshot.')
           return
         }
         const nextDrafts = buildDrafts(normalizedSections)
+        const nextEnabledPackIds = capabilityPackIdsFromPersistedSections(
+          updated.sections,
+        )
         setPersistedFieldKeys(persistedFieldKeysFromSections(updated.sections))
-        setEnabledPackIds([])
+        setInitialEnabledPackIds(nextEnabledPackIds)
+        setEnabledPackIds(nextEnabledPackIds)
         setExpandedPackIds([])
         setSnapshot({
           ...updated,
@@ -3704,7 +3883,13 @@ export function SettingsConfiguration() {
           updatedRepo.sections,
           updatedRepo.target.kind,
         )
-        if (!sectionsReflectPatches(normalizedRepoSections, repoPatches)) {
+        if (
+          !sectionsReflectPatches(
+            normalizedRepoSections,
+            repoPatches,
+            persistedFieldKeysFromSections(updatedRepo.sections),
+          )
+        ) {
           setError('Runtime config save did not change the returned snapshot.')
           return
         }
