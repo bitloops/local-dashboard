@@ -3347,15 +3347,24 @@ function CapabilityPackReviewPanel({ groups }: { groups: ReviewGroups }) {
 export function SettingsConfiguration() {
   const [targets, setTargets] = useState<RuntimeConfigTarget[]>([])
   const [selectedTargetId, setSelectedTargetId] = useState<string>('')
+  const [selectedRepoTargetId, setSelectedRepoTargetId] = useState<string>('')
   const [snapshot, setSnapshot] = useState<RuntimeConfigSnapshot | null>(null)
+  const [repoSnapshot, setRepoSnapshot] =
+    useState<RuntimeConfigSnapshot | null>(null)
   const [drafts, setDrafts] = useState<Drafts>({})
+  const [repoDrafts, setRepoDrafts] = useState<Drafts>({})
   const [initialDrafts, setInitialDrafts] = useState<Drafts>({})
+  const [repoInitialDrafts, setRepoInitialDrafts] = useState<Drafts>({})
   const [, setLoadingTargets] = useState(true)
   const [loadingSnapshot, setLoadingSnapshot] = useState(false)
+  const [loadingRepoSnapshot, setLoadingRepoSnapshot] = useState(false)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [saveMessage, setSaveMessage] = useState<string | null>(null)
   const [persistedFieldKeys, setPersistedFieldKeys] = useState<string[]>([])
+  const [repoPersistedFieldKeys, setRepoPersistedFieldKeys] = useState<
+    string[]
+  >([])
   const [enabledPackIds, setEnabledPackIds] = useState<CapabilityPackId[]>([])
   const [expandedPackIds, setExpandedPackIds] = useState<CapabilityPackId[]>([])
   const [reviewOpen, setReviewOpen] = useState(false)
@@ -3368,13 +3377,27 @@ export function SettingsConfiguration() {
       .then((loadedTargets) => {
         setTargets(loadedTargets)
         setSelectedTargetId((current) => {
+          const daemonTarget = loadedTargets.find(
+            (target) => target.kind === 'daemon',
+          )
           if (
             current &&
-            loadedTargets.some((target) => target.id === current)
+            loadedTargets.some(
+              (target) => target.id === current && target.kind === 'daemon',
+            )
           ) {
             return current
           }
-          return loadedTargets[0]?.id ?? ''
+          return daemonTarget?.id ?? loadedTargets[0]?.id ?? ''
+        })
+        setSelectedRepoTargetId((current) => {
+          const repoTargets = loadedTargets.filter((target) =>
+            isRepoConfigTargetKind(target.kind),
+          )
+          if (current && repoTargets.some((target) => target.id === current)) {
+            return current
+          }
+          return repoTargets[0]?.id ?? ''
         })
       })
       .catch((err: unknown) => {
@@ -3430,14 +3453,66 @@ export function SettingsConfiguration() {
     return () => controller.abort()
   }, [selectedTargetId])
 
+  useEffect(() => {
+    if (!selectedRepoTargetId) {
+      setRepoSnapshot(null)
+      setRepoDrafts({})
+      setRepoInitialDrafts({})
+      setRepoPersistedFieldKeys([])
+      return
+    }
+
+    const controller = new AbortController()
+    setLoadingRepoSnapshot(true)
+    setError(null)
+    setSaveMessage(null)
+    fetchRuntimeConfigSnapshot(selectedRepoTargetId, {
+      signal: controller.signal,
+    })
+      .then((loadedSnapshot) => {
+        const normalizedSections = normalizeRuntimeSections(
+          loadedSnapshot.sections,
+          loadedSnapshot.target.kind,
+        )
+        const nextDrafts = buildDrafts(normalizedSections)
+        setRepoPersistedFieldKeys(
+          persistedFieldKeysFromSections(loadedSnapshot.sections),
+        )
+        setRepoSnapshot({
+          ...loadedSnapshot,
+          sections: normalizedSections,
+        })
+        setRepoDrafts(nextDrafts)
+        setRepoInitialDrafts(nextDrafts)
+      })
+      .catch((err: unknown) => {
+        if (err instanceof DOMException && err.name === 'AbortError') return
+        setError(errorMessage(err))
+      })
+      .finally(() => setLoadingRepoSnapshot(false))
+    return () => controller.abort()
+  }, [selectedRepoTargetId])
+
   const draftDirty = useMemo(
     () => Object.keys(drafts).some((key) => drafts[key] !== initialDrafts[key]),
     [drafts, initialDrafts],
+  )
+  const repoDraftDirty = useMemo(
+    () =>
+      Object.keys(repoDrafts).some(
+        (key) => repoDrafts[key] !== repoInitialDrafts[key],
+      ),
+    [repoDrafts, repoInitialDrafts],
   )
 
   const sections = useMemo(
     () => materializeSectionsForDrafts(snapshot?.sections ?? [], drafts),
     [snapshot?.sections, drafts],
+  )
+  const repoSections = useMemo(
+    () =>
+      materializeSectionsForDrafts(repoSnapshot?.sections ?? [], repoDrafts),
+    [repoSnapshot?.sections, repoDrafts],
   )
   const setupSections = useMemo(
     () =>
@@ -3451,6 +3526,9 @@ export function SettingsConfiguration() {
   const repoSetupSection = setupSections.find(
     (section) => section.key === REPO_SETUP_SECTION_KEY,
   )
+  const repoTargetSetupSection =
+    repoSections.find((section) => section.key === REPO_SETUP_SECTION_KEY) ??
+    repoSetupSection
   const daemonSetupSection = setupSections.find(
     (section) => section.key === DAEMON_SETUP_SECTION_KEY,
   )
@@ -3464,7 +3542,7 @@ export function SettingsConfiguration() {
       }),
     [enabledPackIds, sections, drafts, persistedFieldKeys],
   )
-  const runtimeDirty = draftDirty || enabledPackDirty
+  const runtimeDirty = draftDirty || enabledPackDirty || repoDraftDirty
   const inferenceConfigLayout = useMemo(
     () => buildInferenceConfigLayout(sections),
     [sections],
@@ -3486,6 +3564,25 @@ export function SettingsConfiguration() {
       const key = fieldDraftKey(field)
       const next = {
         ...applyProfileToolDefaults(current, field, value),
+        [key]: value,
+      }
+
+      if (key === REPO_SYNC_FIELD_KEY && value !== 'true') {
+        next[REPO_INGEST_FIELD_KEY] = 'false'
+      }
+      if (key === REPO_INGEST_FIELD_KEY && value === 'true') {
+        next[REPO_SYNC_FIELD_KEY] = 'true'
+      }
+
+      return next
+    })
+  }
+
+  function handleRepoDraftChange(field: RuntimeConfigField, value: string) {
+    setRepoDrafts((current) => {
+      const key = fieldDraftKey(field)
+      const next = {
+        ...current,
         [key]: value,
       }
 
@@ -3522,6 +3619,7 @@ export function SettingsConfiguration() {
 
   function handleResetPageDraft() {
     setDrafts(initialDrafts)
+    setRepoDrafts(repoInitialDrafts)
     setEnabledPackIds([])
     setError(null)
     setSaveMessage(null)
@@ -3537,16 +3635,30 @@ export function SettingsConfiguration() {
     if (!snapshot || !runtimeDirty) return
 
     const patches: RuntimeConfigFieldPatch[] = []
+    const repoPatches: RuntimeConfigFieldPatch[] = []
     try {
-      patches.push(
-        ...buildRuntimeConfigPatches({
-          sections,
-          drafts,
-          initialDrafts,
-          persistedFieldKeys,
-          enabledPackIds,
-        }),
-      )
+      if (draftDirty || enabledPackDirty) {
+        patches.push(
+          ...buildRuntimeConfigPatches({
+            sections,
+            drafts,
+            initialDrafts,
+            persistedFieldKeys,
+            enabledPackIds,
+          }),
+        )
+      }
+      if (repoDraftDirty && repoSnapshot) {
+        repoPatches.push(
+          ...buildRuntimeConfigPatches({
+            sections: repoSections,
+            drafts: repoDrafts,
+            initialDrafts: repoInitialDrafts,
+            persistedFieldKeys: repoPersistedFieldKeys,
+            enabledPackIds: [],
+          }),
+        )
+      }
     } catch (err: unknown) {
       setError(errorMessage(err))
       return
@@ -3556,29 +3668,58 @@ export function SettingsConfiguration() {
     setError(null)
     setSaveMessage(null)
     try {
-      const updated = await updateRuntimeConfig({
-        targetId: snapshot.target.id,
-        expectedRevision: snapshot.revision,
-        patches,
-      })
-      const normalizedSections = normalizeRuntimeSections(
-        updated.sections,
-        updated.target.kind,
-      )
-      if (!sectionsReflectPatches(normalizedSections, patches)) {
-        setError('Runtime config save did not change the returned snapshot.')
-        return
+      if (patches.length > 0) {
+        const updated = await updateRuntimeConfig({
+          targetId: snapshot.target.id,
+          expectedRevision: snapshot.revision,
+          patches,
+        })
+        const normalizedSections = normalizeRuntimeSections(
+          updated.sections,
+          updated.target.kind,
+        )
+        if (!sectionsReflectPatches(normalizedSections, patches)) {
+          setError('Runtime config save did not change the returned snapshot.')
+          return
+        }
+        const nextDrafts = buildDrafts(normalizedSections)
+        setPersistedFieldKeys(persistedFieldKeysFromSections(updated.sections))
+        setEnabledPackIds([])
+        setExpandedPackIds([])
+        setSnapshot({
+          ...updated,
+          sections: normalizedSections,
+        })
+        setDrafts(nextDrafts)
+        setInitialDrafts(nextDrafts)
       }
-      const nextDrafts = buildDrafts(normalizedSections)
-      setPersistedFieldKeys(persistedFieldKeysFromSections(updated.sections))
-      setEnabledPackIds([])
-      setExpandedPackIds([])
-      setSnapshot({
-        ...updated,
-        sections: normalizedSections,
-      })
-      setDrafts(nextDrafts)
-      setInitialDrafts(nextDrafts)
+
+      if (repoPatches.length > 0 && repoSnapshot) {
+        const updatedRepo = await updateRuntimeConfig({
+          targetId: repoSnapshot.target.id,
+          expectedRevision: repoSnapshot.revision,
+          patches: repoPatches,
+        })
+        const normalizedRepoSections = normalizeRuntimeSections(
+          updatedRepo.sections,
+          updatedRepo.target.kind,
+        )
+        if (!sectionsReflectPatches(normalizedRepoSections, repoPatches)) {
+          setError('Runtime config save did not change the returned snapshot.')
+          return
+        }
+        const nextRepoDrafts = buildDrafts(normalizedRepoSections)
+        setRepoPersistedFieldKeys(
+          persistedFieldKeysFromSections(updatedRepo.sections),
+        )
+        setRepoSnapshot({
+          ...updatedRepo,
+          sections: normalizedRepoSections,
+        })
+        setRepoDrafts(nextRepoDrafts)
+        setRepoInitialDrafts(nextRepoDrafts)
+      }
+
       setSaveMessage('Runtime config saved.')
     } catch (err: unknown) {
       setError(errorMessage(err))
@@ -3607,15 +3748,15 @@ export function SettingsConfiguration() {
           />
         ) : null}
 
-        {repoSetupSection ? (
+        {repoTargetSetupSection ? (
           <RepoSetupPanel
-            section={repoSetupSection}
+            section={repoTargetSetupSection}
             targets={targets}
-            selectedTargetId={selectedTargetId}
-            onTargetChange={setSelectedTargetId}
-            drafts={drafts}
-            initialDrafts={initialDrafts}
-            onDraftChange={handleDraftChange}
+            selectedTargetId={selectedRepoTargetId}
+            onTargetChange={setSelectedRepoTargetId}
+            drafts={repoDrafts}
+            initialDrafts={repoInitialDrafts}
+            onDraftChange={handleRepoDraftChange}
           />
         ) : null}
 
@@ -3708,7 +3849,12 @@ export function SettingsConfiguration() {
               <Button
                 type='button'
                 onClick={handleRuntimeConfigSave}
-                disabled={!runtimeDirty || saving || loadingSnapshot}
+                disabled={
+                  !runtimeDirty ||
+                  saving ||
+                  loadingSnapshot ||
+                  loadingRepoSnapshot
+                }
               >
                 {saving ? (
                   <Loader2 className='me-2 size-4 animate-spin' />

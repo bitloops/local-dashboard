@@ -756,7 +756,7 @@ describe('SettingsConfiguration', () => {
       within(repoSetupPanel).getByRole('heading', { name: 'Repo setup' }),
     ).toBeInTheDocument()
     const repositorySelect = within(repoSetupPanel).getByLabelText('Repository')
-    expect(repositorySelect).toHaveValue('')
+    expect(repositorySelect).toHaveValue('target-repo-local')
     expect(
       within(repositorySelect).queryByRole('option', {
         name: /Daemon config/,
@@ -2729,10 +2729,10 @@ describe('SettingsConfiguration', () => {
         daemonSetupPanel,
         'Daemon should start automatically',
       ),
-    ).toBeDisabled()
+    ).toBeEnabled()
     expect(
       expectFieldCheckbox(daemonSetupPanel, 'Enable telemetry'),
-    ).toBeDisabled()
+    ).toBeEnabled()
     await user.click(screen.getByRole('button', { name: 'Save changes' }))
 
     expect(updateRuntimeConfig).toHaveBeenCalledWith({
