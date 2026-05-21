@@ -42,7 +42,6 @@ type CapabilityPackId =
   | 'context-guidance'
   | 'semantic-clones'
   | 'knowledge-pack'
-  | 'test-harness'
 
 type CapabilityPackDefinition = {
   id: CapabilityPackId
@@ -90,10 +89,7 @@ type CapabilityPackCardView = {
   items: PackContentItem[]
 }
 
-type FieldOwnershipKind =
-  | 'pack-direct'
-  | 'shared-inference-runtime'
-  | 'supporting-dependency'
+type FieldOwnershipKind = 'pack-direct' | 'supporting-dependency'
 
 type FieldOwnership = {
   kind: FieldOwnershipKind
@@ -104,7 +100,6 @@ type FieldOwnership = {
 type ReviewGroups = {
   initialSetup: string[]
   packDirect: string[]
-  sharedInferenceRuntime: string[]
   supportingDependency: string[]
 }
 
@@ -113,15 +108,14 @@ type SectionFieldEntry = {
   field: RuntimeConfigField
 }
 
-type SharedBlockOwner = {
-  locationKey: string
-  ownerPackId: CapabilityPackId
-  ownerPackLabel: string
-}
-
 type PackLayout = {
   visiblePacks: CapabilityPackCardView[]
   ownershipByFieldKey: Map<string, FieldOwnership>
+}
+
+type InferenceConfigLayout = {
+  profiles: DisplaySection[]
+  runtimes: DisplaySection[]
 }
 
 type SeedFieldSpec = {
@@ -165,13 +159,6 @@ const capabilityPackDefinitions: CapabilityPackDefinition[] = [
     summary: 'Knowledge providers, refresh cadence, and durable records.',
     directPrefixes: [['knowledge']],
   },
-  {
-    id: 'test-harness',
-    label: 'Test harness',
-    summary: 'Adapters, dependency toggles, coverage, and test evidence.',
-    directPrefixes: [['test_harness']],
-    relatedFieldPaths: [['stores', 'relational', 'sqlite_path']],
-  },
 ]
 
 const inferenceProfileFieldOrder = [
@@ -179,8 +166,8 @@ const inferenceProfileFieldOrder = [
   'driver',
   'runtime',
   'model',
-  'api_key',
   'base_url',
+  'api_key',
   'temperature',
   'max_output_tokens',
   'thinking_level',
@@ -209,8 +196,6 @@ const inferenceTaskOptions = [
   'structured-generation',
 ]
 
-const inferenceEmbeddingDriverOptions = ['bitloops_embeddings_ipc']
-
 const inferenceTextGenerationDriverOptions = [
   'bitloops_platform_chat',
   'openai_chat_completions',
@@ -234,8 +219,17 @@ const DEFAULT_INFERENCE_REQUEST_TIMEOUT_SECS = 300
 const DEFAULT_LOCAL_AGENT_REQUEST_TIMEOUT_SECS = 300
 const DEFAULT_CODEX_MODEL = 'gpt-5.4-mini'
 const DEFAULT_CLAUDE_MODEL = 'claude-opus-4-7'
+const DEFAULT_OPENAI_CHAT_BASE_URL =
+  'https://api.openai.com/v1/chat/completions'
+const DEFAULT_BITLOOPS_PLATFORM_CHAT_BASE_URL =
+  'https://platform.bitloops.net/v1/chat/completions'
+const DEFAULT_OLLAMA_CHAT_BASE_URL = 'http://127.0.0.1:11434/api/chat'
 const REPO_SETUP_SECTION_KEY = 'repo_init_setup'
 const DAEMON_SETUP_SECTION_KEY = 'daemon_init_setup'
+const REPO_SYNC_FIELD_PATH = ['devql', 'sync_enabled']
+const REPO_INGEST_FIELD_PATH = ['devql', 'ingest_enabled']
+const REPO_SYNC_FIELD_KEY = REPO_SYNC_FIELD_PATH.join('\u001f')
+const REPO_INGEST_FIELD_KEY = REPO_INGEST_FIELD_PATH.join('\u001f')
 
 const structuredGenerationToolDefaults = new Map<
   string,
@@ -440,63 +434,6 @@ const missingPackSeedSections: SeedSectionSpec[] = [
       },
     ],
   },
-  {
-    key: 'test_harness',
-    title: 'Test harness',
-    description: 'Test harness adapters and coverage settings',
-    order: 9,
-    fields: [
-      {
-        path: ['test_harness', 'coverage_adapter'],
-        label: 'Coverage adapter',
-        description: 'test_harness.coverage_adapter',
-        fieldType: 'string',
-        value: '',
-      },
-      {
-        path: ['test_harness', 'test_discovery_adapter'],
-        label: 'Test discovery adapter',
-        description: 'test_harness.test_discovery_adapter',
-        fieldType: 'string',
-        value: '',
-      },
-      {
-        path: ['test_harness', 'language_support'],
-        label: 'Language support',
-        description: 'test_harness.language_support',
-        fieldType: 'string',
-        value: '',
-      },
-      {
-        path: ['test_harness', 'dependencies', 'coverage_adapter'],
-        label: 'Coverage adapter dependency',
-        description: 'test_harness.dependencies.coverage_adapter',
-        fieldType: 'boolean',
-        value: false,
-      },
-      {
-        path: ['test_harness', 'dependencies', 'test_discovery_adapter'],
-        label: 'Test discovery adapter dependency',
-        description: 'test_harness.dependencies.test_discovery_adapter',
-        fieldType: 'boolean',
-        value: false,
-      },
-      {
-        path: ['test_harness', 'dependencies', 'language_support'],
-        label: 'Language support dependency',
-        description: 'test_harness.dependencies.language_support',
-        fieldType: 'boolean',
-        value: false,
-      },
-      {
-        path: ['test_harness', 'coverage', 'format'],
-        label: 'Coverage format',
-        description: 'test_harness.coverage.format',
-        fieldType: 'string',
-        value: 'lcov',
-      },
-    ],
-  },
 ]
 
 const supplementalSeedSections: SeedSectionSpec[] = [
@@ -604,46 +541,6 @@ const supplementalSeedSections: SeedSectionSpec[] = [
         value: DEFAULT_LOCAL_AGENT_REQUEST_TIMEOUT_SECS,
       },
       {
-        path: ['inference', 'runtimes', 'bitloops_local_embeddings', 'command'],
-        label: 'Command',
-        description: 'inference.runtimes.bitloops_local_embeddings.command',
-        fieldType: 'string',
-        value: 'bitloops-local-embeddings',
-      },
-      {
-        path: ['inference', 'runtimes', 'bitloops_local_embeddings', 'args'],
-        label: 'Args',
-        description: 'inference.runtimes.bitloops_local_embeddings.args',
-        fieldType: 'json',
-        value: [],
-      },
-      {
-        path: [
-          'inference',
-          'runtimes',
-          'bitloops_local_embeddings',
-          'startup_timeout_secs',
-        ],
-        label: 'Startup timeout secs',
-        description:
-          'inference.runtimes.bitloops_local_embeddings.startup_timeout_secs',
-        fieldType: 'integer',
-        value: 60,
-      },
-      {
-        path: [
-          'inference',
-          'runtimes',
-          'bitloops_local_embeddings',
-          'request_timeout_secs',
-        ],
-        label: 'Request timeout secs',
-        description:
-          'inference.runtimes.bitloops_local_embeddings.request_timeout_secs',
-        fieldType: 'integer',
-        value: DEFAULT_INFERENCE_REQUEST_TIMEOUT_SECS,
-      },
-      {
         path: ['inference', 'profiles', 'summary_llm', 'task'],
         label: 'Task',
         description: 'inference.profiles.summary_llm.task',
@@ -670,6 +567,13 @@ const supplementalSeedSections: SeedSectionSpec[] = [
         description: 'inference.profiles.summary_llm.model',
         fieldType: 'string',
         value: 'ministral-3-3b-instruct',
+      },
+      {
+        path: ['inference', 'profiles', 'summary_llm', 'base_url'],
+        label: 'Base URL',
+        description: 'inference.profiles.summary_llm.base_url',
+        fieldType: 'string',
+        value: DEFAULT_BITLOOPS_PLATFORM_CHAT_BASE_URL,
       },
       {
         path: ['inference', 'profiles', 'summary_llm', 'api_key'],
@@ -721,6 +625,13 @@ const supplementalSeedSections: SeedSectionSpec[] = [
         value: 'ministral-3-3b-instruct',
       },
       {
+        path: ['inference', 'profiles', 'guidance_llm', 'base_url'],
+        label: 'Base URL',
+        description: 'inference.profiles.guidance_llm.base_url',
+        fieldType: 'string',
+        value: DEFAULT_BITLOOPS_PLATFORM_CHAT_BASE_URL,
+      },
+      {
         path: ['inference', 'profiles', 'guidance_llm', 'api_key'],
         label: 'API key',
         description: 'inference.profiles.guidance_llm.api_key',
@@ -740,34 +651,6 @@ const supplementalSeedSections: SeedSectionSpec[] = [
         description: 'inference.profiles.guidance_llm.max_output_tokens',
         fieldType: 'integer',
         value: 124096,
-      },
-      {
-        path: ['inference', 'profiles', 'platform_code', 'task'],
-        label: 'Task',
-        description: 'inference.profiles.platform_code.task',
-        fieldType: 'string',
-        value: 'embeddings',
-      },
-      {
-        path: ['inference', 'profiles', 'platform_code', 'driver'],
-        label: 'Driver',
-        description: 'inference.profiles.platform_code.driver',
-        fieldType: 'string',
-        value: 'bitloops_embeddings_ipc',
-      },
-      {
-        path: ['inference', 'profiles', 'platform_code', 'runtime'],
-        label: 'Runtime',
-        description: 'inference.profiles.platform_code.runtime',
-        fieldType: 'string',
-        value: 'bitloops_platform_embeddings',
-      },
-      {
-        path: ['inference', 'profiles', 'platform_code', 'model'],
-        label: 'Model',
-        description: 'inference.profiles.platform_code.model',
-        fieldType: 'string',
-        value: 'bge-m3',
       },
       {
         path: ['inference', 'profiles', 'architecture_fact_synthesis', 'task'],
@@ -1053,15 +936,8 @@ function applyRuntimeExecutableResolutionHints(
       const hint = executableResolutionHint(command, resolution)
       if (!hint) return field
 
-      const resolvedValue =
-        resolution?.found && resolution.path ? resolution.path : field.value
-
       return {
         ...field,
-        value: resolvedValue,
-        effectiveValue: valuesEqual(field.effectiveValue, field.value)
-          ? resolvedValue
-          : field.effectiveValue,
         validationHints: [
           ...field.validationHints.filter(
             (existingHint) =>
@@ -1122,27 +998,62 @@ function profileToolDefaultsForChange(
   return structuredGenerationToolDefaults.get(value) ?? null
 }
 
+function baseUrlDefaultForDriver(driver: string) {
+  switch (driver) {
+    case 'openai_chat_completions':
+      return DEFAULT_OPENAI_CHAT_BASE_URL
+    case 'ollama_chat':
+      return DEFAULT_OLLAMA_CHAT_BASE_URL
+    case 'bitloops_platform_chat':
+      return DEFAULT_BITLOOPS_PLATFORM_CHAT_BASE_URL
+    default:
+      return null
+  }
+}
+
+function isDriverDefaultBaseUrl(value: string) {
+  return (
+    value === DEFAULT_OPENAI_CHAT_BASE_URL ||
+    value === DEFAULT_OLLAMA_CHAT_BASE_URL ||
+    value === DEFAULT_BITLOOPS_PLATFORM_CHAT_BASE_URL
+  )
+}
+
 function applyProfileToolDefaults(
   drafts: Drafts,
   field: RuntimeConfigField,
   value: string,
 ) {
   const defaults = profileToolDefaultsForChange(field, value)
-  if (!defaults) return drafts
+  const baseUrlDefault =
+    pathStartsWith(field.path, ['inference', 'profiles']) &&
+    field.path[3] === 'driver'
+      ? baseUrlDefaultForDriver(value)
+      : null
+  if (!defaults && !baseUrlDefault) return drafts
 
   const next = { ...drafts }
   const driverKey = siblingProfileDraftKey(field, 'driver')
   const runtimeKey = siblingProfileDraftKey(field, 'runtime')
   const modelKey = siblingProfileDraftKey(field, 'model')
+  const baseUrlKey = siblingProfileDraftKey(field, 'base_url')
 
-  if (driverKey in next) {
+  if (defaults && driverKey in next) {
     next[driverKey] = defaults.driver
   }
-  if (runtimeKey in next) {
+  if (defaults && runtimeKey in next) {
     next[runtimeKey] = defaults.runtime
   }
-  if (modelKey in next) {
+  if (defaults && modelKey in next) {
     next[modelKey] = defaults.model
+  }
+  if (
+    baseUrlDefault &&
+    baseUrlKey in next &&
+    (isUnsetFieldValue(next[baseUrlKey]) ||
+      isDriverDefaultBaseUrl(next[baseUrlKey]))
+  ) {
+    next[baseUrlKey] = baseUrlDefault
   }
 
   return next
@@ -1577,9 +1488,7 @@ function uniqueAllowedValues(values: string[], currentValue: unknown) {
 }
 
 function structuredGenerationRuntimeOptions(runtimeIds: string[]) {
-  return runtimeIds.filter((runtimeId) =>
-    ['codex', 'claude'].includes(runtimeId),
-  )
+  return runtimeIds
 }
 
 type DynamicOptionContext = {
@@ -1600,6 +1509,27 @@ function canonicalInferenceTask(task: string) {
   }
 }
 
+function isRunnableInferenceTask(task: string | undefined) {
+  return (
+    task === 'text_generation' ||
+    task === 'structured_generation' ||
+    task === 'text-generation' ||
+    task === 'structured-generation'
+  )
+}
+
+function isLocalStructuredGenerationDriver(driver: string | undefined) {
+  return driver === 'codex_exec' || driver === 'claude_code_print'
+}
+
+function isHttpGenerationDriver(driver: string | undefined) {
+  return (
+    driver === 'openai_chat_completions' ||
+    driver === 'bitloops_platform_chat' ||
+    driver === 'ollama_chat'
+  )
+}
+
 function buildDynamicOptionContext(
   sections: RuntimeConfigSection[],
 ): DynamicOptionContext {
@@ -1613,7 +1543,6 @@ function buildDynamicOptionContext(
       if (pathStartsWith(field.path, ['inference', 'profiles'])) {
         const profileId = field.path[2]
         if (profileId) {
-          profileIds.add(profileId)
           if (field.path[3] === 'task') {
             const task = stringValue(field.value)
             if (task) {
@@ -1638,6 +1567,12 @@ function buildDynamicOptionContext(
     }
   }
 
+  for (const [profileId, task] of profileTaskById) {
+    if (isRunnableInferenceTask(task)) {
+      profileIds.add(profileId)
+    }
+  }
+
   return {
     profileIds: [...profileIds].sort((left, right) =>
       left.localeCompare(right),
@@ -1656,7 +1591,6 @@ function preferredTaskForBinding(path: string[]) {
   if (path[0] === 'context_guidance') return 'text_generation'
   if (path[0] === 'semantic_clones') {
     const slotName = path[path.length - 1] ?? ''
-    if (slotName.includes('embedding')) return 'embeddings'
     if (slotName.includes('summary')) return 'text_generation'
   }
   return null
@@ -1682,8 +1616,6 @@ function profileIdsForBinding(
 
 function driverOptionsForTask(task: string) {
   switch (canonicalInferenceTask(task)) {
-    case 'embeddings':
-      return inferenceEmbeddingDriverOptions
     case 'structured_generation':
       return inferenceStructuredGenerationDriverOptions
     case 'text_generation':
@@ -1715,12 +1647,75 @@ function thinkingLevelOptionsForProfile(
   }
 }
 
+function appendValidationHints(
+  field: RuntimeConfigField,
+  hints: string[],
+): RuntimeConfigField {
+  const meaningfulHints = hints.filter((hint) => hint.trim().length > 0)
+  if (meaningfulHints.length === 0) return field
+
+  const validationHints = [...field.validationHints]
+  for (const hint of meaningfulHints) {
+    if (!validationHints.includes(hint)) {
+      validationHints.push(hint)
+    }
+  }
+
+  return {
+    ...field,
+    validationHints,
+  }
+}
+
+function profileFieldValidationHints(
+  fieldName: string,
+  driver: string | undefined,
+) {
+  if (fieldName === 'temperature') {
+    return ['Must be finite and greater than or equal to 0.']
+  }
+  if (fieldName === 'max_output_tokens') {
+    return ['Must be greater than 0.']
+  }
+  if (fieldName !== 'base_url') {
+    return []
+  }
+
+  switch (driver) {
+    case 'openai_chat_completions':
+      return [
+        `Required for openai_chat_completions; defaults to ${DEFAULT_OPENAI_CHAT_BASE_URL} and must start with http:// or https://.`,
+      ]
+    case 'ollama_chat':
+      return [
+        `Required for ollama_chat; defaults to ${DEFAULT_OLLAMA_CHAT_BASE_URL} and must end with /api/chat.`,
+      ]
+    case 'bitloops_platform_chat':
+      return [
+        `Optional override for bitloops_platform_chat; defaults to ${DEFAULT_BITLOOPS_PLATFORM_CHAT_BASE_URL}.`,
+      ]
+    default:
+      return []
+  }
+}
+
+function runtimeFieldValidationHints(fieldName: string) {
+  switch (fieldName) {
+    case 'startup_timeout_secs':
+    case 'request_timeout_secs':
+      return ['Must be greater than 0.']
+    default:
+      return []
+  }
+}
+
 function applyFieldChoiceMetadata(
   field: RuntimeConfigField,
   options: DynamicOptionContext,
 ): RuntimeConfigField {
   let allowedValues = [...field.allowedValues]
   let fieldType = field.fieldType
+  let validationHints: string[] = []
 
   if (field.path.length === 3 && field.path.includes('inference')) {
     allowedValues = profileIdsForBinding(field, options)
@@ -1754,21 +1749,31 @@ function applyFieldChoiceMetadata(
         field.value,
       )
     }
+
+    validationHints = profileFieldValidationHints(fieldName, driver)
+  } else if (
+    pathStartsWith(field.path, ['inference', 'runtimes']) &&
+    field.path.length >= 4
+  ) {
+    validationHints = runtimeFieldValidationHints(field.path[3])
   }
 
   if (allowedValues.length === 0) {
-    return field
+    return appendValidationHints(field, validationHints)
   }
 
   if (fieldType === 'string') {
     fieldType = 'enum'
   }
 
-  return {
-    ...field,
-    fieldType,
-    allowedValues,
-  }
+  return appendValidationHints(
+    {
+      ...field,
+      fieldType,
+      allowedValues,
+    },
+    validationHints,
+  )
 }
 
 function applySeedDefaultToField(
@@ -2065,47 +2070,6 @@ function isKnowledgeProviderEntry(entry: SectionFieldEntry) {
   return entry.field.path[1] === 'providers'
 }
 
-function referencedProfileId(
-  entry: SectionFieldEntry,
-  profileBlocks: Map<string, SectionFieldEntry[]>,
-) {
-  return typeof entry.field.value === 'string' &&
-    profileBlocks.has(entry.field.value)
-    ? entry.field.value
-    : null
-}
-
-function referencedRuntimeId(
-  profileEntries: SectionFieldEntry[],
-  runtimeBlocks: Map<string, SectionFieldEntry[]>,
-) {
-  const runtimeEntry = profileEntries.find(
-    (entry) => pathTail(entry.field) === 'runtime',
-  )
-  return typeof runtimeEntry?.field.value === 'string' &&
-    runtimeBlocks.has(runtimeEntry.field.value)
-    ? runtimeEntry.field.value
-    : null
-}
-
-function resolveSharedBlockOwner(
-  sharedBlockOwners: Map<string, SharedBlockOwner>,
-  blockKey: string,
-  locationKey: string,
-  pack: CapabilityPackDefinition,
-) {
-  const existingOwner = sharedBlockOwners.get(blockKey)
-  if (existingOwner) return existingOwner
-
-  const nextOwner: SharedBlockOwner = {
-    locationKey,
-    ownerPackId: pack.id,
-    ownerPackLabel: pack.label,
-  }
-  sharedBlockOwners.set(blockKey, nextOwner)
-  return nextOwner
-}
-
 function applyFieldOwnership(
   field: RuntimeConfigField,
   ownershipByFieldKey: Map<string, FieldOwnership>,
@@ -2172,50 +2136,127 @@ function buildSectionViewsFromEntries(
   )
 }
 
-function buildNamedBlockSection(
-  objectType: 'profile' | 'runtime',
-  objectId: string,
+function entriesFieldValue(
   entries: SectionFieldEntry[],
-  options: {
-    currentLocationKey: string
-    owner: SharedBlockOwner
-    ownershipByFieldKey: Map<string, FieldOwnership>
-  },
-): DisplaySection {
-  const section = entries[0]?.section
-  const editable = options.owner.locationKey === options.currentLocationKey
-  const ownership: FieldOwnership | undefined = editable
-    ? {
-        kind: 'shared-inference-runtime',
-        ownerPackId: options.owner.ownerPackId,
-        ownerPackLabel: options.owner.ownerPackLabel,
-      }
-    : undefined
+  fieldName: string,
+): string | undefined {
+  const entry = entries.find(
+    (candidate) => pathTail(candidate.field) === fieldName,
+  )
+  return typeof entry?.field.value === 'string' ? entry.field.value : undefined
+}
 
+function isEmbeddingRuntimeId(runtimeId: string) {
+  return (
+    runtimeId === 'bitloops_local_embeddings' ||
+    runtimeId === 'bitloops_platform_embeddings'
+  )
+}
+
+function shouldRenderInferenceProfileField(params: {
+  fieldName: string
+  task: string
+  driver: string | undefined
+}) {
+  if (!inferenceProfileFieldOrder.includes(params.fieldName)) {
+    return false
+  }
+
+  if (params.fieldName === 'base_url') {
+    return (
+      params.task === 'text_generation' && isHttpGenerationDriver(params.driver)
+    )
+  }
+
+  if (params.fieldName === 'thinking_level') {
+    return isLocalStructuredGenerationDriver(params.driver)
+  }
+
+  return true
+}
+
+function buildStrictInferenceProfileSection(
+  profileId: string,
+  entries: SectionFieldEntry[],
+): DisplaySection | null {
+  const task = canonicalInferenceTask(entriesFieldValue(entries, 'task') ?? '')
+  if (!isRunnableInferenceTask(task)) return null
+
+  const driver = entriesFieldValue(entries, 'driver')
+  const fields = entries
+    .map((entry) => entry.field)
+    .filter((field) =>
+      shouldRenderInferenceProfileField({
+        fieldName: pathTail(field),
+        task,
+        driver,
+      }),
+    )
+
+  if (fields.length === 0) return null
+
+  const section = entries[0]?.section
   return {
     ...section,
-    key: `${options.currentLocationKey}:${objectType}:${objectId}`,
-    title: `Inference ${objectType} · ${objectId}`,
+    key: `inference-config:profile:${profileId}`,
+    title: `Inference profile · ${profileId}`,
     description:
-      objectType === 'profile'
-        ? 'Resolved from the enabled capability-pack binding.'
-        : 'Runtime settings referenced by the enabled inference profile.',
-    fields: sortedFieldList(
-      entries.map((entry) =>
-        applyFieldOwnership(
-          entry.field,
-          options.ownershipByFieldKey,
-          ownership,
-          !editable,
-        ),
-      ),
-      objectType === 'profile'
-        ? inferenceProfileFieldOrder
-        : inferenceRuntimeFieldOrder,
-    ),
-    note: editable
-      ? undefined
-      : `Shared with ${options.owner.ownerPackLabel}. Edit there.`,
+      'Persistent [inference.profiles.*] TOML for the Bitloops inference daemon.',
+    advanced: false,
+    fields: sortedFieldList(fields, inferenceProfileFieldOrder),
+  }
+}
+
+function buildStrictInferenceRuntimeSection(
+  runtimeId: string,
+  entries: SectionFieldEntry[],
+): DisplaySection | null {
+  if (isEmbeddingRuntimeId(runtimeId)) return null
+
+  const fields = entries
+    .map((entry) => entry.field)
+    .filter((field) => inferenceRuntimeFieldOrder.includes(pathTail(field)))
+
+  if (fields.length === 0) return null
+
+  const section = entries[0]?.section
+  return {
+    ...section,
+    key: `inference-config:runtime:${runtimeId}`,
+    title: `Inference runtime · ${runtimeId}`,
+    description:
+      'Persistent [inference.runtimes.*] TOML for provider and local agent execution.',
+    advanced: false,
+    fields: sortedFieldList(fields, inferenceRuntimeFieldOrder),
+  }
+}
+
+function buildInferenceConfigLayout(
+  sections: RuntimeConfigSection[],
+): InferenceConfigLayout {
+  const entries = flattenSections(sections)
+  const profileBlocks = groupEntriesByObjectPath(entries, [
+    'inference',
+    'profiles',
+  ])
+  const runtimeBlocks = groupEntriesByObjectPath(entries, [
+    'inference',
+    'runtimes',
+  ])
+
+  return {
+    profiles: [...profileBlocks.entries()]
+      .map(([profileId, profileEntries]) =>
+        buildStrictInferenceProfileSection(profileId, profileEntries),
+      )
+      .filter((section): section is DisplaySection => section != null)
+      .sort((left, right) => left.title.localeCompare(right.title)),
+    runtimes: [...runtimeBlocks.entries()]
+      .map(([runtimeId, runtimeEntries]) =>
+        buildStrictInferenceRuntimeSection(runtimeId, runtimeEntries),
+      )
+      .filter((section): section is DisplaySection => section != null)
+      .sort((left, right) => left.title.localeCompare(right.title)),
   }
 }
 
@@ -2249,16 +2290,7 @@ function buildKnowledgeProviderSection(
 
 function buildPackLayout(sections: RuntimeConfigSection[]): PackLayout {
   const entries = flattenSections(sections)
-  const profileBlocks = groupEntriesByObjectPath(entries, [
-    'inference',
-    'profiles',
-  ])
-  const runtimeBlocks = groupEntriesByObjectPath(entries, [
-    'inference',
-    'runtimes',
-  ])
   const ownershipByFieldKey = new Map<string, FieldOwnership>()
-  const sharedBlockOwners = new Map<string, SharedBlockOwner>()
   const visiblePacks: CapabilityPackCardView[] = []
 
   for (const pack of capabilityPackDefinitions) {
@@ -2340,47 +2372,6 @@ function buildPackLayout(sections: RuntimeConfigSection[]): PackLayout {
           ownershipByFieldKey,
           packOwnership,
         )
-        const bindingSections: DisplaySection[] = []
-        const profileId = referencedProfileId(bindingEntry, profileBlocks)
-        const profileEntries = profileId
-          ? (profileBlocks.get(profileId) ?? [])
-          : []
-
-        if (profileId && profileEntries.length > 0) {
-          const profileOwner = resolveSharedBlockOwner(
-            sharedBlockOwners,
-            `profile:${profileId}`,
-            `${locationKey}:profile:${profileId}`,
-            pack,
-          )
-          bindingSections.push(
-            buildNamedBlockSection('profile', profileId, profileEntries, {
-              currentLocationKey: `${locationKey}:profile:${profileId}`,
-              owner: profileOwner,
-              ownershipByFieldKey,
-            }),
-          )
-
-          const runtimeId = referencedRuntimeId(profileEntries, runtimeBlocks)
-          const runtimeEntries = runtimeId
-            ? (runtimeBlocks.get(runtimeId) ?? [])
-            : []
-          if (runtimeId && runtimeEntries.length > 0) {
-            const runtimeOwner = resolveSharedBlockOwner(
-              sharedBlockOwners,
-              `runtime:${runtimeId}`,
-              `${locationKey}:runtime:${runtimeId}`,
-              pack,
-            )
-            bindingSections.push(
-              buildNamedBlockSection('runtime', runtimeId, runtimeEntries, {
-                currentLocationKey: `${locationKey}:runtime:${runtimeId}`,
-                owner: runtimeOwner,
-                ownershipByFieldKey,
-              }),
-            )
-          }
-        }
 
         items.push({
           kind: 'binding',
@@ -2391,7 +2382,7 @@ function buildPackLayout(sections: RuntimeConfigSection[]): PackLayout {
             description:
               bindingField.description || bindingField.path.join('.'),
             field: bindingField,
-            sections: bindingSections,
+            sections: [],
           },
         })
       }
@@ -2438,7 +2429,6 @@ function buildReviewGroups(params: {
   const groups: ReviewGroups = {
     initialSetup: [],
     packDirect: [],
-    sharedInferenceRuntime: [],
     supportingDependency: [],
   }
 
@@ -2457,9 +2447,6 @@ function buildReviewGroups(params: {
       switch (ownership?.kind) {
         case 'pack-direct':
           groups.packDirect.push(label)
-          break
-        case 'shared-inference-runtime':
-          groups.sharedInferenceRuntime.push(label)
           break
         case 'supporting-dependency':
           groups.supportingDependency.push(label)
@@ -2985,6 +2972,120 @@ function ConfigSectionPanel({
   )
 }
 
+function repoSetupFieldForDrafts(
+  field: RuntimeConfigField,
+  drafts: Drafts,
+): RuntimeConfigField {
+  if (!pathsEqual(field.path, REPO_INGEST_FIELD_PATH)) return field
+
+  const syncEnabled = drafts[REPO_SYNC_FIELD_KEY] === 'true'
+  if (syncEnabled) return field
+
+  return {
+    ...field,
+    readOnly: true,
+    validationHints: field.readOnly
+      ? field.validationHints
+      : [...field.validationHints, 'Enable Sync before selecting Ingest.'],
+  }
+}
+
+function RepoSetupPanel({
+  section,
+  targets,
+  selectedTargetId,
+  onTargetChange,
+  drafts,
+  initialDrafts,
+  onDraftChange,
+}: {
+  section: DisplaySection
+  targets: RuntimeConfigTarget[]
+  selectedTargetId: string
+  onTargetChange: (targetId: string) => void
+  drafts: Drafts
+  initialDrafts: Drafts
+  onDraftChange: (field: RuntimeConfigField, value: string) => void
+}) {
+  const fields = sortedFields(section)
+  const repoTargets = targets.filter((target) =>
+    isRepoConfigTargetKind(target.kind),
+  )
+  const selectedRepoTargetId = repoTargets.some(
+    (target) => target.id === selectedTargetId,
+  )
+    ? selectedTargetId
+    : ''
+
+  return (
+    <section
+      data-testid='repo-setup-options'
+      className='rounded-md border bg-background px-4 py-3'
+    >
+      <div className='flex flex-wrap items-start justify-between gap-3'>
+        <div>
+          <h3 className='text-base font-semibold'>{section.title}</h3>
+          <p className='mt-1 text-sm text-muted-foreground'>
+            {section.description}
+          </p>
+          {section.note ? (
+            <p className='mt-1 text-xs leading-5 text-muted-foreground'>
+              {section.note}
+            </p>
+          ) : null}
+        </div>
+        {section.advanced ? <Badge variant='outline'>Advanced</Badge> : null}
+      </div>
+      <Separator className='mt-4' />
+      <div className='divide-y'>
+        {repoTargets.length > 0 ? (
+          <div className='grid gap-2 py-4 md:grid-cols-[minmax(180px,260px)_minmax(0,1fr)] md:gap-6'>
+            <div className='space-y-1.5'>
+              <Label htmlFor='repo-setup-target'>Repository</Label>
+              <p className='text-xs leading-5 text-muted-foreground'>
+                Choose which Bitloops config file these repo setup fields save
+                into.
+              </p>
+            </div>
+            <select
+              id='repo-setup-target'
+              aria-label='Repository'
+              value={selectedRepoTargetId}
+              onChange={(event) => onTargetChange(event.currentTarget.value)}
+              className='h-9 w-full rounded-md border border-input bg-background px-3 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 sm:w-[360px]'
+            >
+              {selectedRepoTargetId ? null : (
+                <option value='' disabled>
+                  Select repository config
+                </option>
+              )}
+              {repoTargets.map((configTarget) => (
+                <option key={configTarget.id} value={configTarget.id}>
+                  {configTarget.group} · {configTarget.label}
+                </option>
+              ))}
+            </select>
+          </div>
+        ) : null}
+        {fields.map((field) => {
+          const fieldWithRepoRules = repoSetupFieldForDrafts(field, drafts)
+          const key = fieldDraftKey(fieldWithRepoRules)
+          const draft = drafts[key] ?? ''
+          return (
+            <ConfigFieldRow
+              key={key}
+              field={fieldWithRepoRules}
+              draft={draft}
+              dirty={draft !== (initialDrafts[key] ?? '')}
+              onChange={(value) => onDraftChange(fieldWithRepoRules, value)}
+            />
+          )
+        })}
+      </div>
+    </section>
+  )
+}
+
 function InferenceBindingPanel({
   binding,
   drafts,
@@ -3216,8 +3317,8 @@ function CapabilityPackReviewPanel({ groups }: { groups: ReviewGroups }) {
         <div>
           <h4 className='text-base font-semibold'>Review changes</h4>
           <p className='mt-1 text-sm text-muted-foreground'>
-            This review groups pack-owned config, shared inference/runtime
-            blocks, and supporting dependency changes before saving.
+            This review groups setup, pack-owned config, and supporting
+            dependency changes before saving.
           </p>
         </div>
       </div>
@@ -3232,11 +3333,6 @@ function CapabilityPackReviewPanel({ groups }: { groups: ReviewGroups }) {
           'Pack direct config changes',
           groups.packDirect,
           'No pack direct config changes in draft.',
-        )}
-        {renderGroup(
-          'Shared inference/runtime changes',
-          groups.sharedInferenceRuntime,
-          'No shared inference/runtime changes in draft.',
         )}
         {renderGroup(
           'Supporting dependency changes',
@@ -3352,6 +3448,12 @@ export function SettingsConfiguration() {
         .filter((section): section is RuntimeConfigSection => section != null),
     [sections],
   )
+  const repoSetupSection = setupSections.find(
+    (section) => section.key === REPO_SETUP_SECTION_KEY,
+  )
+  const daemonSetupSection = setupSections.find(
+    (section) => section.key === DAEMON_SETUP_SECTION_KEY,
+  )
   const enabledPackDirty = useMemo(
     () =>
       enabledPacksHaveMissingDefaults({
@@ -3363,6 +3465,10 @@ export function SettingsConfiguration() {
     [enabledPackIds, sections, drafts, persistedFieldKeys],
   )
   const runtimeDirty = draftDirty || enabledPackDirty
+  const inferenceConfigLayout = useMemo(
+    () => buildInferenceConfigLayout(sections),
+    [sections],
+  )
   const packLayout = useMemo(() => buildPackLayout(sections), [sections])
   const reviewGroups = useMemo(
     () =>
@@ -3376,10 +3482,22 @@ export function SettingsConfiguration() {
   )
 
   function handleDraftChange(field: RuntimeConfigField, value: string) {
-    setDrafts((current) => ({
-      ...applyProfileToolDefaults(current, field, value),
-      [fieldDraftKey(field)]: value,
-    }))
+    setDrafts((current) => {
+      const key = fieldDraftKey(field)
+      const next = {
+        ...applyProfileToolDefaults(current, field, value),
+        [key]: value,
+      }
+
+      if (key === REPO_SYNC_FIELD_KEY && value !== 'true') {
+        next[REPO_INGEST_FIELD_KEY] = 'false'
+      }
+      if (key === REPO_INGEST_FIELD_KEY && value === 'true') {
+        next[REPO_SYNC_FIELD_KEY] = 'true'
+      }
+
+      return next
+    })
   }
 
   function handleCapabilityPackEnabledToggle(id: CapabilityPackId) {
@@ -3480,117 +3598,133 @@ export function SettingsConfiguration() {
           </p>
         </div>
 
-        {targets.length > 1 ? (
-          <div className='grid gap-2 rounded-md border bg-background px-4 py-3 md:grid-cols-[minmax(180px,260px)_minmax(0,1fr)] md:gap-6'>
-            <div className='space-y-1.5'>
-              <Label htmlFor='runtime-config-target'>Config target</Label>
-              <p className='text-xs leading-5 text-muted-foreground'>
-                Choose which Bitloops config file these fields save into.
-              </p>
-            </div>
-            <select
-              id='runtime-config-target'
-              aria-label='Config target'
-              value={selectedTargetId}
-              onChange={(event) =>
-                setSelectedTargetId(event.currentTarget.value)
-              }
-              className='h-9 w-full rounded-md border border-input bg-background px-3 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 sm:w-[360px]'
-            >
-              {targets.map((configTarget) => (
-                <option key={configTarget.id} value={configTarget.id}>
-                  {configTarget.group} · {configTarget.label}
-                </option>
-              ))}
-            </select>
-          </div>
-        ) : null}
-
-        {setupSections.map((section) => (
+        {daemonSetupSection ? (
           <ConfigSectionPanel
-            key={section.key}
-            section={section}
+            section={daemonSetupSection}
             drafts={drafts}
             initialDrafts={initialDrafts}
             onDraftChange={handleDraftChange}
           />
-        ))}
+        ) : null}
 
-        <section className='rounded-md border bg-background px-4 py-4'>
-          <div className='flex flex-wrap items-start justify-between gap-3'>
+        {repoSetupSection ? (
+          <RepoSetupPanel
+            section={repoSetupSection}
+            targets={targets}
+            selectedTargetId={selectedTargetId}
+            onTargetChange={setSelectedTargetId}
+            drafts={drafts}
+            initialDrafts={initialDrafts}
+            onDraftChange={handleDraftChange}
+          />
+        ) : null}
+
+        {snapshot ? (
+          <section data-testid='inference-config-panel' className='space-y-3'>
             <div>
-              <h3 className='text-base font-semibold'>Capability Packs</h3>
+              <h3 className='text-base font-semibold'>Inference config</h3>
               <p className='mt-1 text-sm text-muted-foreground'>
-                Review and edit the real runtime-config-backed capability pack
-                fields directly here.
+                Strict Bitloops inference daemon profiles and runtimes backed by
+                [inference.profiles.*] and [inference.runtimes.*] TOML.
               </p>
             </div>
-            <div className='flex flex-wrap gap-2'>
-              {runtimeDirty ? (
-                <Badge variant='outline'>Draft changes</Badge>
-              ) : (
-                <Badge variant='secondary'>No draft changes</Badge>
-              )}
+            <div className='grid gap-3'>
+              {[
+                ...inferenceConfigLayout.profiles,
+                ...inferenceConfigLayout.runtimes,
+              ].map((section) => (
+                <ConfigSectionPanel
+                  key={section.key}
+                  section={section}
+                  drafts={drafts}
+                  initialDrafts={initialDrafts}
+                  onDraftChange={handleDraftChange}
+                />
+              ))}
             </div>
-          </div>
+          </section>
+        ) : null}
 
-          <div className='mt-4 grid gap-4'>
-            {packLayout.visiblePacks.map((pack) => (
-              <CapabilityPackCard
-                key={pack.id}
-                pack={pack}
-                enabled={enabledPackIds.includes(pack.id)}
-                expanded={expandedPackIds.includes(pack.id)}
-                drafts={drafts}
-                initialDrafts={initialDrafts}
-                onToggleEnabled={() =>
-                  handleCapabilityPackEnabledToggle(pack.id)
-                }
-                onToggleExpanded={() =>
-                  handleCapabilityPackExpandToggle(pack.id)
-                }
-                onDraftChange={handleDraftChange}
-              />
-            ))}
-          </div>
-
-          <div className='mt-4 flex flex-wrap gap-2'>
-            <Button
-              type='button'
-              variant='outline'
-              onClick={handleResetPageDraft}
-              disabled={!runtimeDirty || saving}
-            >
-              <RotateCcw className='me-2 size-4' />
-              Reset changes
-            </Button>
-            <Button
-              type='button'
-              variant='outline'
-              onClick={handleOpenReview}
-              disabled={!runtimeDirty}
-            >
-              Review changes
-            </Button>
-            <Button
-              type='button'
-              onClick={handleRuntimeConfigSave}
-              disabled={!runtimeDirty || saving || loadingSnapshot}
-            >
-              {saving ? (
-                <Loader2 className='me-2 size-4 animate-spin' />
-              ) : (
-                <Save className='me-2 size-4' />
-              )}
-              Save changes
-            </Button>
-          </div>
-
-          {reviewOpen ? (
-            <div className='mt-4'>
-              <CapabilityPackReviewPanel groups={reviewGroups} />
+        <section
+          data-testid='setup-capability-packs-panel'
+          className='space-y-3'
+        >
+          <section className='rounded-md border bg-background px-4 py-4'>
+            <div className='flex flex-wrap items-start justify-between gap-3'>
+              <div>
+                <h3 className='text-base font-semibold'>Capability Packs</h3>
+                <p className='mt-1 text-sm text-muted-foreground'>
+                  Review and edit the real runtime-config-backed capability pack
+                  fields directly here.
+                </p>
+              </div>
+              <div className='flex flex-wrap gap-2'>
+                {runtimeDirty ? (
+                  <Badge variant='outline'>Draft changes</Badge>
+                ) : (
+                  <Badge variant='secondary'>No draft changes</Badge>
+                )}
+              </div>
             </div>
-          ) : null}
+
+            <div className='mt-4 grid gap-4'>
+              {packLayout.visiblePacks.map((pack) => (
+                <CapabilityPackCard
+                  key={pack.id}
+                  pack={pack}
+                  enabled={enabledPackIds.includes(pack.id)}
+                  expanded={expandedPackIds.includes(pack.id)}
+                  drafts={drafts}
+                  initialDrafts={initialDrafts}
+                  onToggleEnabled={() =>
+                    handleCapabilityPackEnabledToggle(pack.id)
+                  }
+                  onToggleExpanded={() =>
+                    handleCapabilityPackExpandToggle(pack.id)
+                  }
+                  onDraftChange={handleDraftChange}
+                />
+              ))}
+            </div>
+
+            <div className='mt-4 flex flex-wrap gap-2'>
+              <Button
+                type='button'
+                variant='outline'
+                onClick={handleResetPageDraft}
+                disabled={!runtimeDirty || saving}
+              >
+                <RotateCcw className='me-2 size-4' />
+                Reset changes
+              </Button>
+              <Button
+                type='button'
+                variant='outline'
+                onClick={handleOpenReview}
+                disabled={!runtimeDirty}
+              >
+                Review changes
+              </Button>
+              <Button
+                type='button'
+                onClick={handleRuntimeConfigSave}
+                disabled={!runtimeDirty || saving || loadingSnapshot}
+              >
+                {saving ? (
+                  <Loader2 className='me-2 size-4 animate-spin' />
+                ) : (
+                  <Save className='me-2 size-4' />
+                )}
+                Save changes
+              </Button>
+            </div>
+
+            {reviewOpen ? (
+              <div className='mt-4'>
+                <CapabilityPackReviewPanel groups={reviewGroups} />
+              </div>
+            ) : null}
+          </section>
         </section>
 
         {snapshot ? (

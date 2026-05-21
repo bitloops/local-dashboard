@@ -83,7 +83,9 @@ describe('Settings integration', () => {
       await screen.findByRole('heading', { name: 'Configuration' }),
     ).toBeInTheDocument()
     expect(
-      screen.getByRole('heading', { name: 'Capability Packs' }),
+      await screen.findByRole('heading', {
+        name: 'Capability Packs',
+      }),
     ).toBeInTheDocument()
   })
 })

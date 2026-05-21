@@ -227,50 +227,6 @@ function snapshot(overrides: Partial<RuntimeConfigSnapshot> = {}) {
         }),
       ]),
       section(
-        'test_harness',
-        'Test harness',
-        'Test harness adapters and coverage settings',
-        9,
-        [
-          field(
-            ['test_harness', 'coverage_adapter'],
-            'Coverage adapter',
-            'llvm-cov',
-            { order: 0 },
-          ),
-          field(
-            ['test_harness', 'test_discovery_adapter'],
-            'Test discovery adapter',
-            'cargo-test',
-            { order: 1 },
-          ),
-          field(
-            ['test_harness', 'language_support'],
-            'Language support',
-            'rust',
-            { order: 2 },
-          ),
-          field(
-            ['test_harness', 'dependencies', 'coverage'],
-            'Coverage dependency',
-            true,
-            { order: 3 },
-          ),
-          field(
-            ['test_harness', 'dependencies', 'test_discovery'],
-            'Test discovery dependency',
-            true,
-            { order: 4 },
-          ),
-          field(
-            ['test_harness', 'coverage', 'format'],
-            'Coverage format',
-            'lcov',
-            { order: 5 },
-          ),
-        ],
-      ),
-      section(
         'inference_profiles',
         'Inference profiles',
         'Reusable inference profile definitions',
@@ -626,6 +582,17 @@ function expectFieldCheckbox(scope: HTMLElement, label: string) {
   return within(row as HTMLElement).getByRole('checkbox')
 }
 
+function sectionByHeading(
+  scope: HTMLElement,
+  name: string | RegExp,
+): HTMLElement {
+  const sectionElement = within(scope)
+    .getByRole('heading', { name })
+    .closest('section') as HTMLElement | null
+  expect(sectionElement).not.toBeNull()
+  return sectionElement as HTMLElement
+}
+
 describe('SettingsConfiguration', () => {
   beforeEach(() => {
     if (!HTMLElement.prototype.hasPointerCapture) {
@@ -644,30 +611,36 @@ describe('SettingsConfiguration', () => {
     vi.mocked(fetchRuntimeExecutableResolutions).mockResolvedValue([])
     vi.mocked(fetchRuntimeConfigTargets).mockResolvedValue([target])
     vi.mocked(fetchRuntimeConfigSnapshot).mockResolvedValue(snapshot())
-    vi.mocked(updateRuntimeConfig).mockResolvedValue(
-      snapshot({
+    vi.mocked(updateRuntimeConfig).mockImplementation(async ({ patches }) => {
+      const patchedValues = new Map(
+        patches.map((patch) => [patch.path.join('.'), patch.value] as const),
+      )
+
+      return snapshot({
         revision: 'rev-2',
         sections: snapshot().sections.map((configSection) => ({
           ...configSection,
-          fields: configSection.fields.map((configField) =>
-            configField.key === 'stores.relational.sqlite_path'
-              ? {
-                  ...configField,
-                  value: 'updated.sqlite',
-                  effectiveValue: 'updated.sqlite',
-                }
-              : configField,
-          ),
+          fields: configSection.fields.map((configField) => {
+            if (!patchedValues.has(configField.key)) {
+              return configField
+            }
+            const value = patchedValues.get(configField.key)
+            return {
+              ...configField,
+              value,
+              effectiveValue: value,
+            }
+          }),
         })),
-      }),
-    )
+      })
+    })
   })
 
   it('shows only real visible capability packs and never renders CodeCity', async () => {
     render(<SettingsConfiguration />)
 
     const cards = await screen.findAllByTestId(/capability-pack-card-/)
-    expect(cards).toHaveLength(5)
+    expect(cards).toHaveLength(4)
     expect(
       cards.map(
         (card) =>
@@ -678,7 +651,6 @@ describe('SettingsConfiguration', () => {
       'Context Guidance',
       'Semantic clones',
       'Knowledge pack',
-      'Test harness',
     ])
     expect(
       screen.queryByTestId('capability-pack-card-codecity'),
@@ -744,7 +716,7 @@ describe('SettingsConfiguration', () => {
     const architectureCard = await ensurePackExpanded(
       user,
       await screen.findByTestId('capability-pack-card-architecture-graph'),
-      /Inference profile · summary_llm/,
+      'Fact synthesis',
     )
 
     expect(
@@ -755,12 +727,46 @@ describe('SettingsConfiguration', () => {
     expect(
       within(architectureCard).queryByText('Effective: 200'),
     ).not.toBeInTheDocument()
+    expect(
+      within(architectureCard).queryByRole('heading', {
+        name: 'Inference profile · summary_llm',
+      }),
+    ).not.toBeInTheDocument()
   })
 
-  it('renders separate repo and daemon setup controls above packs', async () => {
+  it('renders daemon setup above repo setup and keeps repo target selection inside repo setup', async () => {
+    vi.mocked(fetchRuntimeConfigTargets).mockResolvedValueOnce([
+      target,
+      repoTarget,
+    ])
     render(<SettingsConfiguration />)
 
+    expect(
+      screen.queryByRole('heading', { name: 'Setup & capability packs' }),
+    ).not.toBeInTheDocument()
+
+    const daemonSetupPanel = await screen.findByTestId('daemon-setup-options')
+    expectFieldCheckbox(daemonSetupPanel, 'Daemon should start automatically')
+    expectFieldCheckbox(daemonSetupPanel, 'Enable telemetry')
+    expect(fieldRowByLabel(daemonSetupPanel, 'Sync')).toBeNull()
+    expect(fieldRowByLabel(daemonSetupPanel, 'Ingest')).toBeNull()
+
     const repoSetupPanel = await screen.findByTestId('repo-setup-options')
+    expect(
+      within(repoSetupPanel).getByRole('heading', { name: 'Repo setup' }),
+    ).toBeInTheDocument()
+    const repositorySelect = within(repoSetupPanel).getByLabelText('Repository')
+    expect(repositorySelect).toHaveValue('')
+    expect(
+      within(repositorySelect).queryByRole('option', {
+        name: /Daemon config/,
+      }),
+    ).not.toBeInTheDocument()
+    expect(
+      within(repositorySelect).getByRole('option', {
+        name: '/tmp/project · .bitloops.local.toml',
+      }),
+    ).toBeInTheDocument()
     expectFieldCheckbox(repoSetupPanel, 'Sync')
     expectFieldCheckbox(repoSetupPanel, 'Ingest')
     expect(
@@ -768,11 +774,15 @@ describe('SettingsConfiguration', () => {
     ).toBeNull()
     expect(fieldRowByLabel(repoSetupPanel, 'Enable telemetry')).toBeNull()
 
-    const daemonSetupPanel = await screen.findByTestId('daemon-setup-options')
-    expectFieldCheckbox(daemonSetupPanel, 'Daemon should start automatically')
-    expectFieldCheckbox(daemonSetupPanel, 'Enable telemetry')
-    expect(fieldRowByLabel(daemonSetupPanel, 'Sync')).toBeNull()
-    expect(fieldRowByLabel(daemonSetupPanel, 'Ingest')).toBeNull()
+    const inferencePanel = await screen.findByTestId('inference-config-panel')
+    expect(
+      daemonSetupPanel.compareDocumentPosition(repoSetupPanel) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy()
+    expect(
+      repoSetupPanel.compareDocumentPosition(inferencePanel) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy()
 
     const architectureCard = await screen.findByTestId(
       'capability-pack-card-architecture-graph',
@@ -795,9 +805,181 @@ describe('SettingsConfiguration', () => {
     ).not.toBeInTheDocument()
   })
 
-  it('maps architecture, context guidance, semantic clones, knowledge, and test harness fields into their cards', async () => {
+  it('renders a strict inference config panel for all runnable backend profiles and runtimes', async () => {
+    vi.mocked(fetchRuntimeConfigSnapshot).mockResolvedValueOnce(
+      snapshot({
+        sections: [
+          section(
+            'knowledge',
+            'Providers and inference',
+            'Provider and inference configuration.',
+            70,
+            [
+              jsonField(['inference'], 'Inference', {
+                runtimes: {
+                  bitloops_inference: {
+                    command: 'bitloops-inference',
+                    args: [],
+                    startup_timeout_secs: 60,
+                    request_timeout_secs: 300,
+                  },
+                  openai_runtime: {
+                    request_timeout_secs: 120,
+                  },
+                  ollama_runtime: {
+                    request_timeout_secs: 90,
+                  },
+                  custom_agent: {
+                    command: 'custom-agent',
+                    args: ['--json'],
+                    startup_timeout_secs: 5,
+                    request_timeout_secs: 900,
+                  },
+                  bitloops_platform_embeddings: {
+                    command: 'bitloops-embeddings',
+                    args: [],
+                    startup_timeout_secs: 60,
+                    request_timeout_secs: 300,
+                  },
+                },
+                profiles: {
+                  summary_llm: {
+                    task: 'text_generation',
+                    driver: 'openai_chat_completions',
+                    runtime: 'openai_runtime',
+                    model: 'gpt-4.1-mini',
+                    base_url: 'https://api.openai.com/v1/chat/completions',
+                    api_key: '${OPENAI_API_KEY}',
+                    temperature: '0.1',
+                    max_output_tokens: 200,
+                  },
+                  openai_fast: {
+                    task: 'text-generation',
+                    driver: 'openai_chat_completions',
+                    runtime: 'openai_runtime',
+                    model: 'gpt-4.1-mini',
+                    base_url: 'https://api.openai.com/v1/chat/completions',
+                    temperature: '0.2',
+                    max_output_tokens: 128,
+                  },
+                  ollama_local: {
+                    task: 'text_generation',
+                    driver: 'ollama_chat',
+                    runtime: 'ollama_runtime',
+                    model: 'qwen2.5-coder:14b',
+                    base_url: 'http://127.0.0.1:11434/api/chat',
+                    temperature: '0.1',
+                    max_output_tokens: 512,
+                  },
+                  local_agent: {
+                    task: 'structured_generation',
+                    driver: 'codex_exec',
+                    runtime: 'custom_agent',
+                    model: 'gpt-5.4-mini',
+                    temperature: '0.1',
+                    max_output_tokens: 4096,
+                    thinking_level: 'xhigh',
+                  },
+                  platform_code: {
+                    task: 'embeddings',
+                    driver: 'bitloops_embeddings_ipc',
+                    runtime: 'bitloops_platform_embeddings',
+                    model: 'bge-m3',
+                  },
+                },
+              }),
+            ],
+          ),
+        ],
+      }),
+    )
+
+    render(<SettingsConfiguration />)
+
+    const inferencePanel = await screen.findByTestId('inference-config-panel')
+    expect(
+      within(inferencePanel).getByRole('heading', { name: 'Inference config' }),
+    ).toBeInTheDocument()
+
+    for (const profileId of [
+      'summary_llm',
+      'openai_fast',
+      'ollama_local',
+      'local_agent',
+    ]) {
+      expect(
+        within(inferencePanel).getByRole('heading', {
+          name: `Inference profile · ${profileId}`,
+        }),
+      ).toBeInTheDocument()
+    }
+
+    expect(
+      within(inferencePanel).queryByRole('heading', {
+        name: 'Inference profile · platform_code',
+      }),
+    ).not.toBeInTheDocument()
+    expect(
+      within(inferencePanel).queryByText('bitloops_embeddings_ipc'),
+    ).not.toBeInTheDocument()
+    expect(
+      within(inferencePanel).queryByText('embeddings'),
+    ).not.toBeInTheDocument()
+
+    const summaryProfile = sectionByHeading(
+      inferencePanel,
+      'Inference profile · summary_llm',
+    )
+    expectFieldSelectValue(summaryProfile, 'Task', 'text_generation')
+    expectFieldSelectValue(summaryProfile, 'Driver', 'openai_chat_completions')
+    expectFieldSelectValue(summaryProfile, 'Runtime', 'openai_runtime')
+    expect(
+      within(summaryProfile).getByDisplayValue('gpt-4.1-mini'),
+    ).toBeInTheDocument()
+    expect(
+      within(summaryProfile).getByDisplayValue(
+        'https://api.openai.com/v1/chat/completions',
+      ),
+    ).toBeInTheDocument()
+    expect(
+      within(summaryProfile).getByDisplayValue('${OPENAI_API_KEY}'),
+    ).toBeInTheDocument()
+    expect(within(summaryProfile).getByDisplayValue('0.1')).toBeInTheDocument()
+    expect(within(summaryProfile).getByDisplayValue('200')).toBeInTheDocument()
+
+    expect(
+      within(summaryProfile).queryByText('Thinking level'),
+    ).not.toBeInTheDocument()
+
+    for (const runtimeId of [
+      'bitloops_inference',
+      'openai_runtime',
+      'ollama_runtime',
+      'custom_agent',
+    ]) {
+      expect(
+        within(inferencePanel).getByRole('heading', {
+          name: `Inference runtime · ${runtimeId}`,
+        }),
+      ).toBeInTheDocument()
+    }
+    expect(
+      within(inferencePanel).queryByRole('heading', {
+        name: 'Inference runtime · bitloops_platform_embeddings',
+      }),
+    ).not.toBeInTheDocument()
+  })
+
+  it('maps capability pack fields into their cards without redefining selected inference profiles', async () => {
     const user = userEvent.setup()
     render(<SettingsConfiguration />)
+
+    const inferencePanel = await screen.findByTestId('inference-config-panel')
+    expect(
+      within(inferencePanel).getByRole('heading', {
+        name: 'Inference profile · summary_llm',
+      }),
+    ).toBeInTheDocument()
 
     let architectureCard = await screen.findByTestId(
       'capability-pack-card-architecture-graph',
@@ -805,7 +987,7 @@ describe('SettingsConfiguration', () => {
     architectureCard = await ensurePackExpanded(
       user,
       architectureCard,
-      /Inference profile · summary_llm/,
+      'Fact synthesis',
     )
     const architectureFactPanel = within(architectureCard)
       .getByRole('heading', { name: 'Fact synthesis' })
@@ -817,51 +999,25 @@ describe('SettingsConfiguration', () => {
       'summary_llm',
     )
     expect(
-      within(architectureCard).getByRole('heading', {
+      within(architectureCard).queryByRole('heading', {
         name: 'Inference profile · summary_llm',
       }),
-    ).toBeInTheDocument()
+    ).not.toBeInTheDocument()
     expect(
-      within(architectureCard).getAllByRole('heading', {
+      within(architectureCard).queryByRole('heading', {
         name: 'Inference runtime · bitloops_inference',
       }),
-    ).toHaveLength(2)
-    const architectureSummaryProfile = within(
-      architectureFactPanel as HTMLElement,
-    )
-      .getByRole('heading', { name: 'Inference profile · summary_llm' })
-      .closest('section') as HTMLElement | null
-    expect(architectureSummaryProfile).not.toBeNull()
-    expectFieldSelectValue(
-      architectureSummaryProfile as HTMLElement,
-      'Driver',
-      'openai_chat_completions',
-    )
-    expect(
-      within(architectureSummaryProfile as HTMLElement).getByDisplayValue(
-        'gpt-5.4-mini',
-      ),
-    ).toBeInTheDocument()
-    expect(
-      within(architectureCard).getAllByDisplayValue(
-        '/Users/alex/Library/Application Support/bitloops/tools/bitloops-inference/bitloops-inference',
-      ),
-    ).toHaveLength(2)
+    ).not.toBeInTheDocument()
 
     const architectureRolePanel = within(architectureCard)
       .getByRole('heading', { name: 'Role adjudication' })
       .closest('section') as HTMLElement | null
     expect(architectureRolePanel).not.toBeNull()
-    expect(
-      within(architectureRolePanel as HTMLElement).getByRole('heading', {
-        name: 'Inference profile · guidance_llm',
-      }),
-    ).toBeInTheDocument()
-    expect(
-      within(architectureRolePanel as HTMLElement).getByDisplayValue(
-        'ministral-3-3b-instruct',
-      ),
-    ).toBeInTheDocument()
+    expectFieldSelectValue(
+      architectureRolePanel as HTMLElement,
+      'Role adjudication',
+      'guidance_llm',
+    )
 
     let contextCard = screen.getByTestId(
       'capability-pack-card-context-guidance',
@@ -869,14 +1025,14 @@ describe('SettingsConfiguration', () => {
     contextCard = await ensurePackExpanded(
       user,
       contextCard,
-      /Inference profile · summary_llm/,
+      'Guidance generation',
     )
     expectFieldSelectValue(contextCard, 'Guidance generation', 'summary_llm')
     expect(
-      within(contextCard).getByRole('heading', {
+      within(contextCard).queryByRole('heading', {
         name: 'Inference profile · summary_llm',
       }),
-    ).toBeInTheDocument()
+    ).not.toBeInTheDocument()
 
     let semanticClonesCard = screen.getByTestId(
       'capability-pack-card-semantic-clones',
@@ -884,7 +1040,7 @@ describe('SettingsConfiguration', () => {
     semanticClonesCard = await ensurePackExpanded(
       user,
       semanticClonesCard,
-      /Inference profile · local_code/,
+      'Clone review',
     )
     expect(
       within(semanticClonesCard).getByText('Summary mode'),
@@ -900,15 +1056,15 @@ describe('SettingsConfiguration', () => {
     ).toBeInTheDocument()
     expectFieldSelectValue(semanticClonesCard, 'Clone review', 'local_code')
     expect(
-      within(semanticClonesCard).getByRole('heading', {
+      within(semanticClonesCard).queryByRole('heading', {
         name: 'Inference profile · local_code',
       }),
-    ).toBeInTheDocument()
+    ).not.toBeInTheDocument()
     expect(
-      within(semanticClonesCard).getByRole('heading', {
+      within(semanticClonesCard).queryByRole('heading', {
         name: 'Inference runtime · bitloops_local_embeddings',
       }),
-    ).toBeInTheDocument()
+    ).not.toBeInTheDocument()
 
     let knowledgeCard = screen.getByTestId(
       'capability-pack-card-knowledge-pack',
@@ -932,34 +1088,9 @@ describe('SettingsConfiguration', () => {
     expect(
       within(knowledgeCard).getByDisplayValue('${ATLASSIAN_TOKEN}'),
     ).toBeInTheDocument()
-
-    let testHarnessCard = screen.getByTestId(
-      'capability-pack-card-test-harness',
-    )
-    testHarnessCard = await ensurePackExpanded(
-      user,
-      testHarnessCard,
-      'Coverage adapter',
-    )
     expect(
-      within(testHarnessCard).getByText('Coverage adapter'),
-    ).toBeInTheDocument()
-    expect(
-      within(testHarnessCard).getByText('Test discovery adapter'),
-    ).toBeInTheDocument()
-    expect(
-      within(testHarnessCard).getByText('Language support'),
-    ).toBeInTheDocument()
-    expect(
-      within(testHarnessCard).getByText('Coverage dependency'),
-    ).toBeInTheDocument()
-    expect(
-      within(testHarnessCard).getByText('Test discovery dependency'),
-    ).toBeInTheDocument()
-    expect(
-      within(testHarnessCard).getByText('Coverage format'),
-    ).toBeInTheDocument()
-    expect(within(testHarnessCard).getByText('SQLite path')).toBeInTheDocument()
+      screen.queryByTestId('capability-pack-card-test-harness'),
+    ).not.toBeInTheDocument()
   })
 
   it('shows capability packs from the backend snapshot shape even when config arrives as JSON sections', async () => {
@@ -1205,11 +1336,13 @@ describe('SettingsConfiguration', () => {
     architectureCard = await ensurePackExpanded(
       user,
       architectureCard,
-      /Inference profile · summary_llm/,
+      'Fact synthesis',
     )
     expectFieldSelectValue(architectureCard, 'Fact synthesis', 'summary_llm')
     expect(
-      within(architectureCard).getByDisplayValue('gpt-5.4-mini'),
+      within(
+        await screen.findByTestId('inference-config-panel'),
+      ).getByDisplayValue('gpt-5.4-mini'),
     ).toBeInTheDocument()
 
     let contextCard = screen.getByTestId(
@@ -1218,7 +1351,7 @@ describe('SettingsConfiguration', () => {
     contextCard = await ensurePackExpanded(
       user,
       contextCard,
-      /Inference profile · guidance_llm/,
+      'Guidance generation',
     )
     expect(
       within(contextCard).getAllByText('Guidance generation')[0],
@@ -1236,17 +1369,9 @@ describe('SettingsConfiguration', () => {
       within(semanticClonesCard).getAllByText('Summary generation')[0],
     ).toBeInTheDocument()
 
-    let testHarnessCard = screen.getByTestId(
-      'capability-pack-card-test-harness',
-    )
-    testHarnessCard = await ensurePackExpanded(
-      user,
-      testHarnessCard,
-      'Coverage adapter',
-    )
     expect(
-      await within(testHarnessCard).findByText('Coverage adapter'),
-    ).toBeInTheDocument()
+      screen.queryByTestId('capability-pack-card-test-harness'),
+    ).not.toBeInTheDocument()
   })
 
   it('seeds visible capability packs when the backend omits those sections entirely', async () => {
@@ -1327,8 +1452,8 @@ describe('SettingsConfiguration', () => {
       screen.getByTestId('capability-pack-card-knowledge-pack'),
     ).toBeInTheDocument()
     expect(
-      screen.getByTestId('capability-pack-card-test-harness'),
-    ).toBeInTheDocument()
+      screen.queryByTestId('capability-pack-card-test-harness'),
+    ).not.toBeInTheDocument()
 
     let architectureCard = screen.getByTestId(
       'capability-pack-card-architecture-graph',
@@ -1336,7 +1461,7 @@ describe('SettingsConfiguration', () => {
     architectureCard = await ensurePackExpanded(
       user,
       architectureCard,
-      /Inference profile · architecture_role_adjudication/,
+      'Role adjudication',
     )
     const architectureRolePanel = within(architectureCard)
       .getByRole('heading', { name: 'Role adjudication' })
@@ -1348,18 +1473,10 @@ describe('SettingsConfiguration', () => {
       'architecture_role_adjudication',
     )
     expect(
-      within(architectureRolePanel as HTMLElement).getByRole('heading', {
+      within(architectureRolePanel as HTMLElement).queryByRole('heading', {
         name: 'Inference profile · architecture_role_adjudication',
       }),
-    ).toBeInTheDocument()
-    const thinkingLevelRow = fieldRowByLabel(
-      architectureRolePanel as HTMLElement,
-      'Thinking level',
-    )
-    expect(thinkingLevelRow).not.toBeNull()
-    expect(
-      within(thinkingLevelRow as HTMLElement).getByRole('combobox'),
-    ).toBeInTheDocument()
+    ).not.toBeInTheDocument()
 
     let contextCard = screen.getByTestId(
       'capability-pack-card-context-guidance',
@@ -1367,36 +1484,14 @@ describe('SettingsConfiguration', () => {
     contextCard = await ensurePackExpanded(
       user,
       contextCard,
-      /Inference profile · guidance_llm/,
+      'Guidance generation',
     )
     expect(within(contextCard).getByText('guidance_llm')).toBeInTheDocument()
     expect(
-      within(contextCard).getByRole('heading', {
+      within(contextCard).queryByRole('heading', {
         name: 'Inference profile · guidance_llm',
       }),
-    ).toBeInTheDocument()
-
-    let testHarnessCard = screen.getByTestId(
-      'capability-pack-card-test-harness',
-    )
-    testHarnessCard = await ensurePackExpanded(
-      user,
-      testHarnessCard,
-      'Coverage adapter',
-    )
-    expect(
-      await within(testHarnessCard).findByText('Coverage adapter'),
-    ).toBeInTheDocument()
-    expect(
-      within(testHarnessCard).getByText('Test discovery adapter'),
-    ).toBeInTheDocument()
-    expect(
-      within(testHarnessCard).getByText('Language support'),
-    ).toBeInTheDocument()
-    expect(
-      within(testHarnessCard).getByText('Coverage format'),
-    ).toBeInTheDocument()
-    expect(within(testHarnessCard).getByText('SQLite path')).toBeInTheDocument()
+    ).not.toBeInTheDocument()
   })
 
   it('backfills blank architecture and guidance bindings with the recommended profiles', async () => {
@@ -1503,7 +1598,7 @@ describe('SettingsConfiguration', () => {
     architectureCard = await ensurePackExpanded(
       user,
       architectureCard,
-      /Inference profile · architecture_role_adjudication/,
+      'Role adjudication',
     )
     const architectureFactPanel = within(architectureCard)
       .getByRole('heading', { name: 'Fact synthesis' })
@@ -1533,10 +1628,10 @@ describe('SettingsConfiguration', () => {
       within(architectureCard).getByText('architecture_fact_synthesis'),
     ).toBeInTheDocument()
     expect(
-      within(architectureCard).getByRole('heading', {
+      within(architectureCard).queryByRole('heading', {
         name: 'Inference profile · architecture_role_adjudication',
       }),
-    ).toBeInTheDocument()
+    ).not.toBeInTheDocument()
 
     let contextCard = screen.getByTestId(
       'capability-pack-card-context-guidance',
@@ -1544,14 +1639,14 @@ describe('SettingsConfiguration', () => {
     contextCard = await ensurePackExpanded(
       user,
       contextCard,
-      /Inference profile · guidance_llm/,
+      'Guidance generation',
     )
     expect(within(contextCard).getByText('guidance_llm')).toBeInTheDocument()
     expect(
-      within(contextCard).getByRole('heading', {
+      within(contextCard).queryByRole('heading', {
         name: 'Inference profile · guidance_llm',
       }),
-    ).toBeInTheDocument()
+    ).not.toBeInTheDocument()
   })
 
   it('renders structured-generation driver, runtime, and thinking level as selects with supported options', async () => {
@@ -1622,40 +1717,26 @@ describe('SettingsConfiguration', () => {
 
     render(<SettingsConfiguration />)
 
-    let architectureCard = await screen.findByTestId(
-      'capability-pack-card-architecture-graph',
+    const profilePanel = sectionByHeading(
+      await screen.findByTestId('inference-config-panel'),
+      'Inference profile · architecture_role_adjudication_codex',
     )
-    architectureCard = await ensurePackExpanded(
-      user,
-      architectureCard,
-      /Inference profile · architecture_role_adjudication_codex/,
-    )
-    const architectureRolePanel = within(architectureCard)
-      .getByRole('heading', { name: 'Role adjudication' })
-      .closest('section') as HTMLElement | null
-    expect(architectureRolePanel).not.toBeNull()
-    const profilePanel = within(architectureRolePanel as HTMLElement)
-      .getByRole('heading', {
-        name: 'Inference profile · architecture_role_adjudication_codex',
-      })
-      .closest('section') as HTMLElement | null
-    expect(profilePanel).not.toBeNull()
 
     const taskSelect = expectFieldSelectValue(
-      profilePanel as HTMLElement,
+      profilePanel,
       'Task',
       'structured_generation',
     )
     expect(taskSelect).toBeInTheDocument()
 
     const driverSelect = expectFieldSelectValue(
-      profilePanel as HTMLElement,
+      profilePanel,
       'Driver',
       'codex_exec',
     )
     expect(
       within(
-        fieldRowByLabel(profilePanel as HTMLElement, 'Driver') as HTMLElement,
+        fieldRowByLabel(profilePanel, 'Driver') as HTMLElement,
       ).queryByRole('textbox'),
     ).not.toBeInTheDocument()
     await user.click(driverSelect)
@@ -1668,13 +1749,13 @@ describe('SettingsConfiguration', () => {
     await user.click(screen.getByRole('option', { name: 'codex_exec' }))
 
     const runtimeSelect = expectFieldSelectValue(
-      profilePanel as HTMLElement,
+      profilePanel,
       'Runtime',
       'codex',
     )
     expect(
       within(
-        fieldRowByLabel(profilePanel as HTMLElement, 'Runtime') as HTMLElement,
+        fieldRowByLabel(profilePanel, 'Runtime') as HTMLElement,
       ).queryByRole('textbox'),
     ).not.toBeInTheDocument()
     await user.click(runtimeSelect)
@@ -1683,21 +1764,18 @@ describe('SettingsConfiguration', () => {
     ).toBeInTheDocument()
     expect(screen.getByRole('option', { name: 'claude' })).toBeInTheDocument()
     expect(
-      screen.queryByRole('option', { name: 'bitloops_inference' }),
-    ).not.toBeInTheDocument()
+      screen.getByRole('option', { name: 'bitloops_inference' }),
+    ).toBeInTheDocument()
     await user.click(screen.getByRole('option', { name: 'codex' }))
 
     const thinkingSelect = expectFieldSelectValue(
-      profilePanel as HTMLElement,
+      profilePanel,
       'Thinking level',
       'high',
     )
     expect(
       within(
-        fieldRowByLabel(
-          profilePanel as HTMLElement,
-          'Thinking level',
-        ) as HTMLElement,
+        fieldRowByLabel(profilePanel, 'Thinking level') as HTMLElement,
       ).queryByRole('textbox'),
     ).not.toBeInTheDocument()
     await user.click(thinkingSelect)
@@ -1795,20 +1873,13 @@ describe('SettingsConfiguration', () => {
 
     render(<SettingsConfiguration />)
 
-    let contextCard = await screen.findByTestId(
-      'capability-pack-card-context-guidance',
+    const inferencePanel = await screen.findByTestId('inference-config-panel')
+    const guidanceProfile = sectionByHeading(
+      inferencePanel,
+      'Inference profile · guidance_llm',
     )
-    contextCard = await ensurePackExpanded(
-      user,
-      contextCard,
-      /Inference profile · guidance_llm/,
-    )
-    const guidanceProfile = within(contextCard)
-      .getByRole('heading', { name: 'Inference profile · guidance_llm' })
-      .closest('section') as HTMLElement | null
-    expect(guidanceProfile).not.toBeNull()
     const textTaskSelect = expectFieldSelectValue(
-      guidanceProfile as HTMLElement,
+      guidanceProfile,
       'Task',
       'text-generation',
     )
@@ -1828,7 +1899,7 @@ describe('SettingsConfiguration', () => {
     await user.click(screen.getByRole('option', { name: 'text-generation' }))
 
     const textDriverSelect = expectFieldSelectValue(
-      guidanceProfile as HTMLElement,
+      guidanceProfile,
       'Driver',
       'openai_chat_completions',
     )
@@ -1846,28 +1917,14 @@ describe('SettingsConfiguration', () => {
       screen.getByRole('option', { name: 'openai_chat_completions' }),
     )
 
-    let architectureCard = screen.getByTestId(
-      'capability-pack-card-architecture-graph',
+    const architectureProfile = sectionByHeading(
+      inferencePanel,
+      'Inference profile · architecture_role_adjudication',
     )
-    architectureCard = await ensurePackExpanded(
-      user,
-      architectureCard,
-      /Inference profile · architecture_role_adjudication/,
-    )
-    const architectureProfile = within(architectureCard)
-      .getByRole('heading', {
-        name: 'Inference profile · architecture_role_adjudication',
-      })
-      .closest('section') as HTMLElement | null
-    expect(architectureProfile).not.toBeNull()
-    expectFieldSelectValue(
-      architectureProfile as HTMLElement,
-      'Task',
-      'structured-generation',
-    )
+    expectFieldSelectValue(architectureProfile, 'Task', 'structured-generation')
 
     const claudeThinkingSelect = expectFieldSelectValue(
-      architectureProfile as HTMLElement,
+      architectureProfile,
       'Thinking level',
       'max',
     )
@@ -1884,7 +1941,6 @@ describe('SettingsConfiguration', () => {
   })
 
   it('does not overwrite explicit blank backend runtime fields with supplemental defaults', async () => {
-    const user = userEvent.setup()
     vi.mocked(fetchRuntimeConfigSnapshot).mockResolvedValueOnce(
       snapshot({
         sections: [
@@ -1936,19 +1992,11 @@ describe('SettingsConfiguration', () => {
 
     render(<SettingsConfiguration />)
 
-    let architectureCard = await screen.findByTestId(
-      'capability-pack-card-architecture-graph',
+    const runtimePanel = sectionByHeading(
+      await screen.findByTestId('inference-config-panel'),
+      'Inference runtime · codex',
     )
-    architectureCard = await ensurePackExpanded(
-      user,
-      architectureCard,
-      /Inference runtime · codex/,
-    )
-    const runtimePanel = within(architectureCard)
-      .getByRole('heading', { name: 'Inference runtime · codex' })
-      .closest('section') as HTMLElement | null
-    expect(runtimePanel).not.toBeNull()
-    const commandRow = fieldRowByLabel(runtimePanel as HTMLElement, 'Command')
+    const commandRow = fieldRowByLabel(runtimePanel, 'Command')
     expect(commandRow).not.toBeNull()
     expect(within(commandRow as HTMLElement).getByRole('textbox')).toHaveValue(
       '',
@@ -1986,48 +2034,25 @@ describe('SettingsConfiguration', () => {
 
     render(<SettingsConfiguration />)
 
-    let architectureCard = await screen.findByTestId(
-      'capability-pack-card-architecture-graph',
-    )
-    architectureCard = await ensurePackExpanded(
-      user,
-      architectureCard,
-      /Inference profile · architecture_role_adjudication/,
-    )
-    const profilePanel = within(architectureCard)
-      .getByRole('heading', {
-        name: 'Inference profile · architecture_role_adjudication',
-      })
-      .closest('section') as HTMLElement | null
-    expect(profilePanel).not.toBeNull()
-
-    await chooseFieldOption(
-      user,
-      profilePanel as HTMLElement,
-      'Runtime',
-      'claude',
+    const inferencePanel = await screen.findByTestId('inference-config-panel')
+    const profilePanel = sectionByHeading(
+      inferencePanel,
+      'Inference profile · architecture_role_adjudication',
     )
 
-    const refreshedCard = await screen.findByTestId(
-      'capability-pack-card-architecture-graph',
+    await chooseFieldOption(user, profilePanel, 'Runtime', 'claude')
+
+    const runtimePanel = sectionByHeading(
+      inferencePanel,
+      'Inference runtime · claude',
     )
-    const runtimePanel = within(refreshedCard)
-      .getByRole('heading', { name: 'Inference runtime · claude' })
-      .closest('section') as HTMLElement | null
-    expect(runtimePanel).not.toBeNull()
+    expect(within(runtimePanel).getByDisplayValue('claude')).toBeInTheDocument()
     expect(
-      within(runtimePanel as HTMLElement).getByDisplayValue(
-        '/opt/homebrew/bin/claude',
-      ),
-    ).toBeInTheDocument()
-    expect(
-      within(runtimePanel as HTMLElement).getByText(
+      within(runtimePanel).getByText(
         'Resolved executable: /opt/homebrew/bin/claude',
       ),
     ).toBeInTheDocument()
-    expect(
-      within(runtimePanel as HTMLElement).getByDisplayValue('300'),
-    ).toBeInTheDocument()
+    expect(within(runtimePanel).getByDisplayValue('300')).toBeInTheDocument()
   })
 
   it('deduplicates inference profile fields that arrive in both expanded and JSON backend shapes', async () => {
@@ -2106,26 +2131,27 @@ describe('SettingsConfiguration', () => {
 
     render(<SettingsConfiguration />)
 
-    let architectureCard = await screen.findByTestId(
+    const inferencePanel = await screen.findByTestId('inference-config-panel')
+    const profilePanel = sectionByHeading(
+      inferencePanel,
+      'Inference profile · architecture_role_adjudication',
+    )
+    expect(within(profilePanel).getAllByText('Task')).toHaveLength(1)
+    expect(within(profilePanel).getAllByText('Runtime')).toHaveLength(1)
+
+    let architectureCard = screen.getByTestId(
       'capability-pack-card-architecture-graph',
     )
     architectureCard = await ensurePackExpanded(
       user,
       architectureCard,
-      /Inference profile · architecture_role_adjudication/,
+      'Role adjudication',
     )
-    const profilePanel = within(architectureCard)
-      .getByRole('heading', {
+    expect(
+      within(architectureCard).queryByRole('heading', {
         name: 'Inference profile · architecture_role_adjudication',
-      })
-      .closest('section') as HTMLElement | null
-    expect(profilePanel).not.toBeNull()
-    expect(
-      within(profilePanel as HTMLElement).getAllByText('Task'),
-    ).toHaveLength(1)
-    expect(
-      within(profilePanel as HTMLElement).getAllByText('Runtime'),
-    ).toHaveLength(1)
+      }),
+    ).not.toBeInTheDocument()
   })
 
   it('scaffolds the requested platform inference profiles', async () => {
@@ -2178,51 +2204,33 @@ describe('SettingsConfiguration', () => {
 
     render(<SettingsConfiguration />)
 
-    let architectureCard = await screen.findByTestId(
-      'capability-pack-card-architecture-graph',
+    const inferencePanel = await screen.findByTestId('inference-config-panel')
+    const summaryProfile = sectionByHeading(
+      inferencePanel,
+      'Inference profile · summary_llm',
     )
-    architectureCard = await ensurePackExpanded(
-      user,
-      architectureCard,
-      /Inference profile · summary_llm/,
-    )
-    const summaryProfile = within(architectureCard)
-      .getByRole('heading', { name: 'Inference profile · summary_llm' })
-      .closest('section') as HTMLElement | null
-    expect(summaryProfile).not.toBeNull()
-    expectFieldSelectValue(
-      summaryProfile as HTMLElement,
-      'Driver',
-      'bitloops_platform_chat',
-    )
+    expectFieldSelectValue(summaryProfile, 'Driver', 'bitloops_platform_chat')
     expect(
-      within(summaryProfile as HTMLElement).getByDisplayValue(
-        'ministral-3-3b-instruct',
+      within(summaryProfile).getByDisplayValue('ministral-3-3b-instruct'),
+    ).toBeInTheDocument()
+    expect(
+      within(summaryProfile).getByDisplayValue(
+        'https://platform.bitloops.net/v1/chat/completions',
       ),
     ).toBeInTheDocument()
     expect(
-      within(summaryProfile as HTMLElement).getByDisplayValue(
+      within(summaryProfile).getByDisplayValue(
         '${BITLOOPS_PLATFORM_GATEWAY_TOKEN}',
       ),
     ).toBeInTheDocument()
-    expect(
-      within(summaryProfile as HTMLElement).getByDisplayValue('200'),
-    ).toBeInTheDocument()
+    expect(within(summaryProfile).getByDisplayValue('200')).toBeInTheDocument()
 
-    let contextCard = screen.getByTestId(
-      'capability-pack-card-context-guidance',
+    const guidanceProfile = sectionByHeading(
+      inferencePanel,
+      'Inference profile · guidance_llm',
     )
-    contextCard = await ensurePackExpanded(
-      user,
-      contextCard,
-      /Inference profile · guidance_llm/,
-    )
-    const guidanceProfile = within(contextCard)
-      .getByRole('heading', { name: 'Inference profile · guidance_llm' })
-      .closest('section') as HTMLElement | null
-    expect(guidanceProfile).not.toBeNull()
     expect(
-      within(guidanceProfile as HTMLElement).getByDisplayValue('124096'),
+      within(guidanceProfile).getByDisplayValue('124096'),
     ).toBeInTheDocument()
 
     let semanticClonesCard = screen.getByTestId(
@@ -2231,30 +2239,20 @@ describe('SettingsConfiguration', () => {
     semanticClonesCard = await ensurePackExpanded(
       user,
       semanticClonesCard,
-      /Inference profile · platform_code/,
+      /Clone review/,
     )
-    const platformCodeProfile = within(semanticClonesCard)
-      .getByRole('heading', { name: 'Inference profile · platform_code' })
-      .closest('section') as HTMLElement | null
-    expect(platformCodeProfile).not.toBeNull()
-    expectFieldSelectValue(
-      platformCodeProfile as HTMLElement,
-      'Task',
-      'embeddings',
-    )
-    expectFieldSelectValue(
-      platformCodeProfile as HTMLElement,
-      'Driver',
-      'bitloops_embeddings_ipc',
-    )
-    expectFieldSelectValue(
-      platformCodeProfile as HTMLElement,
-      'Runtime',
-      'bitloops_platform_embeddings',
-    )
+    expectFieldSelectValue(semanticClonesCard, 'Clone review', 'platform_code')
     expect(
-      within(platformCodeProfile as HTMLElement).getByDisplayValue('bge-m3'),
-    ).toBeInTheDocument()
+      within(inferencePanel).queryByRole('heading', {
+        name: 'Inference profile · platform_code',
+      }),
+    ).not.toBeInTheDocument()
+    expect(
+      within(inferencePanel).queryByText('embeddings'),
+    ).not.toBeInTheDocument()
+    expect(
+      within(inferencePanel).queryByText('bitloops_embeddings_ipc'),
+    ).not.toBeInTheDocument()
   })
 
   it('selects default models when switching structured generation tools', async () => {
@@ -2281,41 +2279,21 @@ describe('SettingsConfiguration', () => {
 
     render(<SettingsConfiguration />)
 
-    let architectureCard = await screen.findByTestId(
-      'capability-pack-card-architecture-graph',
+    const profilePanel = sectionByHeading(
+      await screen.findByTestId('inference-config-panel'),
+      'Inference profile · architecture_role_adjudication',
     )
-    architectureCard = await ensurePackExpanded(
-      user,
-      architectureCard,
-      /Inference profile · architecture_role_adjudication/,
-    )
-    const profilePanel = within(architectureCard)
-      .getByRole('heading', {
-        name: 'Inference profile · architecture_role_adjudication',
-      })
-      .closest('section') as HTMLElement | null
-    expect(profilePanel).not.toBeNull()
 
-    await chooseFieldOption(
-      user,
-      profilePanel as HTMLElement,
-      'Driver',
-      'codex_exec',
-    )
-    expectFieldSelectValue(profilePanel as HTMLElement, 'Runtime', 'codex')
+    await chooseFieldOption(user, profilePanel, 'Driver', 'codex_exec')
+    expectFieldSelectValue(profilePanel, 'Runtime', 'codex')
     expect(
-      within(profilePanel as HTMLElement).getByDisplayValue('gpt-5.4-mini'),
+      within(profilePanel).getByDisplayValue('gpt-5.4-mini'),
     ).toBeInTheDocument()
 
-    await chooseFieldOption(
-      user,
-      profilePanel as HTMLElement,
-      'Driver',
-      'claude_code_print',
-    )
-    expectFieldSelectValue(profilePanel as HTMLElement, 'Runtime', 'claude')
+    await chooseFieldOption(user, profilePanel, 'Driver', 'claude_code_print')
+    expectFieldSelectValue(profilePanel, 'Runtime', 'claude')
     expect(
-      within(profilePanel as HTMLElement).getByDisplayValue('claude-opus-4-7'),
+      within(profilePanel).getByDisplayValue('claude-opus-4-7'),
     ).toBeInTheDocument()
   })
 
@@ -2404,55 +2382,47 @@ describe('SettingsConfiguration', () => {
 
     render(<SettingsConfiguration />)
 
+    const inferencePanel = await screen.findByTestId('inference-config-panel')
     let architectureCard = await screen.findByTestId(
       'capability-pack-card-architecture-graph',
     )
     architectureCard = await ensurePackExpanded(
       user,
       architectureCard,
-      /Inference profile · architecture_role_adjudication_codex/,
+      'Role adjudication',
     )
     const architectureRolePanel = within(architectureCard)
       .getByRole('heading', { name: 'Role adjudication' })
       .closest('section')
     expect(architectureRolePanel).not.toBeNull()
+    expectFieldSelectValue(
+      architectureRolePanel as HTMLElement,
+      'Role adjudication',
+      'architecture_role_adjudication_codex',
+    )
     expect(
-      within(architectureRolePanel as HTMLElement).getByRole('heading', {
+      within(architectureRolePanel as HTMLElement).queryByRole('heading', {
         name: 'Inference profile · architecture_role_adjudication_codex',
       }),
-    ).toBeInTheDocument()
-    expectFieldSelectValue(
-      architectureRolePanel as HTMLElement,
-      'Task',
-      'structured_generation',
+    ).not.toBeInTheDocument()
+    const architectureProfile = sectionByHeading(
+      inferencePanel,
+      'Inference profile · architecture_role_adjudication_codex',
     )
-    expectFieldSelectValue(
-      architectureRolePanel as HTMLElement,
-      'Driver',
-      'codex_exec',
-    )
-    expectFieldSelectValue(
-      architectureRolePanel as HTMLElement,
-      'Thinking level',
-      'high',
-    )
+    expectFieldSelectValue(architectureProfile, 'Task', 'structured_generation')
+    expectFieldSelectValue(architectureProfile, 'Driver', 'codex_exec')
+    expectFieldSelectValue(architectureProfile, 'Thinking level', 'high')
     expect(
-      within(architectureRolePanel as HTMLElement).getByRole('heading', {
+      within(inferencePanel).getByRole('heading', {
         name: 'Inference runtime · codex',
       }),
     ).toBeInTheDocument()
-    expectFieldSelectValue(
-      architectureRolePanel as HTMLElement,
-      'Runtime',
-      'codex',
-    )
+    expectFieldSelectValue(architectureProfile, 'Runtime', 'codex')
     expect(
-      within(architectureRolePanel as HTMLElement).getByDisplayValue('codex'),
+      within(inferencePanel).getByDisplayValue('codex'),
     ).toBeInTheDocument()
     expect(
-      within(architectureRolePanel as HTMLElement).getByDisplayValue(
-        /--ask-for-approval/,
-      ),
+      within(inferencePanel).getByDisplayValue(/--ask-for-approval/),
     ).toBeInTheDocument()
 
     let contextCard = screen.getByTestId(
@@ -2461,28 +2431,41 @@ describe('SettingsConfiguration', () => {
     contextCard = await ensurePackExpanded(
       user,
       contextCard,
-      /Inference profile · guidance_llm/,
+      'Guidance generation',
     )
     expect(
-      within(contextCard).getByRole('heading', {
+      within(contextCard).queryByRole('heading', {
         name: 'Inference profile · guidance_llm',
       }),
-    ).toBeInTheDocument()
-    expectFieldSelectValue(contextCard, 'Task', 'text_generation')
-    expectFieldSelectValue(contextCard, 'Driver', 'bitloops_platform_chat')
+    ).not.toBeInTheDocument()
+    const guidanceProfile = sectionByHeading(
+      inferencePanel,
+      'Inference profile · guidance_llm',
+    )
+    expectFieldSelectValue(guidanceProfile, 'Task', 'text_generation')
+    expectFieldSelectValue(guidanceProfile, 'Driver', 'bitloops_platform_chat')
     expect(
-      within(contextCard).getByDisplayValue('ministral-3-3b-instruct'),
+      within(guidanceProfile).getByDisplayValue('ministral-3-3b-instruct'),
     ).toBeInTheDocument()
     expect(
-      within(contextCard).getByDisplayValue(
+      within(guidanceProfile).getByDisplayValue(
         '${BITLOOPS_PLATFORM_GATEWAY_TOKEN}',
       ),
     ).toBeInTheDocument()
   })
 
-  it('makes shared inference blocks editable only in the first visible owner pack', async () => {
+  it('keeps shared inference blocks editable in the strict inference panel only', async () => {
     const user = userEvent.setup()
     render(<SettingsConfiguration />)
+
+    const inferencePanel = await screen.findByTestId('inference-config-panel')
+    const sharedProfile = sectionByHeading(
+      inferencePanel,
+      'Inference profile · summary_llm',
+    )
+    expect(
+      expectFieldSelectValue(sharedProfile, 'Runtime', 'bitloops_inference'),
+    ).toBeEnabled()
 
     let architectureCard = await screen.findByTestId(
       'capability-pack-card-architecture-graph',
@@ -2490,33 +2473,14 @@ describe('SettingsConfiguration', () => {
     architectureCard = await ensurePackExpanded(
       user,
       architectureCard,
-      /Inference profile · summary_llm/,
+      'Fact synthesis',
     )
-    const architectureSharedProfile = within(architectureCard)
-      .getByRole('heading', {
+    expectFieldSelectValue(architectureCard, 'Fact synthesis', 'summary_llm')
+    expect(
+      within(architectureCard).queryByRole('heading', {
         name: 'Inference profile · summary_llm',
-      })
-      .closest('section')
-    expect(architectureSharedProfile).not.toBeNull()
-    expect(
-      expectFieldSelectValue(
-        architectureSharedProfile as HTMLElement,
-        'Runtime',
-        'bitloops_inference',
-      ),
-    ).toBeEnabled()
-
-    const architectureSharedRuntime = within(architectureCard)
-      .getAllByRole('heading', {
-        name: 'Inference runtime · bitloops_inference',
-      })[0]
-      .closest('section')
-    expect(architectureSharedRuntime).not.toBeNull()
-    expect(
-      within(architectureSharedRuntime as HTMLElement).getByDisplayValue(
-        '/Users/alex/Library/Application Support/bitloops/tools/bitloops-inference/bitloops-inference',
-      ),
-    ).toBeEnabled()
+      }),
+    ).not.toBeInTheDocument()
 
     let contextCard = screen.getByTestId(
       'capability-pack-card-context-guidance',
@@ -2524,44 +2488,20 @@ describe('SettingsConfiguration', () => {
     contextCard = await ensurePackExpanded(
       user,
       contextCard,
-      /Inference profile · summary_llm/,
+      'Guidance generation',
     )
-    const contextSharedProfile = within(contextCard)
-      .getByRole('heading', {
-        name: 'Inference profile · summary_llm',
-      })
-      .closest('section')
-    expect(contextSharedProfile).not.toBeNull()
+    expectFieldSelectValue(contextCard, 'Guidance generation', 'summary_llm')
     expect(
-      within(contextSharedProfile as HTMLElement).getByText(
+      within(contextCard).queryByText(
         'Shared with Architecture graph. Edit there.',
       ),
-    ).toBeInTheDocument()
-    expect(
-      expectFieldSelectValue(
-        contextSharedProfile as HTMLElement,
-        'Runtime',
-        'bitloops_inference',
-      ),
-    ).toBeDisabled()
-
-    const contextSharedRuntime = within(contextCard)
-      .getAllByRole('heading', {
-        name: 'Inference runtime · bitloops_inference',
-      })[0]
-      .closest('section')
-    expect(contextSharedRuntime).not.toBeNull()
-    expect(
-      within(contextSharedRuntime as HTMLElement).getByDisplayValue(
-        '/Users/alex/Library/Application Support/bitloops/tools/bitloops-inference/bitloops-inference',
-      ),
-    ).toBeDisabled()
+    ).not.toBeInTheDocument()
   })
 
   it('removes the duplicate lower runtime config area entirely', async () => {
     render(<SettingsConfiguration />)
 
-    await screen.findByTestId('capability-pack-card-test-harness')
+    await screen.findByTestId('capability-pack-card-knowledge-pack')
     expect(
       screen.queryByRole('heading', { name: 'Advanced runtime config' }),
     ).not.toBeInTheDocument()
@@ -2584,15 +2524,15 @@ describe('SettingsConfiguration', () => {
     architectureCard = await ensurePackExpanded(
       user,
       architectureCard,
-      /Inference profile · summary_llm/,
+      'Fact synthesis',
     )
-    let testHarnessCard = screen.getByTestId(
-      'capability-pack-card-test-harness',
+    let semanticClonesCard = screen.getByTestId(
+      'capability-pack-card-semantic-clones',
     )
-    testHarnessCard = await ensurePackExpanded(
+    semanticClonesCard = await ensurePackExpanded(
       user,
-      testHarnessCard,
-      'SQLite path',
+      semanticClonesCard,
+      'Summary mode',
     )
 
     await chooseFieldOption(
@@ -2601,21 +2541,16 @@ describe('SettingsConfiguration', () => {
       'Fact synthesis',
       'architecture_fact_synthesis',
     )
-    const sqlitePathInput =
-      within(testHarnessCard).getByDisplayValue('bitloops.sqlite')
-    await user.clear(sqlitePathInput)
-    await user.type(sqlitePathInput, 'draft.sqlite')
+    const summaryModeInput =
+      within(semanticClonesCard).getByDisplayValue('dense')
+    await user.clear(summaryModeInput)
+    await user.type(summaryModeInput, 'draft')
     await user.click(screen.getByRole('button', { name: 'Review changes' }))
 
     const reviewPanel = screen.getByTestId('capability-pack-review-panel')
     expect(
       within(reviewPanel).getByRole('heading', {
         name: 'Pack direct config changes',
-      }),
-    ).toBeInTheDocument()
-    expect(
-      within(reviewPanel).getByRole('heading', {
-        name: 'Shared inference/runtime changes',
       }),
     ).toBeInTheDocument()
     expect(
@@ -2627,7 +2562,7 @@ describe('SettingsConfiguration', () => {
       within(reviewPanel).getByText('Architecture graph · Fact synthesis'),
     ).toBeInTheDocument()
     expect(
-      within(reviewPanel).getByText('Test harness · SQLite path'),
+      within(reviewPanel).getByText('Semantic clones · Summary mode'),
     ).toBeInTheDocument()
     expect(
       within(reviewPanel).queryByText('Backend handoff needed'),
@@ -2638,19 +2573,19 @@ describe('SettingsConfiguration', () => {
     const user = userEvent.setup()
     render(<SettingsConfiguration />)
 
-    let testHarnessCard = await screen.findByTestId(
-      'capability-pack-card-test-harness',
+    let semanticClonesCard = await screen.findByTestId(
+      'capability-pack-card-semantic-clones',
     )
-    testHarnessCard = await ensurePackExpanded(
+    semanticClonesCard = await ensurePackExpanded(
       user,
-      testHarnessCard,
-      'SQLite path',
+      semanticClonesCard,
+      'Summary mode',
     )
-    const input = within(testHarnessCard).getByDisplayValue(
-      'bitloops.sqlite',
+    const input = within(semanticClonesCard).getByDisplayValue(
+      'dense',
     ) as HTMLInputElement
     await user.clear(input)
-    await user.type(input, 'updated.sqlite')
+    await user.type(input, 'updated')
     await user.click(screen.getByRole('button', { name: 'Save changes' }))
 
     expect(updateRuntimeConfig).toHaveBeenCalledWith({
@@ -2658,8 +2593,12 @@ describe('SettingsConfiguration', () => {
       expectedRevision: 'rev-1',
       patches: [
         {
-          path: ['stores', 'relational', 'sqlite_path'],
-          value: 'updated.sqlite',
+          path: ['semantic_clones', 'summary_mode'],
+          value: 'updated',
+        },
+        {
+          path: ['inference', 'profiles', 'guidance_llm', 'base_url'],
+          value: 'https://platform.bitloops.net/v1/chat/completions',
         },
       ],
     })
@@ -2713,6 +2652,10 @@ describe('SettingsConfiguration', () => {
           path: ['telemetry', 'enabled'],
           value: true,
         },
+        {
+          path: ['inference', 'profiles', 'guidance_llm', 'base_url'],
+          value: 'https://platform.bitloops.net/v1/chat/completions',
+        },
       ],
     })
     expect(await screen.findByText('Runtime config saved.')).toBeInTheDocument()
@@ -2749,8 +2692,9 @@ describe('SettingsConfiguration', () => {
     )
     render(<SettingsConfiguration />)
 
+    let repoSetupPanel = await screen.findByTestId('repo-setup-options')
     await user.selectOptions(
-      await screen.findByLabelText('Config target'),
+      within(repoSetupPanel).getByLabelText('Repository'),
       'target-repo-local',
     )
     await waitFor(() =>
@@ -2764,9 +2708,21 @@ describe('SettingsConfiguration', () => {
         expectFieldCheckbox(screen.getByTestId('repo-setup-options'), 'Sync'),
       ).not.toBeDisabled(),
     )
-    const repoSetupPanel = screen.getByTestId('repo-setup-options')
-    await user.click(expectFieldCheckbox(repoSetupPanel, 'Sync'))
-    await user.click(expectFieldCheckbox(repoSetupPanel, 'Ingest'))
+    repoSetupPanel = screen.getByTestId('repo-setup-options')
+    const syncCheckbox = expectFieldCheckbox(repoSetupPanel, 'Sync')
+    const ingestCheckbox = expectFieldCheckbox(repoSetupPanel, 'Ingest')
+    expect(ingestCheckbox).toBeDisabled()
+    await user.click(syncCheckbox)
+    expect(ingestCheckbox).toBeEnabled()
+    await user.click(ingestCheckbox)
+    expect(syncCheckbox).toBeChecked()
+    expect(ingestCheckbox).toBeChecked()
+    await user.click(syncCheckbox)
+    expect(syncCheckbox).not.toBeChecked()
+    expect(ingestCheckbox).not.toBeChecked()
+    expect(ingestCheckbox).toBeDisabled()
+    await user.click(syncCheckbox)
+    await user.click(ingestCheckbox)
     const daemonSetupPanel = screen.getByTestId('daemon-setup-options')
     expect(
       expectFieldCheckbox(
@@ -2883,22 +2839,11 @@ describe('SettingsConfiguration', () => {
 
     render(<SettingsConfiguration />)
 
-    let contextCard = await screen.findByTestId(
-      'capability-pack-card-context-guidance',
+    const guidanceProfile = sectionByHeading(
+      await screen.findByTestId('inference-config-panel'),
+      'Inference profile · guidance_llm',
     )
-    contextCard = await ensurePackExpanded(
-      user,
-      contextCard,
-      /Inference profile · guidance_llm/,
-    )
-    const guidanceProfile = within(contextCard)
-      .getByRole('heading', { name: 'Inference profile · guidance_llm' })
-      .closest('section') as HTMLElement | null
-    expect(guidanceProfile).not.toBeNull()
-    const maxTokensRow = fieldRowByLabel(
-      guidanceProfile as HTMLElement,
-      'Max output tokens',
-    )
+    const maxTokensRow = fieldRowByLabel(guidanceProfile, 'Max output tokens')
     expect(maxTokensRow).not.toBeNull()
     const maxTokensInput = within(maxTokensRow as HTMLElement).getByRole(
       'spinbutton',
@@ -2914,6 +2859,10 @@ describe('SettingsConfiguration', () => {
         {
           path: ['inference', 'profiles', 'guidance_llm', 'max_output_tokens'],
           value: 124096,
+        },
+        {
+          path: ['inference', 'profiles', 'guidance_llm', 'base_url'],
+          value: 'https://platform.bitloops.net/v1/chat/completions',
         },
       ],
     })
@@ -2936,14 +2885,14 @@ describe('SettingsConfiguration', () => {
           ),
         ],
       ),
-      section('stores', 'Stores', 'Shared store settings', 12, [
-        field(['stores', 'relational', 'sqlite_path'], 'SQLite path', 'old.db'),
+      section('semantic_clones', 'Semantic clones', 'Semantic settings', 12, [
+        field(['semantic_clones', 'summary_mode'], 'Summary mode', 'old'),
       ]),
     ]
     const updatedSections = [
       initialSections[0],
-      section('stores', 'Stores', 'Shared store settings', 12, [
-        field(['stores', 'relational', 'sqlite_path'], 'SQLite path', 'new.db'),
+      section('semantic_clones', 'Semantic clones', 'Semantic settings', 12, [
+        field(['semantic_clones', 'summary_mode'], 'Summary mode', 'new'),
       ]),
       section(
         'inference_profiles',
@@ -2975,6 +2924,11 @@ describe('SettingsConfiguration', () => {
             ['inference', 'profiles', 'guidance_llm', 'api_key'],
             'API key',
             '${BITLOOPS_PLATFORM_GATEWAY_TOKEN}',
+          ),
+          field(
+            ['inference', 'profiles', 'guidance_llm', 'base_url'],
+            'Base URL',
+            'https://platform.bitloops.net/v1/chat/completions',
           ),
           field(
             ['inference', 'profiles', 'guidance_llm', 'temperature'],
@@ -3029,19 +2983,19 @@ describe('SettingsConfiguration', () => {
 
     render(<SettingsConfiguration />)
 
-    let testHarnessCard = await screen.findByTestId(
-      'capability-pack-card-test-harness',
+    let semanticClonesCard = await screen.findByTestId(
+      'capability-pack-card-semantic-clones',
     )
-    testHarnessCard = await ensurePackExpanded(
+    semanticClonesCard = await ensurePackExpanded(
       user,
-      testHarnessCard,
-      'SQLite path',
+      semanticClonesCard,
+      'Summary mode',
     )
-    const input = within(testHarnessCard).getByDisplayValue(
-      'old.db',
+    const input = within(semanticClonesCard).getByDisplayValue(
+      'old',
     ) as HTMLInputElement
     await user.clear(input)
-    await user.type(input, 'new.db')
+    await user.type(input, 'new')
     await user.click(screen.getByRole('button', { name: 'Save changes' }))
 
     expect(updateRuntimeConfig).toHaveBeenCalledWith({
@@ -3049,8 +3003,8 @@ describe('SettingsConfiguration', () => {
       expectedRevision: 'rev-1',
       patches: expect.arrayContaining([
         {
-          path: ['stores', 'relational', 'sqlite_path'],
-          value: 'new.db',
+          path: ['semantic_clones', 'summary_mode'],
+          value: 'new',
         },
         {
           path: ['inference', 'profiles', 'guidance_llm', 'task'],
@@ -3071,6 +3025,10 @@ describe('SettingsConfiguration', () => {
         {
           path: ['inference', 'profiles', 'guidance_llm', 'api_key'],
           value: '${BITLOOPS_PLATFORM_GATEWAY_TOKEN}',
+        },
+        {
+          path: ['inference', 'profiles', 'guidance_llm', 'base_url'],
+          value: 'https://platform.bitloops.net/v1/chat/completions',
         },
         {
           path: ['inference', 'profiles', 'guidance_llm', 'temperature'],
@@ -3133,6 +3091,10 @@ describe('SettingsConfiguration', () => {
         value: 'ministral-3-3b-instruct',
       },
       {
+        path: ['inference', 'profiles', 'guidance_llm', 'base_url'],
+        value: 'https://platform.bitloops.net/v1/chat/completions',
+      },
+      {
         path: ['inference', 'profiles', 'guidance_llm', 'api_key'],
         value: '${BITLOOPS_PLATFORM_GATEWAY_TOKEN}',
       },
@@ -3159,6 +3121,10 @@ describe('SettingsConfiguration', () => {
       {
         path: ['inference', 'profiles', 'summary_llm', 'model'],
         value: 'ministral-3-3b-instruct',
+      },
+      {
+        path: ['inference', 'profiles', 'summary_llm', 'base_url'],
+        value: 'https://platform.bitloops.net/v1/chat/completions',
       },
       {
         path: ['inference', 'profiles', 'summary_llm', 'api_key'],
@@ -3244,19 +3210,19 @@ describe('SettingsConfiguration', () => {
     vi.mocked(updateRuntimeConfig).mockResolvedValueOnce(snapshot())
     render(<SettingsConfiguration />)
 
-    let testHarnessCard = await screen.findByTestId(
-      'capability-pack-card-test-harness',
+    let semanticClonesCard = await screen.findByTestId(
+      'capability-pack-card-semantic-clones',
     )
-    testHarnessCard = await ensurePackExpanded(
+    semanticClonesCard = await ensurePackExpanded(
       user,
-      testHarnessCard,
-      'SQLite path',
+      semanticClonesCard,
+      'Summary mode',
     )
-    const input = within(testHarnessCard).getByDisplayValue(
-      'bitloops.sqlite',
+    const input = within(semanticClonesCard).getByDisplayValue(
+      'dense',
     ) as HTMLInputElement
     await user.clear(input)
-    await user.type(input, 'updated.sqlite')
+    await user.type(input, 'updated')
     await user.click(screen.getByRole('button', { name: 'Save changes' }))
 
     expect(updateRuntimeConfig).toHaveBeenCalledWith({
@@ -3264,8 +3230,12 @@ describe('SettingsConfiguration', () => {
       expectedRevision: 'rev-1',
       patches: [
         {
-          path: ['stores', 'relational', 'sqlite_path'],
-          value: 'updated.sqlite',
+          path: ['semantic_clones', 'summary_mode'],
+          value: 'updated',
+        },
+        {
+          path: ['inference', 'profiles', 'guidance_llm', 'base_url'],
+          value: 'https://platform.bitloops.net/v1/chat/completions',
         },
       ],
     })
